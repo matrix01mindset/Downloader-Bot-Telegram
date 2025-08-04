@@ -2,7 +2,7 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from telegram import Update, Bot
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from downloader import download_video, is_supported_url
 import tempfile
 
@@ -23,12 +23,12 @@ WEBHOOK_URL = os.getenv('WEBHOOK_URL', '')
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
 
-# Inițializare bot și dispatcher
+# Inițializare bot și application
 bot = Bot(TOKEN)
-dispatcher = Dispatcher(bot, None, workers=0)
+application = Application.builder().token(TOKEN).build()
 
 # Funcții pentru comenzi (aceleași ca în bot.py)
-def start(update, context):
+def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = """
 🎬 **Bot Descărcare Video**
 
@@ -52,7 +52,7 @@ Trimite-mi un link de pe:
     """
     update.message.reply_text(welcome_message, parse_mode='Markdown')
 
-def help_command(update, context):
+def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
 🆘 **Cum să folosești botul:**
 
@@ -75,7 +75,7 @@ def help_command(update, context):
     """
     update.message.reply_text(help_text, parse_mode='Markdown')
 
-def handle_message(update, context):
+def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     
     if not url.startswith(('http://', 'https://')):
@@ -141,9 +141,9 @@ def handle_message(update, context):
             pass
 
 # Adaugă handler-ele
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("help", help_command))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("help", help_command))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # Rute Flask
 @app.route('/', methods=['GET'])
@@ -157,7 +157,12 @@ def index():
 def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
-        dispatcher.process_update(update)
+        # Pentru webhook sincron, folosim direct bot-ul
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(application.process_update(update))
+        loop.close()
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")

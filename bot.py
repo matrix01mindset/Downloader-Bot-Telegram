@@ -1,7 +1,7 @@
 import os
 import logging
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from downloader import download_video, is_supported_url
 
 # Configurare logging
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Token-ul botului (va fi setat prin variabilă de mediu)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
 
-def start(update: Update, context: CallbackContext):
+def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /start - mesaj de bun venit
     """
@@ -41,7 +41,7 @@ Trimite-mi un link de pe:
     """
     update.message.reply_text(welcome_message, parse_mode='Markdown')
 
-def help_command(update: Update, context: CallbackContext):
+def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /help - informații de ajutor
     """
@@ -67,7 +67,7 @@ def help_command(update: Update, context: CallbackContext):
     """
     update.message.reply_text(help_text, parse_mode='Markdown')
 
-def handle_message(update: Update, context: CallbackContext):
+def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează mesajele cu link-uri video
     """
@@ -145,7 +145,7 @@ def handle_message(update: Update, context: CallbackContext):
         except:
             pass
 
-def error_handler(update: Update, context: CallbackContext):
+def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează erorile
     """
@@ -159,23 +159,21 @@ def main():
         print("❌ Eroare: Te rog să setezi TELEGRAM_BOT_TOKEN în variabilele de mediu")
         return
     
-    # Creează updater-ul
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    # Creează aplicația
+    application = Application.builder().token(TOKEN).build()
     
     # Adaugă handler-ele
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help_command))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Adaugă handler pentru erori
-    dp.add_error_handler(error_handler)
+    application.add_error_handler(error_handler)
     
     # Pornește botul
     print("🤖 Botul pornește...")
-    updater.start_polling()
+    application.run_polling()
     print("✅ Botul rulează! Apasă Ctrl+C pentru a opri.")
-    updater.idle()
 
 if __name__ == '__main__':
     main()
