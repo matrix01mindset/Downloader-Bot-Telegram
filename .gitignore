@@ -1,0 +1,107 @@
+# Fișiere de mediu și configurare
+.env
+*.env
+
+# Token-uri și chei secrete
+config.py
+secrets.json
+
+# Fișiere Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
+
+# Medii virtuale
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE și editoare
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Fișiere temporare de video
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.flv
+*.wmv
+*.m4v
+*.3gp
+*.mp3
+*.wav
+*.aac
+*.ogg
+*.flac
+
+# Fișiere temporare de sistem
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Fișiere de backup
+*.bak
+*.backup
+*.old
+
+# Fișiere de test și script-uri locale
+test_*.py
+test_output/
+test_downloads/
+temp_videos/
+start.bat
+prepare_for_github.bat
+RENDER_DEPLOYMENT.md
+INSTALL.md
+DEPLOY_GUIDE.md
+
+# Certificat SSL (dacă este folosit)
+*.pem
+*.key
+*.crt
+
+# Fișiere de deployment
+.vercel
+.netlify
+
+# Fișiere specifice platformelor de hosting
+.replit
+replit.nix
+.upm/
+
+# Cache
+.cache/
+*.cache
