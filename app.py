@@ -16,11 +16,24 @@ logger = logging.getLogger(__name__)
 # Configurare Flask
 app = Flask(__name__)
 
+# Debug: Afișează toate variabilele de mediu relevante
+print("=== DEBUG: VARIABILE DE MEDIU ===")
+print(f"TELEGRAM_BOT_TOKEN: {'SET' if os.getenv('TELEGRAM_BOT_TOKEN') else 'NOT SET'}")
+print(f"WEBHOOK_URL: {os.getenv('WEBHOOK_URL', 'NOT SET')}")
+print(f"PORT: {os.getenv('PORT', 'NOT SET')}")
+print("===========================================")
+
 # Token-ul botului
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL', '')
 
 if not TOKEN:
+    print("❌ EROARE: TELEGRAM_BOT_TOKEN nu este setat!")
+    print("Verifică că ai adăugat variabila de mediu în Render Dashboard.")
+    print("Variabilele de mediu disponibile:")
+    for key in os.environ.keys():
+        if 'TOKEN' in key.upper() or 'TELEGRAM' in key.upper():
+            print(f"  - {key}")
     raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
 
 # Inițializare bot și application
