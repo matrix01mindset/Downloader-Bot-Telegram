@@ -1,15 +1,65 @@
-# 🎬 Telegram Video Downloader Bot
+# 🎬 Bot Telegram pentru Descărcare Video
 
-Un bot Telegram complet pentru descărcarea videoclipurilor de pe YouTube, TikTok, Instagram, Facebook și Twitter/X.
+Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe diverse platforme, cu meniu intuitiv și experiență utilizator îmbunătățită.
 
 ## 🚀 Funcționalități
 
-- ✅ Descărcare de pe YouTube, TikTok, Instagram, Facebook, Twitter/X
-- ✅ Interfață simplă prin Telegram
-- ✅ Hosting gratuit pe Render/Railway/Replit
-- ✅ Procesare automată și trimitere directă în chat
-- ✅ Limitări de siguranță (max 15 min, max 100MB)
-- ✅ Mesaje de eroare prietenoase
+- **🎯 Meniu interactiv** cu butoane inline
+- **📥 Descărcare automată** de videoclipuri
+- **🔗 Platforme multiple** suportate
+- **✅ Confirmare descărcare** cu preview link
+- **🔄 Opțiuni post-descărcare** (descărcare nouă, meniu)
+- **❓ Secțiune FAQ** integrată
+- **⚙️ Informații detaliate** despre limitări
+
+## 🎮 Comenzi Disponibile
+
+- `/start` - Afișează meniul principal interactiv
+- `/menu` - Accesează rapid meniul principal
+- `/help` - Informații de ajutor cu butoane
+
+## 🔗 Platforme Suportate
+
+- **🎥 YouTube** (youtube.com, youtu.be)
+  - Videoclipuri publice și unlisted
+  - Playlist-uri (primul video)
+- **📱 TikTok** (tiktok.com)
+  - Videoclipuri publice, fără watermark
+- **📸 Instagram** (instagram.com/p/)
+  - Postări video publice, Reels și IGTV
+- **📘 Facebook** (facebook.com, fb.watch)
+  - Videoclipuri publice
+- **🐦 Twitter/X** (twitter.com, x.com)
+  - Tweet-uri cu video publice
+
+## 📱 Cum să Folosești
+
+### 🎯 Metoda Interactivă (Recomandată)
+1. **Pornește botul** - Trimite `/start`
+2. **Explorează meniul** cu butoanele interactive
+3. **Trimite link-ul** videoclipului
+4. **Confirmă descărcarea** cu butonul "✅ Da, descarcă!"
+5. **Primești videoclipul** și alegi următoarea acțiune
+
+### ⚡ Metoda Rapidă
+1. Trimite direct link-ul în chat
+2. Confirmă cu butonul de descărcare
+3. Primești videoclipul instant
+
+## 🎨 Interfața Interactivă
+
+### 🏠 Meniu Principal
+- **📖 Cum să folosesc botul** - Ghid pas cu pas
+- **🔗 Platforme suportate** - Detalii despre fiecare platformă
+- **⚙️ Setări și limitări** - Informații tehnice
+- **❓ Întrebări frecvente** - Răspunsuri la probleme comune
+
+### 📥 Procesul de Descărcare
+1. **Preview link** cu confirmare
+2. **Progres în timp real** cu mesaje de status
+3. **Opțiuni post-descărcare**:
+   - 📥 Descarcă alt videoclip
+   - 🏠 Înapoi la meniu principal
 
 ## 📁 Structura Proiectului
 
