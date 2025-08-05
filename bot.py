@@ -177,7 +177,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
         with open(filepath, 'rb') as video_file:
             query.message.reply_video(
                 video=video_file,
-                caption="✅ Videoclip descărcat cu succes!\n\n🎉 Mulțumesc că folosești botul!"
+                caption="✅ Videoclip descărcat cu succes!"
             )
         
         # Trimite mesaj cu opțiuni după descărcare

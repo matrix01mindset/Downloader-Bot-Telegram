@@ -233,7 +233,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             description = description[:200] + '...'
                         caption += f"\n📝 **Descriere/Tags:**\n{description}"
                     
-                    caption += "\n\n🎉 Mulțumesc că folosești botul!"
+
                     
                     await update.message.reply_video(
                         video=video_file,
