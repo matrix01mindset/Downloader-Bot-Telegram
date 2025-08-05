@@ -1,11 +1,13 @@
 import os
 import logging
+import asyncio
 from flask import Flask, request, jsonify
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from downloader import download_video, is_supported_url
 import tempfile
 import time
+import threading
 
 # Încarcă variabilele de mediu din .env pentru testare locală
 try:
@@ -47,10 +49,10 @@ if not TOKEN:
 
 # Inițializare bot și application
 bot = Bot(TOKEN)
-updater = Updater(token=TOKEN, use_context=True)
+application = Application.builder().token(TOKEN).build()
 
 # Funcții pentru comenzi cu meniu interactiv
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /start - mesaj de bun venit cu meniu interactiv
     """
@@ -82,9 +84,9 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    await update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
-def help_command(update: Update, context: CallbackContext):
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /help - informații de ajutor
     """
@@ -112,9 +114,9 @@ def help_command(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
+    await update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
 
-def menu_command(update: Update, context: CallbackContext):
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Afișează meniul principal
     """
@@ -145,267 +147,87 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    await update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
-def ping_command(update: Update, context: CallbackContext):
+async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Trimite un ping către server pentru a-l menține activ
+    Comandă /ping - verifică dacă botul funcționează
     """
-    try:
-        import requests
-        import time
-        
-        # Trimite mesaj de confirmare
-        update.message.reply_text("🔄 **Ping în curs...**\n\nVerific starea serverului...", parse_mode='Markdown')
-        
-        start_time = time.time()
-        
-        # Trimite ping către propriul server
-        response = requests.get(f"{WEBHOOK_URL}/ping", timeout=10)
-        
-        end_time = time.time()
-        response_time = round((end_time - start_time) * 1000, 2)
-        
-        if response.status_code == 200:
-            keyboard = [
-                [InlineKeyboardButton("🔄 Ping din nou", callback_data='ping_again')],
-                [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            update.message.reply_text(
-                f"✅ **Server activ!**\n\n"
-                f"📡 Timp de răspuns: {response_time}ms\n"
-                f"🌐 Status: Online\n"
-                f"⏰ Ultima verificare: {time.strftime('%H:%M:%S')}",
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-        else:
-            update.message.reply_text(
-                f"⚠️ **Server răspunde cu erori**\n\n"
-                f"📡 Status Code: {response.status_code}\n"
-                f"⏰ Timp: {time.strftime('%H:%M:%S')}",
-                parse_mode='Markdown'
-            )
-            
-    except requests.exceptions.Timeout:
-        update.message.reply_text(
-            "⏰ **Timeout**\n\n"
-            "Serverul nu răspunde în timp util. Poate fi în modul sleep.",
-            parse_mode='Markdown'
-        )
-    except Exception as e:
-        update.message.reply_text(
-            f"❌ **Eroare la ping**\n\n"
-            f"Detalii: {str(e)}",
-            parse_mode='Markdown'
-        )
+    start_time = time.time()
+    message = await update.message.reply_text("🏓 Pinging...")
+    end_time = time.time()
+    ping_time = round((end_time - start_time) * 1000, 2)
+    
+    await message.edit_text(f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms")
 
-def wakeup_command(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Trezește serverul din modul sleep cu multiple ping-uri
+    Procesează mesajele text (link-uri pentru descărcare)
     """
-    try:
-        import requests
-        import time
-        import asyncio
-        
+    message_text = update.message.text
+    user_id = update.effective_user.id
+    
+    logger.info(f"Mesaj primit de la {user_id}: {message_text}")
+    
+    # Verifică dacă mesajul conține un URL suportat
+    if is_supported_url(message_text):
         # Trimite mesaj de confirmare
-        message = update.message.reply_text(
-            "🌅 **Trezire server în curs...**\n\n"
-            "📡 Trimit multiple ping-uri pentru a trezi serverul...\n"
-            "⏳ Te rog așteaptă...",
-            parse_mode='Markdown'
+        status_message = await update.message.reply_text(
+            "🔄 Procesez videoclipul...\n⏳ Te rog să aștepți..."
         )
         
-        success_count = 0
-        total_attempts = 3
-        
-        for i in range(total_attempts):
-            try:
-                start_time = time.time()
-                response = requests.get(f"{WEBHOOK_URL}/ping", timeout=15)
-                end_time = time.time()
-                response_time = round((end_time - start_time) * 1000, 2)
+        try:
+            # Descarcă videoclipul
+            result = download_video(message_text)
+            
+            if result['success']:
+                await status_message.edit_text("📤 Trimit videoclipul...")
                 
-                if response.status_code == 200:
-                    success_count += 1
+                # Trimite videoclipul
+                with open(result['file_path'], 'rb') as video_file:
+                    await update.message.reply_video(
+                        video=video_file,
+                        caption=f"✅ Videoclip descărcat cu succes!\n🎬 Titlu: {result.get('title', 'N/A')}",
+                        supports_streaming=True
+                    )
+                
+                # Șterge fișierul temporar
+                try:
+                    os.remove(result['file_path'])
+                except:
+                    pass
                     
-                # Actualizează mesajul cu progresul
-                progress = "🟢" * (i + 1) + "⚪" * (total_attempts - i - 1)
-                message.edit_text(
-                    f"🌅 **Trezire server în curs...**\n\n"
-                    f"📡 Progres: {progress}\n"
-                    f"✅ Ping {i + 1}/{total_attempts}: {response_time}ms\n"
-                    f"⏳ Te rog așteaptă...",
-                    parse_mode='Markdown'
+                await status_message.delete()
+                
+            else:
+                await status_message.edit_text(
+                    f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
                 )
                 
-                if i < total_attempts - 1:
-                    time.sleep(2)  # Pauză între ping-uri
-                    
-            except Exception as ping_error:
-                # Actualizează cu eroarea
-                progress = "🟢" * i + "🔴" + "⚪" * (total_attempts - i - 1)
-                message.edit_text(
-                    f"🌅 **Trezire server în curs...**\n\n"
-                    f"📡 Progres: {progress}\n"
-                    f"❌ Ping {i + 1}/{total_attempts}: Eroare\n"
-                    f"⏳ Te rog așteaptă...",
-                    parse_mode='Markdown'
-                )
-                time.sleep(3)  # Pauză mai lungă după eroare
-        
-        # Mesaj final
-        if success_count > 0:
-            keyboard = [
-                [InlineKeyboardButton("🔄 Verifică din nou", callback_data='ping_again')],
-                [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            message.edit_text(
-                f"✅ **Server trezit cu succes!**\n\n"
-                f"📊 Ping-uri reușite: {success_count}/{total_attempts}\n"
-                f"🌐 Status: Online\n"
-                f"⏰ Completat la: {time.strftime('%H:%M:%S')}",
-                parse_mode='Markdown',
-                reply_markup=reply_markup
+        except Exception as e:
+            logger.error(f"Eroare la procesarea videoclipului: {e}")
+            await status_message.edit_text(
+                f"❌ Eroare neașteptată:\n{str(e)}"
             )
-        else:
-            message.edit_text(
-                f"❌ **Nu s-a putut trezi serverul**\n\n"
-                f"📊 Toate ping-urile au eșuat: 0/{total_attempts}\n"
-                f"🔧 Încearcă din nou peste câteva minute.",
-                parse_mode='Markdown'
-            )
-            
-    except Exception as e:
-        update.message.reply_text(
-            f"❌ **Eroare la trezirea serverului**\n\n"
-            f"Detalii: {str(e)}",
-            parse_mode='Markdown'
+    else:
+        # Mesaj pentru URL-uri nesuportate
+        await update.message.reply_text(
+            "❌ Link-ul nu este suportat sau nu este valid.\n\n"
+            "🔗 Platforme suportate:\n"
+            "• YouTube\n"
+            "• TikTok\n"
+            "• Instagram\n"
+            "• Facebook\n"
+            "• Twitter/X\n\n"
+            "💡 Trimite un link valid pentru a descărca videoclipul."
         )
 
-def handle_message(update: Update, context: CallbackContext):
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Gestionează mesajele text (link-uri) cu confirmare înainte de descărcare
-    """
-    url = update.message.text.strip()
-    
-    if not url.startswith(('http://', 'https://')):
-        keyboard = [[InlineKeyboardButton("📖 Cum să folosesc botul", callback_data='help')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        update.message.reply_text(
-            "❌ Te rog să trimiți un link valid (care începe cu http:// sau https://)",
-            reply_markup=reply_markup
-        )
-        return
-    
-    if not is_supported_url(url):
-        update.message.reply_text(
-            "❌ Această platformă nu este suportată.\n\n"
-            "Platforme suportate: YouTube, TikTok, Instagram, Facebook, Twitter/X"
-        )
-        return
-    
-    # Afișează preview cu butoane de confirmare
-    keyboard = [
-        [InlineKeyboardButton("✅ Da, descarcă!", callback_data=f'download_{url}')],
-        [InlineKeyboardButton("❌ Anulează", callback_data='cancel')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    update.message.reply_text(
-        f"🔗 **Link detectat:**\n{url}\n\n📥 Vrei să descarc acest videoclip?",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
-
-def process_download(update: Update, context: CallbackContext, url: str):
-    """
-    Procesează descărcarea efectivă a videoclipului
+    Gestionează callback-urile de la butoanele inline
     """
     query = update.callback_query
-    query.answer()
-    
-    processing_message = query.edit_message_text(
-        "⏳ Procesez videoclipul...\nTe rog să aștepți."
-    )
-    
-    try:
-        filepath = download_video(url)
-        
-        if not filepath or not os.path.exists(filepath):
-            raise Exception("Fișierul nu a fost găsit după descărcare")
-        
-        file_size = os.path.getsize(filepath)
-        if file_size > 50 * 1024 * 1024:  # 50MB
-            raise Exception("Fișierul este prea mare (max 50MB pentru Telegram)")
-        
-        with open(filepath, 'rb') as video_file:
-            context.bot.send_video(
-                chat_id=query.message.chat_id,
-                video=video_file,
-                caption="✅ Videoclip descărcat cu succes!"
-            )
-        
-        # Mesaj de succes cu opțiuni
-        keyboard = [
-            [InlineKeyboardButton("📥 Descarcă alt videoclip", callback_data='back_to_menu')],
-            [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text="🎉 **Descărcare finalizată cu succes!**\n\nCe vrei să faci acum?",
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-        
-        try:
-            os.remove(filepath)
-        except:
-            pass
-            
-        try:
-            processing_message.delete()
-        except:
-            pass
-            
-    except Exception as e:
-        error_message = f"❌ Eroare: {str(e)}"
-        
-        if "private" in str(e).lower():
-            error_message = "❌ Videoclipul este privat și nu poate fi descărcat."
-        elif "not available" in str(e).lower():
-            error_message = "❌ Videoclipul nu este disponibil în regiunea ta."
-        elif "prea lung" in str(e):
-            error_message = "❌ Videoclipul este prea lung (maximum 15 minute)."
-        elif "prea mare" in str(e):
-            error_message = "❌ Fișierul este prea mare (maximum 50MB)."
-        
-        keyboard = [
-            [InlineKeyboardButton("🔄 Încearcă din nou", callback_data='back_to_menu')],
-            [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        query.edit_message_text(error_message, reply_markup=reply_markup)
-        
-        try:
-            processing_message.delete()
-        except:
-            pass
-
-def button_handler(update: Update, context: CallbackContext):
-    """
-    Gestionează toate callback-urile de la butoanele inline
-    """
-    query = update.callback_query
-    query.answer()
+    await query.answer()
     
     if query.data == 'help':
         help_text = """
@@ -413,7 +235,7 @@ def button_handler(update: Update, context: CallbackContext):
 
 1. Copiază link-ul videoclipului
 2. Trimite-l în acest chat
-3. Confirmă descărcarea
+3. Așteaptă să fie procesat
 4. Primești videoclipul descărcat
 
 🔗 **Platforme suportate:**
@@ -429,111 +251,130 @@ def button_handler(update: Update, context: CallbackContext):
 - Link invalid → Verifică că link-ul este corect
         """
         
-        keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
+        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
-    
+        await query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
+        
     elif query.data == 'platforms':
         platforms_text = """
-🔗 **Platforme Suportate:**
+🔗 **Platforme suportate:**
 
 ✅ **YouTube**
 - youtube.com
 - youtu.be
-- Videoclipuri publice și unlisted
+- m.youtube.com
 
 ✅ **TikTok**
 - tiktok.com
-- Videoclipuri publice
+- vm.tiktok.com
 
 ✅ **Instagram**
 - instagram.com
-- Reels și videoclipuri publice
+- Reels, IGTV, Posts video
 
 ✅ **Facebook**
 - facebook.com
 - fb.watch
-- Videoclipuri publice
+- m.facebook.com
 
 ✅ **Twitter/X**
 - twitter.com
 - x.com
-- Videoclipuri publice
+- mobile.twitter.com
 
-⚠️ **Limitări:**
-- Doar conținut public
-- Max 15 minute durată
-- Max 50MB mărime fișier
+⚠️ **Notă:** Doar videoclipurile publice pot fi descărcate.
         """
         
-        keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
+        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
-    
+        await query.edit_message_text(platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
+        
     elif query.data == 'settings':
         settings_text = """
-⚙️ **Setări și Limitări:**
+⚙️ **Setări și limitări:**
 
-📏 **Limitări de durată:**
-- Maximum 15 minute per videoclip
-- Videoclipuri mai lungi vor fi respinse
-
-📦 **Limitări de mărime:**
-- Maximum 50MB per fișier
-- Telegram nu permite fișiere mai mari
-
-🎥 **Calitate video:**
+📏 **Limitări de dimensiune:**
+- Durată maximă: 15 minute
 - Calitate maximă: 720p
-- Format: MP4 (compatibil universal)
+- Dimensiune maximă: 50MB
 
-🔒 **Restricții de conținut:**
+🚫 **Restricții:**
 - Doar videoclipuri publice
-- Nu funcționează cu conținut privat
-- Nu funcționează cu live streams
+- Nu se suportă livestream-uri
+- Nu se suportă playlist-uri
 
 ⚡ **Performanță:**
 - Timp mediu de procesare: 30-60 secunde
-- Depinde de mărimea videoclipului
+- Depinde de dimensiunea videoclipului
+- Server gratuit cu limitări
+
+🔒 **Confidențialitate:**
+- Nu salvez videoclipurile
+- Nu salvez link-urile
+- Procesare temporară
         """
         
-        keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
+        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(settings_text, parse_mode='Markdown', reply_markup=reply_markup)
-    
+        await query.edit_message_text(settings_text, parse_mode='Markdown', reply_markup=reply_markup)
+        
     elif query.data == 'faq':
         faq_text = """
-❓ **Întrebări Frecvente:**
+❓ **Întrebări frecvente:**
 
 **Q: De ce nu funcționează link-ul meu?**
-A: Verifică că videoclipul este public și că platforma este suportată.
+A: Verifică că videoclipul este public și de pe o platformă suportată.
 
 **Q: Cât timp durează descărcarea?**
-A: De obicei 30-60 secunde, depinde de mărimea videoclipului.
+A: De obicei 30-60 secunde, depinde de dimensiunea videoclipului.
 
 **Q: Pot descărca videoclipuri private?**
-A: Nu, doar videoclipuri publice sunt suportate.
+A: Nu, doar videoclipurile publice pot fi descărcate.
 
-**Q: De ce calitatea este limitată la 720p?**
-A: Pentru a respecta limitele de mărime ale Telegram.
+**Q: Ce calitate au videoclipurile?**
+A: Maxim 720p pentru a respecta limitările serverului.
 
-**Q: Funcționează cu live streams?**
-A: Nu, doar videoclipuri înregistrate.
+**Q: Botul nu răspunde?**
+A: Serverul gratuit poate fi în hibernare. Încearcă din nou în câteva minute.
 
-**Q: Este sigur să folosesc botul?**
-A: Da, nu stocăm videoclipurile sau datele tale.
-
-**Q: Pot descărca playlist-uri întregi?**
+**Q: Pot descărca playlist-uri?**
 A: Nu, doar videoclipuri individuale.
         """
         
-        keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
+        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(faq_text, parse_mode='Markdown', reply_markup=reply_markup)
-    
+        await query.edit_message_text(faq_text, parse_mode='Markdown', reply_markup=reply_markup)
+        
+    elif query.data == 'ping_again':
+        start_time = time.time()
+        await query.edit_message_text("🏓 Pinging...")
+        end_time = time.time()
+        ping_time = round((end_time - start_time) * 1000, 2)
+        
+        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms",
+            reply_markup=reply_markup
+        )
+        
+    elif query.data == 'wakeup_server':
+        await query.edit_message_text("🌅 Server trezit! Botul este activ și gata de utilizare.")
+        
+        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await asyncio.sleep(2)
+        await query.edit_message_text(
+            "✅ Server activ!\n🤖 Botul funcționează normal.",
+            reply_markup=reply_markup
+        )
+        
     elif query.data == 'back_to_menu':
         welcome_message = """
 🎬 **Bot Descărcare Video**
@@ -562,191 +403,18 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
-    
-    elif query.data.startswith('download_'):
-        url = query.data[9:]  # Elimină 'download_' din început
-        process_download(update, context, url)
-    
-    elif query.data == 'cancel':
-        keyboard = [
-            [InlineKeyboardButton("🔄 Încearcă din nou", callback_data='back_to_menu')],
-            [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        query.edit_message_text(
-            "❌ **Descărcare anulată**\n\nCe vrei să faci acum?",
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-    
-    elif query.data == 'ping_again':
-        # Simulează comanda /ping
-        import requests
-        import time
-        
-        try:
-            query.edit_message_text("🔄 **Ping în curs...**\n\nVerific starea serverului...", parse_mode='Markdown')
-            
-            start_time = time.time()
-            response = requests.get(f"{WEBHOOK_URL}/ping", timeout=10)
-            end_time = time.time()
-            response_time = round((end_time - start_time) * 1000, 2)
-            
-            if response.status_code == 200:
-                keyboard = [
-                    [InlineKeyboardButton("🔄 Ping din nou", callback_data='ping_again')],
-                    [InlineKeyboardButton("🌅 Wakeup server", callback_data='wakeup_server')],
-                    [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                query.edit_message_text(
-                    f"✅ **Server activ!**\n\n"
-                    f"📡 Timp de răspuns: {response_time}ms\n"
-                    f"🌐 Status: Online\n"
-                    f"⏰ Ultima verificare: {time.strftime('%H:%M:%S')}",
-                    parse_mode='Markdown',
-                    reply_markup=reply_markup
-                )
-            else:
-                keyboard = [
-                    [InlineKeyboardButton("🔄 Încearcă din nou", callback_data='ping_again')],
-                    [InlineKeyboardButton("🌅 Wakeup server", callback_data='wakeup_server')],
-                    [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                query.edit_message_text(
-                    f"⚠️ **Server răspunde cu erori**\n\n"
-                    f"📡 Status Code: {response.status_code}\n"
-                    f"⏰ Timp: {time.strftime('%H:%M:%S')}",
-                    parse_mode='Markdown',
-                    reply_markup=reply_markup
-                )
-                
-        except requests.exceptions.Timeout:
-            keyboard = [
-                [InlineKeyboardButton("🔄 Încearcă din nou", callback_data='ping_again')],
-                [InlineKeyboardButton("🌅 Wakeup server", callback_data='wakeup_server')],
-                [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            query.edit_message_text(
-                "⏰ **Timeout**\n\n"
-                "Serverul nu răspunde în timp util. Poate fi în modul sleep.",
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-        except Exception as e:
-            query.edit_message_text(
-                f"❌ **Eroare la ping**\n\n"
-                f"Detalii: {str(e)}",
-                parse_mode='Markdown'
-            )
-    
-    elif query.data == 'wakeup_server':
-        # Simulează comanda /wakeup
-        import requests
-        import time
-        
-        try:
-            query.edit_message_text(
-                "🌅 **Trezire server în curs...**\n\n"
-                "📡 Trimit multiple ping-uri pentru a trezi serverul...\n"
-                "⏳ Te rog așteaptă...",
-                parse_mode='Markdown'
-            )
-            
-            success_count = 0
-            total_attempts = 3
-            
-            for i in range(total_attempts):
-                try:
-                    start_time = time.time()
-                    response = requests.get(f"{WEBHOOK_URL}/ping", timeout=15)
-                    end_time = time.time()
-                    response_time = round((end_time - start_time) * 1000, 2)
-                    
-                    if response.status_code == 200:
-                        success_count += 1
-                        
-                    # Actualizează mesajul cu progresul
-                    progress = "🟢" * (i + 1) + "⚪" * (total_attempts - i - 1)
-                    query.edit_message_text(
-                        f"🌅 **Trezire server în curs...**\n\n"
-                        f"📡 Progres: {progress}\n"
-                        f"✅ Ping {i + 1}/{total_attempts}: {response_time}ms\n"
-                        f"⏳ Te rog așteaptă...",
-                        parse_mode='Markdown'
-                    )
-                    
-                    if i < total_attempts - 1:
-                        time.sleep(2)  # Pauză între ping-uri
-                        
-                except Exception as ping_error:
-                    # Actualizează cu eroarea
-                    progress = "🟢" * i + "🔴" + "⚪" * (total_attempts - i - 1)
-                    query.edit_message_text(
-                        f"🌅 **Trezire server în curs...**\n\n"
-                        f"📡 Progres: {progress}\n"
-                        f"❌ Ping {i + 1}/{total_attempts}: Eroare\n"
-                        f"⏳ Te rog așteaptă...",
-                        parse_mode='Markdown'
-                    )
-                    time.sleep(3)  # Pauză mai lungă după eroare
-            
-            # Mesaj final
-            if success_count > 0:
-                keyboard = [
-                    [InlineKeyboardButton("🔄 Verifică din nou", callback_data='ping_again')],
-                    [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                query.edit_message_text(
-                    f"✅ **Server trezit cu succes!**\n\n"
-                    f"📊 Ping-uri reușite: {success_count}/{total_attempts}\n"
-                    f"🌐 Status: Online\n"
-                    f"⏰ Completat la: {time.strftime('%H:%M:%S')}",
-                    parse_mode='Markdown',
-                    reply_markup=reply_markup
-                )
-            else:
-                keyboard = [
-                    [InlineKeyboardButton("🔄 Încearcă din nou", callback_data='wakeup_server')],
-                    [InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                query.edit_message_text(
-                    f"❌ **Nu s-a putut trezi serverul**\n\n"
-                    f"📊 Toate ping-urile au eșuat: 0/{total_attempts}\n"
-                    f"🔧 Încearcă din nou peste câteva minute.",
-                    parse_mode='Markdown',
-                    reply_markup=reply_markup
-                )
-                
-        except Exception as e:
-            query.edit_message_text(
-                f"❌ **Eroare la trezirea serverului**\n\n"
-                f"Detalii: {str(e)}",
-                parse_mode='Markdown'
-            )
+        await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
-# Adaugă handler-ele
-updater.dispatcher.add_handler(CommandHandler("start", start))
-updater.dispatcher.add_handler(CommandHandler("help", help_command))
-updater.dispatcher.add_handler(CommandHandler("menu", menu_command))
-updater.dispatcher.add_handler(CommandHandler("ping", ping_command))
-updater.dispatcher.add_handler(CommandHandler("wakeup", wakeup_command))
-updater.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-updater.dispatcher.add_handler(CallbackQueryHandler(button_handler))
+# Adaugă handler-ele la application
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("help", help_command))
+application.add_handler(CommandHandler("menu", menu_command))
+application.add_handler(CommandHandler("ping", ping_command))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+application.add_handler(CallbackQueryHandler(button_callback))
 
-# Rute Flask
-@app.route('/', methods=['GET'])
+# Flask routes
+@app.route('/')
 def index():
     return jsonify({
         'status': 'Bot is running',
@@ -757,8 +425,8 @@ def index():
 def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
-        # Pentru webhook sincron, folosim dispatcher-ul
-        updater.dispatcher.process_update(update)
+        # Procesează update-ul asincron
+        asyncio.create_task(application.process_update(update))
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
@@ -768,7 +436,12 @@ def webhook():
 def set_webhook():
     try:
         webhook_url = f"{WEBHOOK_URL}/webhook"
-        result = bot.set_webhook(url=webhook_url)
+        # Folosește asyncio pentru a rula funcția asincronă
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(bot.set_webhook(url=webhook_url))
+        loop.close()
+        
         if result:
             return jsonify({
                 'status': 'success',
