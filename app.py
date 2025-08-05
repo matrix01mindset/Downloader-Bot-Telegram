@@ -508,6 +508,27 @@ def health_check():
             'message': str(e)
         }), 500
 
+@app.route('/debug', methods=['GET'])
+def debug():
+    """Endpoint pentru debug - testează inițializarea aplicației"""
+    try:
+        import time
+        # Testează inițializarea aplicației
+        ensure_app_initialized()
+        return jsonify({
+            'status': 'success',
+            'app_initialized': _app_initialized,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'server': 'online'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+        }), 500
+
 @app.route('/ping', methods=['GET'])
 def ping_endpoint():
     """Endpoint simplu pentru ping"""
