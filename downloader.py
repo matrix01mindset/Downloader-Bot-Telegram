@@ -7,6 +7,7 @@ import glob
 def download_video(url, output_path=None):
     """
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
+    Returnează un dicționar cu rezultatul
     """
     if output_path is None:
         # Creează un director temporar unic
@@ -34,7 +35,11 @@ def download_video(url, output_path=None):
             
             # Verifică dacă videoul nu este prea lung (max 15 minute pentru fișiere mai mari)
             if duration and duration > 900:
-                raise Exception("Videoul este prea lung (max 15 minute)")
+                return {
+                    'success': False,
+                    'error': 'Videoul este prea lung (max 15 minute)',
+                    'title': title
+                }
             
             # Descarcă videoul
             ydl.download([url])
@@ -44,7 +49,11 @@ def download_video(url, output_path=None):
             downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
             
             if not downloaded_files:
-                raise Exception("Fișierul nu a fost găsit după descărcare")
+                return {
+                    'success': False,
+                    'error': 'Fișierul nu a fost găsit după descărcare',
+                    'title': title
+                }
             
             # Ia primul fișier găsit (ar trebui să fie singurul)
             downloaded_file = downloaded_files[0]
@@ -55,12 +64,26 @@ def download_video(url, output_path=None):
             
             if file_size > max_size:
                 os.remove(downloaded_file)
-                raise Exception(f"Fișierul este prea mare ({file_size / (1024*1024):.1f}MB). Limita este 100MB.")
+                return {
+                    'success': False,
+                    'error': f'Fișierul este prea mare ({file_size / (1024*1024):.1f}MB). Limita este 100MB.',
+                    'title': title
+                }
             
-            return downloaded_file
+            return {
+                'success': True,
+                'file_path': downloaded_file,
+                'title': title,
+                'duration': duration,
+                'file_size': file_size
+            }
             
     except Exception as e:
-        raise Exception(f"Eroare la descărcarea videoclipului: {str(e)}")
+        return {
+            'success': False,
+            'error': f'Eroare la descărcarea videoclipului: {str(e)}',
+            'title': 'N/A'
+        }
 
 def is_supported_url(url):
     """
