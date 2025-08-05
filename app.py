@@ -220,7 +220,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         seconds = result.get('duration') % 60
                         caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
                     
-                    if result.get('file_size'):
+                    if result.get('file_size') and isinstance(result.get('file_size'), (int, float)):
                         size_mb = result.get('file_size') / (1024 * 1024)
                         caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
                     

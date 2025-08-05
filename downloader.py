@@ -102,9 +102,10 @@ def download_video(url, output_path=None):
             
             if file_size > max_size:
                 os.remove(downloaded_file)
+                size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
                 return {
                     'success': False,
-                    'error': f'Fișierul este prea mare ({file_size / (1024*1024):.1f}MB). Limita este 100MB.',
+                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 100MB.',
                     'title': title
                 }
             
