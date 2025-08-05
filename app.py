@@ -51,6 +51,51 @@ if not TOKEN:
 bot = Bot(TOKEN)
 application = Application.builder().token(TOKEN).build()
 
+# Variabilă globală pentru a urmări dacă aplicația este inițializată
+_application_initialized = False
+
+def ensure_application_initialized():
+    """Asigură că aplicația Telegram este inițializată"""
+    global _application_initialized
+    if not _application_initialized:
+        try:
+            # Verifică dacă există deja un event loop
+            try:
+                current_loop = asyncio.get_running_loop()
+                # Dacă există un loop care rulează, folosim asyncio.run în thread separat
+                import threading
+                import concurrent.futures
+                
+                def init_in_thread():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(application.initialize())
+                        return True
+                    finally:
+                        loop.close()
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(init_in_thread)
+                    future.result(timeout=30)  # Timeout de 30 secunde
+                    
+            except RuntimeError:
+                # Nu există loop care rulează, putem folosi abordarea normală
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(application.initialize())
+                finally:
+                    loop.close()
+            
+            _application_initialized = True
+            logger.info("✅ Aplicația Telegram a fost inițializată cu succes")
+            
+        except Exception as e:
+            logger.error(f"❌ Eroare la inițializarea aplicației: {e}")
+            # Nu ridică excepția pentru a nu bloca aplicația
+            # În schimb, va încerca din nou la următorul request
+
 # Funcții pentru comenzi cu meniu interactiv
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -424,6 +469,9 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
+        # Asigură că aplicația este inițializată
+        ensure_application_initialized()
+        
         update = Update.de_json(request.get_json(force=True), bot)
         # Pentru versiunea 20.8, folosim un loop simplu
         loop = asyncio.new_event_loop()
@@ -490,8 +538,12 @@ def ping_endpoint():
         'status': 'alive'
     })
 
-# Pentru versiunea 20.8, aplicația este gata automat
-logger.info("Aplicația Telegram este configurată pentru webhook-uri")
+# Pentru versiunea 20.8, inițializăm aplicația la startup
+try:
+    ensure_application_initialized()
+    logger.info("Aplicația Telegram este configurată pentru webhook-uri")
+except Exception as e:
+    logger.error(f"Eroare la inițializarea aplicației la startup: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
