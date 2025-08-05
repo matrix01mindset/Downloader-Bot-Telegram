@@ -187,98 +187,131 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Procesează mesajele text (link-uri pentru descărcare)
     """
-    message_text = update.message.text
-    user_id = update.effective_user.id
-    
-    logger.info(f"Mesaj primit de la {user_id}: {message_text}")
-    
-    # Verifică dacă mesajul conține un URL suportat
-    if is_supported_url(message_text):
-        # Trimite mesaj de confirmare
-        status_message = await update.message.reply_text(
-            "🔄 Procesez videoclipul...\n⏳ Te rog să aștepți..."
-        )
+    try:
+        message_text = update.message.text
+        user_id = update.effective_user.id
         
-        try:
-            # Descarcă videoclipul
-            result = download_video(message_text)
-            
-            if result['success']:
-                await status_message.edit_text("📤 Trimit videoclipul...")
-                
-                # Trimite videoclipul
-                with open(result['file_path'], 'rb') as video_file:
-                    # Construiește caption-ul cu informații detaliate
-                    caption = f"✅ Videoclip descărcat cu succes!\n\n"
-                    caption += f"🎬 **Titlu:** {result.get('title', 'N/A')}\n"
-                    
-                    if result.get('uploader'):
-                        caption += f"👤 **Creator:** {result.get('uploader')}\n"
-                    
-                    if result.get('duration'):
-                        duration = result.get('duration')
-                        minutes = int(duration // 60)
-                        seconds = int(duration % 60)
-                        caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
-                    
-                    if result.get('file_size') and isinstance(result.get('file_size'), (int, float)):
-                        size_mb = result.get('file_size') / (1024 * 1024)
-                        caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
-                    
-                    # Adaugă descrierea/hashtag-urile dacă există
-                    description = result.get('description', '')
-                    if description and len(description.strip()) > 0:
-                        caption += f"\n📝 **Descriere/Tags:**\n{description}"
-                    
-
-                    
-                    await update.message.reply_video(
-                        video=video_file,
-                        caption=caption,
-                        supports_streaming=True,
-                        parse_mode='Markdown'
-                    )
-                
-                # Șterge fișierul temporar
-                try:
-                    os.remove(result['file_path'])
-                except:
-                    pass
-                    
-                await status_message.delete()
-                
-            else:
-                await status_message.edit_text(
-                    f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
+        logger.info(f"Mesaj primit de la {user_id}: {message_text}")
+        
+        # Verifică dacă mesajul conține un URL suportat
+        if is_supported_url(message_text):
+            # Trimite mesaj de confirmare
+            try:
+                status_message = await update.message.reply_text(
+                    "🔄 Procesez videoclipul...\n⏳ Te rog să aștepți..."
                 )
+            except Exception as e:
+                logger.error(f"Eroare la trimiterea mesajului de status: {e}")
+                return
+            
+            try:
+                # Descarcă videoclipul
+                result = download_video(message_text)
                 
-        except Exception as e:
-            logger.error(f"Eroare la procesarea videoclipului: {e}")
-            await status_message.edit_text(
-                f"❌ Eroare neașteptată:\n{str(e)}"
-            )
-    else:
-        # Mesaj pentru URL-uri nesuportate
-        await update.message.reply_text(
-            "❌ Link-ul nu este suportat sau nu este valid.\n\n"
-            "🔗 Platforme suportate:\n"
-            "• YouTube\n"
-            "• TikTok\n"
-            "• Instagram\n"
-            "• Facebook\n"
-            "• Twitter/X\n\n"
-            "💡 Trimite un link valid pentru a descărca videoclipul."
-        )
+                if result['success']:
+                    try:
+                        await status_message.edit_text("📤 Trimit videoclipul...")
+                    except Exception as e:
+                        logger.error(f"Eroare la editarea mesajului: {e}")
+                    
+                    # Trimite videoclipul
+                    try:
+                        with open(result['file_path'], 'rb') as video_file:
+                            # Construiește caption-ul cu informații detaliate
+                            caption = f"✅ Videoclip descărcat cu succes!\n\n"
+                            caption += f"🎬 **Titlu:** {result.get('title', 'N/A')}\n"
+                            
+                            if result.get('uploader'):
+                                caption += f"👤 **Creator:** {result.get('uploader')}\n"
+                            
+                            if result.get('duration'):
+                                duration = result.get('duration')
+                                minutes = int(duration // 60)
+                                seconds = int(duration % 60)
+                                caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
+                            
+                            if result.get('file_size') and isinstance(result.get('file_size'), (int, float)):
+                                size_mb = result.get('file_size') / (1024 * 1024)
+                                caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
+                            
+                            # Adaugă descrierea/hashtag-urile dacă există
+                            description = result.get('description', '')
+                            if description and len(description.strip()) > 0:
+                                caption += f"\n📝 **Descriere/Tags:**\n{description}"
+                            
+                            await update.message.reply_video(
+                                video=video_file,
+                                caption=caption,
+                                supports_streaming=True,
+                                parse_mode='Markdown'
+                            )
+                    except Exception as e:
+                        logger.error(f"Eroare la trimiterea videoclipului: {e}")
+                        try:
+                            await status_message.edit_text(
+                                f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
+                            )
+                        except:
+                            pass
+                    
+                    # Șterge fișierul temporar
+                    try:
+                        os.remove(result['file_path'])
+                    except:
+                        pass
+                        
+                    try:
+                        await status_message.delete()
+                    except Exception as e:
+                        logger.error(f"Eroare la ștergerea mesajului de status: {e}")
+                    
+                else:
+                    try:
+                        await status_message.edit_text(
+                            f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Eroare la editarea mesajului de eroare: {e}")
+                    
+            except Exception as e:
+                logger.error(f"Eroare la procesarea videoclipului: {e}")
+                try:
+                    await status_message.edit_text(
+                        f"❌ Eroare neașteptată:\n{str(e)}"
+                    )
+                except Exception as edit_error:
+                    logger.error(f"Eroare la editarea mesajului de eroare: {edit_error}")
+        else:
+            # Mesaj pentru URL-uri nesuportate
+            try:
+                await update.message.reply_text(
+                    "❌ Link-ul nu este suportat sau nu este valid.\n\n"
+                    "🔗 Platforme suportate:\n"
+                    "• YouTube\n"
+                    "• TikTok\n"
+                    "• Instagram\n"
+                    "• Facebook\n"
+                    "• Twitter/X\n\n"
+                    "💡 Trimite un link valid pentru a descărca videoclipul."
+                )
+            except Exception as e:
+                logger.error(f"Eroare la trimiterea mesajului de eroare pentru URL nesuportat: {e}")
+    except Exception as e:
+        logger.error(f"Eroare generală în handle_message: {e}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează callback-urile de la butoanele inline
     """
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == 'help':
-        help_text = """
+    try:
+        query = update.callback_query
+        try:
+            await query.answer()
+        except Exception as e:
+            logger.error(f"Eroare la răspunsul callback-ului: {e}")
+        
+        if query.data == 'help':
+            help_text = """
 🆘 **Cum să folosești botul:**
 
 1. Copiază link-ul videoclipului
@@ -297,15 +330,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Videoclipul este privat → Nu poate fi descărcat
 - Videoclipul este prea lung → Max 15 minute
 - Link invalid → Verifică că link-ul este corect
-        """
-        
-        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
-        
-    elif query.data == 'platforms':
-        platforms_text = """
+            """
+            
+            keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            try:
+                await query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Eroare la editarea mesajului help: {e}")
+            
+        elif query.data == 'platforms':
+            platforms_text = """
 🔗 **Platforme suportate:**
 
 ✅ **YouTube**
@@ -332,15 +368,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - mobile.twitter.com
 
 ⚠️ **Notă:** Doar videoclipurile publice pot fi descărcate.
-        """
-        
-        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
-        
-    elif query.data == 'settings':
-        settings_text = """
+            """
+            
+            keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            try:
+                await query.edit_message_text(platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Eroare la editarea mesajului platforms: {e}")
+            
+        elif query.data == 'settings':
+            settings_text = """
 ⚙️ **Setări și limitări:**
 
 📏 **Limitări de dimensiune:**
@@ -362,15 +401,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Nu salvez videoclipurile
 - Nu salvez link-urile
 - Procesare temporară
-        """
-        
-        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(settings_text, parse_mode='Markdown', reply_markup=reply_markup)
-        
-    elif query.data == 'faq':
-        faq_text = """
+            """
+            
+            keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            try:
+                await query.edit_message_text(settings_text, parse_mode='Markdown', reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Eroare la editarea mesajului settings: {e}")
+            
+        elif query.data == 'faq':
+            faq_text = """
 ❓ **Întrebări frecvente:**
 
 **Q: De ce nu funcționează link-ul meu?**
@@ -390,41 +432,50 @@ A: Serverul gratuit poate fi în hibernare. Încearcă din nou în câteva minut
 
 **Q: Pot descărca playlist-uri?**
 A: Nu, doar videoclipuri individuale.
-        """
-        
-        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(faq_text, parse_mode='Markdown', reply_markup=reply_markup)
-        
-    elif query.data == 'ping_again':
-        start_time = time.time()
-        await query.edit_message_text("🏓 Pinging...")
-        end_time = time.time()
-        ping_time = round((end_time - start_time) * 1000, 2)
-        
-        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms",
-            reply_markup=reply_markup
-        )
-        
-    elif query.data == 'wakeup_server':
-        await query.edit_message_text("🌅 Server trezit! Botul este activ și gata de utilizare.")
-        
-        keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await asyncio.sleep(2)
-        await query.edit_message_text(
-            "✅ Server activ!\n🤖 Botul funcționează normal.",
-            reply_markup=reply_markup
-        )
-        
-    elif query.data == 'back_to_menu':
-        welcome_message = """
+            """
+            
+            keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            try:
+                await query.edit_message_text(faq_text, parse_mode='Markdown', reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Eroare la editarea mesajului faq: {e}")
+            
+        elif query.data == 'ping_again':
+            try:
+                start_time = time.time()
+                await query.edit_message_text("🏓 Pinging...")
+                end_time = time.time()
+                ping_time = round((end_time - start_time) * 1000, 2)
+                
+                keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(
+                    f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms",
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"Eroare la ping: {e}")
+            
+        elif query.data == 'wakeup_server':
+            try:
+                await query.edit_message_text("🌅 Server trezit! Botul este activ și gata de utilizare.")
+                
+                keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await asyncio.sleep(2)
+                await query.edit_message_text(
+                    "✅ Server activ!\n🤖 Botul funcționează normal.",
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"Eroare la wakeup server: {e}")
+            
+        elif query.data == 'back_to_menu':
+            welcome_message = """
 🎬 **Bot Descărcare Video**
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
@@ -440,18 +491,23 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 - Videoclipuri max 15 minute
 - Calitate max 720p
 - Doar videoclipuri publice
-        """
-        
-        keyboard = [
-            [InlineKeyboardButton("📖 Cum să folosesc botul", callback_data='help')],
-            [InlineKeyboardButton("🔗 Platforme suportate", callback_data='platforms')],
-            [InlineKeyboardButton("⚙️ Setări și limitări", callback_data='settings')],
-            [InlineKeyboardButton("❓ Întrebări frecvente", callback_data='faq')],
-            [InlineKeyboardButton("🔄 Ping Server", callback_data='ping_again'), InlineKeyboardButton("🌅 Wakeup Server", callback_data='wakeup_server')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+            """
+            
+            keyboard = [
+                [InlineKeyboardButton("📖 Cum să folosesc botul", callback_data='help')],
+                [InlineKeyboardButton("🔗 Platforme suportate", callback_data='platforms')],
+                [InlineKeyboardButton("⚙️ Setări și limitări", callback_data='settings')],
+                [InlineKeyboardButton("❓ Întrebări frecvente", callback_data='faq')],
+                [InlineKeyboardButton("🔄 Ping Server", callback_data='ping_again'), InlineKeyboardButton("🌅 Wakeup Server", callback_data='wakeup_server')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            try:
+                await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Eroare la editarea mesajului back_to_menu: {e}")
+    except Exception as e:
+        logger.error(f"Eroare generală în button_callback: {e}")
 
 # Handler-ii vor fi adăugați, iar aplicația va fi inițializată la primul request
 
