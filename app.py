@@ -153,7 +153,7 @@ def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_time = time.time()
         
         # Trimite ping către propriul server
-        response = requests.get(f"{WEBHOOK_URL}/health", timeout=10)
+        response = requests.get(f"{WEBHOOK_URL}/ping", timeout=10)
         
         end_time = time.time()
         response_time = round((end_time - start_time) * 1000, 2)
@@ -216,7 +216,7 @@ def wakeup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i in range(total_attempts):
             try:
                 start_time = time.time()
-                response = requests.get(f"{WEBHOOK_URL}/health", timeout=15)
+                response = requests.get(f"{WEBHOOK_URL}/ping", timeout=15)
                 end_time = time.time()
                 response_time = round((end_time - start_time) * 1000, 2)
                 
@@ -581,7 +581,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
             query.edit_message_text("🔄 **Ping în curs...**\n\nVerific starea serverului...", parse_mode='Markdown')
             
             start_time = time.time()
-            response = requests.get(f"{WEBHOOK_URL}/health", timeout=10)
+            response = requests.get(f"{WEBHOOK_URL}/ping", timeout=10)
             end_time = time.time()
             response_time = round((end_time - start_time) * 1000, 2)
             
@@ -657,7 +657,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
             for i in range(total_attempts):
                 try:
                     start_time = time.time()
-                    response = requests.get(f"{WEBHOOK_URL}/health", timeout=15)
+                    response = requests.get(f"{WEBHOOK_URL}/ping", timeout=15)
                     end_time = time.time()
                     response_time = round((end_time - start_time) * 1000, 2)
                     
@@ -794,6 +794,16 @@ def health_check():
             'status': 'error',
             'message': str(e)
         }), 500
+
+@app.route('/ping', methods=['GET'])
+def ping_endpoint():
+    """Endpoint simplu pentru ping"""
+    import time
+    return jsonify({
+        'pong': True,
+        'timestamp': time.time(),
+        'status': 'alive'
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
