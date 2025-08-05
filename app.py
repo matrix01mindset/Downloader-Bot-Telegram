@@ -425,11 +425,13 @@ def index():
 def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
-        # Procesează update-ul asincron în mod corect
+        # Pentru versiunea 20.8, folosim un loop simplu
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(application.process_update(update))
-        loop.close()
+        try:
+            loop.run_until_complete(application.process_update(update))
+        finally:
+            loop.close()
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
@@ -439,11 +441,13 @@ def webhook():
 def set_webhook():
     try:
         webhook_url = f"{WEBHOOK_URL}/webhook"
-        # Folosește asyncio pentru a rula funcția asincronă
+        # Pentru versiunea 20.8, folosim loop manual
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(bot.set_webhook(url=webhook_url))
-        loop.close()
+        try:
+            result = loop.run_until_complete(bot.set_webhook(url=webhook_url))
+        finally:
+            loop.close()
         
         if result:
             return jsonify({
@@ -486,6 +490,10 @@ def ping_endpoint():
         'status': 'alive'
     })
 
+# Pentru versiunea 20.8, aplicația este gata automat
+logger.info("Aplicația Telegram este configurată pentru webhook-uri")
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    logger.info(f"Pornesc serverul Flask pe portul {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
