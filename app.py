@@ -216,8 +216,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         caption += f"👤 **Creator:** {result.get('uploader')}\n"
                     
                     if result.get('duration'):
-                        minutes = result.get('duration') // 60
-                        seconds = result.get('duration') % 60
+                        duration = result.get('duration')
+                        minutes = int(duration // 60)
+                        seconds = int(duration % 60)
                         caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
                     
                     if result.get('file_size') and isinstance(result.get('file_size'), (int, float)):
