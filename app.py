@@ -453,13 +453,32 @@ def webhook():
         ensure_app_initialized()
         
         update = Update.de_json(request.get_json(force=True), bot)
-        # Pentru versiunea 20.8, folosim un loop simplu
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        
+        # Verifică dacă există deja un loop asyncio în thread-ul curent
         try:
-            loop.run_until_complete(application.process_update(update))
-        finally:
-            loop.close()
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Loop is closed")
+        except RuntimeError:
+            # Creează un nou loop doar dacă nu există unul valid
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Procesează update-ul în mod sigur
+        try:
+            if loop.is_running():
+                # Dacă loop-ul rulează deja, folosește create_task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, application.process_update(update))
+                    future.result(timeout=30)
+            else:
+                # Dacă loop-ul nu rulează, folosește run_until_complete
+                loop.run_until_complete(application.process_update(update))
+        except Exception as process_error:
+            logger.error(f"Eroare la procesarea update-ului: {process_error}")
+            raise
+        
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
