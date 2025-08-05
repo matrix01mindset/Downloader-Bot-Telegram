@@ -51,50 +51,21 @@ if not TOKEN:
 bot = Bot(TOKEN)
 application = Application.builder().token(TOKEN).build()
 
-# Variabilă globală pentru a urmări dacă aplicația este inițializată
-_application_initialized = False
-
-def ensure_application_initialized():
-    """Asigură că aplicația Telegram este inițializată"""
-    global _application_initialized
-    if not _application_initialized:
+# Inițializare simplă și directă a aplicației
+def initialize_telegram_application():
+    """Inițializează aplicația Telegram o singură dată"""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            # Verifică dacă există deja un event loop
-            try:
-                current_loop = asyncio.get_running_loop()
-                # Dacă există un loop care rulează, folosim asyncio.run în thread separat
-                import threading
-                import concurrent.futures
-                
-                def init_in_thread():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(application.initialize())
-                        return True
-                    finally:
-                        loop.close()
-                
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(init_in_thread)
-                    future.result(timeout=30)  # Timeout de 30 secunde
-                    
-            except RuntimeError:
-                # Nu există loop care rulează, putem folosi abordarea normală
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(application.initialize())
-                finally:
-                    loop.close()
-            
-            _application_initialized = True
+            loop.run_until_complete(application.initialize())
             logger.info("✅ Aplicația Telegram a fost inițializată cu succes")
-            
-        except Exception as e:
-            logger.error(f"❌ Eroare la inițializarea aplicației: {e}")
-            # Nu ridică excepția pentru a nu bloca aplicația
-            # În schimb, va încerca din nou la următorul request
+            return True
+        finally:
+            loop.close()
+    except Exception as e:
+        logger.error(f"❌ Eroare la inițializarea aplicației: {e}")
+        return False
 
 # Funcții pentru comenzi cu meniu interactiv
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -451,7 +422,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
 # Inițializează aplicația înainte de a adăuga handler-ii
-ensure_application_initialized()
+initialize_telegram_application()
 
 # Adaugă handler-ele la application
 application.add_handler(CommandHandler("start", start))
@@ -473,7 +444,7 @@ def index():
 def webhook():
     try:
         # Asigură că aplicația este inițializată
-        ensure_application_initialized()
+        initialize_telegram_application()
         
         update = Update.de_json(request.get_json(force=True), bot)
         # Pentru versiunea 20.8, folosim un loop simplu
