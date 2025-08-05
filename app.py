@@ -425,8 +425,11 @@ def index():
 def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
-        # Procesează update-ul asincron
-        asyncio.create_task(application.process_update(update))
+        # Procesează update-ul asincron în mod corect
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(application.process_update(update))
+        loop.close()
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
