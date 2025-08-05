@@ -51,14 +51,21 @@ if not TOKEN:
 bot = Bot(TOKEN)
 application = Application.builder().token(TOKEN).build()
 
-# Inițializare simplă și directă a aplicației
+# Variabilă globală pentru starea inițializării
+_app_initialized = False
+
 def initialize_telegram_application():
     """Inițializează aplicația Telegram o singură dată"""
+    global _app_initialized
+    if _app_initialized:
+        return True
+        
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(application.initialize())
+            _app_initialized = True
             logger.info("✅ Aplicația Telegram a fost inițializată cu succes")
             return True
         finally:
@@ -443,9 +450,6 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        # Asigură că aplicația este inițializată
-        initialize_telegram_application()
-        
         update = Update.de_json(request.get_json(force=True), bot)
         # Pentru versiunea 20.8, folosim un loop simplu
         loop = asyncio.new_event_loop()
@@ -511,6 +515,11 @@ def ping_endpoint():
         'timestamp': time.time(),
         'status': 'alive'
     })
+
+# Inițializează aplicația la startup
+if __name__ == '__main__' or 'gunicorn' in os.environ.get('SERVER_SOFTWARE', ''):
+    logger.info("🚀 Inițializez aplicația Telegram la startup...")
+    initialize_telegram_application()
 
 # Aplicația este deja inițializată mai sus
 logger.info("Aplicația Telegram este configurată pentru webhook-uri")
