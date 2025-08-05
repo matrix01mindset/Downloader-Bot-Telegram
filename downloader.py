@@ -71,11 +71,11 @@ def download_video(url, output_path=None):
             if not title or title == 'video':
                 title = f"Video de pe {url.split('/')[2] if '/' in url else 'platformă necunoscută'}"
             
-            # Verifică dacă videoul nu este prea lung (max 15 minute pentru fișiere mai mari)
-            if duration and duration > 900:
+            # Verifică dacă videoul nu este prea lung (max 3 ore pentru fișiere mai mari)
+            if duration and duration > 10800:  # 3 ore = 10800 secunde
                 return {
                     'success': False,
-                    'error': 'Videoul este prea lung (max 15 minute)',
+                    'error': 'Videoul este prea lung (max 3 ore)',
                     'title': title
                 }
             
@@ -98,14 +98,14 @@ def download_video(url, output_path=None):
             
             # Verifică dimensiunea fișierului
             file_size = os.path.getsize(downloaded_file)
-            max_size = 100 * 1024 * 1024  # 100MB în bytes
-            
+            max_size = 550 * 1024 * 1024  # 550MB în bytes
+
             if file_size > max_size:
                 os.remove(downloaded_file)
                 size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
                 return {
                     'success': False,
-                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 100MB.',
+                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 550MB.',
                     'title': title
                 }
             

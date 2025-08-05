@@ -31,7 +31,8 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 • Twitter/X
 
 ⚠️ **Limitări:**
-- Videoclipuri max 15 minute
+- Videoclipuri max 3 ore
+- Mărime max 550MB
 - Calitate max 720p
 - Doar videoclipuri publice
     """
@@ -68,7 +69,8 @@ def help_command(update: Update, context: CallbackContext):
 
 ⚠️ **Probleme frecvente:**
 - Videoclipul este privat → Nu poate fi descărcat
-- Videoclipul este prea lung → Max 15 minute
+- Videoclipul este prea lung → Max 3 ore
+- Videoclipul este prea mare → Max 550MB
 - Link invalid → Verifică că link-ul este corect
     """
     
@@ -168,10 +170,10 @@ def process_download(update: Update, context: CallbackContext, url: str):
         if not filepath or not os.path.exists(filepath):
             raise Exception("Fișierul nu a fost găsit după descărcare")
         
-        # Verifică mărimea fișierului (Telegram are limită de 100MB)
+        # Verifică mărimea fișierului (limită crescută la 550MB)
         file_size = os.path.getsize(filepath)
-        if file_size > 100 * 1024 * 1024:  # 100MB
-            raise Exception("Fișierul este prea mare (max 100MB pentru Telegram)")
+        if file_size > 550 * 1024 * 1024:  # 550MB
+            raise Exception("Fișierul este prea mare (max 550MB)")
         
         # Trimite videoclipul
         with open(filepath, 'rb') as video_file:
@@ -214,9 +216,9 @@ def process_download(update: Update, context: CallbackContext, url: str):
         elif "not available" in str(e).lower():
             error_message = "❌ Videoclipul nu este disponibil în regiunea ta."
         elif "prea lung" in str(e):
-            error_message = "❌ Videoclipul este prea lung (maximum 15 minute)."
+            error_message = "❌ Videoclipul este prea lung (maximum 3 ore)."
         elif "prea mare" in str(e):
-            error_message = "❌ Fișierul este prea mare (maximum 100MB)."
+            error_message = "❌ Fișierul este prea mare (maximum 550MB)."
         
         # Adaugă butoane pentru a încerca din nou sau a merge la meniu
         keyboard = [
@@ -323,11 +325,11 @@ def button_handler(update: Update, context: CallbackContext):
 ⚙️ **Setări și limitări:**
 
 📏 **Limitări de timp:**
-- Maximum 15 minute per videoclip
-- Timeout procesare: 5 minute
+- Maximum 3 ore per videoclip
+- Timeout procesare: 10 minute
 
 💾 **Limitări de mărime:**
-- Maximum 100MB (limita Telegram)
+- Maximum 550MB (limită crescută)
 - Calitate optimizată automat
 
 🎬 **Calitate video:**
@@ -388,7 +390,8 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 • Twitter/X
 
 ⚠️ **Limitări:**
-- Videoclipuri max 15 minute
+- Videoclipuri max 3 ore
+- Mărime max 550MB
 - Calitate max 720p
 - Doar videoclipuri publice
         """

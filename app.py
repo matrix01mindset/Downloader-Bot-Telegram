@@ -101,7 +101,8 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 • Twitter/X
 
 ⚠️ **Limitări:**
-- Videoclipuri max 15 minute
+- Videoclipuri max 3 ore
+- Mărime max 550MB
 - Calitate max 720p
 - Doar videoclipuri publice
     """
@@ -165,7 +166,8 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 • Twitter/X
 
 ⚠️ **Limitări:**
-- Videoclipuri max 15 minute
+- Videoclipuri max 3 ore
+- Mărime max 550MB
 - Calitate max 720p
 - Doar videoclipuri publice
     """
@@ -399,9 +401,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⚙️ **Setări și limitări:**
 
 📏 **Limitări de dimensiune:**
-- Durată maximă: 15 minute
+- Durată maximă: 3 ore
 - Calitate maximă: 720p
-- Dimensiune maximă: 50MB
+- Dimensiune maximă: 550MB
 
 🚫 **Restricții:**
 - Doar videoclipuri publice
