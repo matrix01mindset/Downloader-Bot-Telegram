@@ -214,8 +214,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             
             try:
-                # Descarcă videoclipul
-                result = download_video(message_text)
+                # Execută descărcarea în thread separat pentru a nu bloca event loop-ul
+                import concurrent.futures
+                import asyncio
+                
+                loop = asyncio.get_event_loop()
+                
+                # Rulează descărcarea în thread pool
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    result = await loop.run_in_executor(executor, download_video, message_text)
                 
                 if result['success']:
                     try:
