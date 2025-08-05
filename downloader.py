@@ -30,8 +30,38 @@ def download_video(url, output_path=None):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extrage informații despre video
             info = ydl.extract_info(url, download=False)
+            
+            # Extrage titlul și alte informații
             title = info.get('title', 'video')
+            description = info.get('description', '')
+            uploader = info.get('uploader', '')
             duration = info.get('duration', 0)
+            
+            # Îmbunătățește titlul pentru diferite platforme
+            if 'instagram.com' in url.lower():
+                # Pentru Instagram, încearcă să găsești un titlu mai bun
+                if description and len(description) > len(title):
+                    # Ia primele 100 de caractere din descriere ca titlu
+                    title = description[:100].strip()
+                    if len(description) > 100:
+                        title += '...'
+                elif uploader:
+                    title = f"Video de la {uploader}"
+            
+            elif 'tiktok.com' in url.lower():
+                # Pentru TikTok, încearcă să găsești un titlu mai bun
+                if description and len(description) > len(title):
+                    # Ia primele 100 de caractere din descriere ca titlu
+                    title = description[:100].strip()
+                    if len(description) > 100:
+                        title += '...'
+                elif uploader:
+                    title = f"TikTok de la {uploader}"
+            
+            # Curăță titlul de caractere speciale problematice
+            title = title.replace('\n', ' ').replace('\r', ' ').strip()
+            if not title or title == 'video':
+                title = f"Video de pe {url.split('/')[2] if '/' in url else 'platformă necunoscută'}"
             
             # Verifică dacă videoul nu este prea lung (max 15 minute pentru fișiere mai mari)
             if duration and duration > 900:
@@ -71,12 +101,14 @@ def download_video(url, output_path=None):
                 }
             
             return {
-                'success': True,
-                'file_path': downloaded_file,
-                'title': title,
-                'duration': duration,
-                'file_size': file_size
-            }
+                 'success': True,
+                 'file_path': downloaded_file,
+                 'title': title,
+                 'description': description,
+                 'uploader': uploader,
+                 'duration': duration,
+                 'file_size': file_size
+             }
             
     except Exception as e:
         return {

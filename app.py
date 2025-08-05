@@ -208,10 +208,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Trimite videoclipul
                 with open(result['file_path'], 'rb') as video_file:
+                    # Construiește caption-ul cu informații detaliate
+                    caption = f"✅ Videoclip descărcat cu succes!\n\n"
+                    caption += f"🎬 **Titlu:** {result.get('title', 'N/A')}\n"
+                    
+                    if result.get('uploader'):
+                        caption += f"👤 **Creator:** {result.get('uploader')}\n"
+                    
+                    if result.get('duration'):
+                        minutes = result.get('duration') // 60
+                        seconds = result.get('duration') % 60
+                        caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
+                    
+                    if result.get('file_size'):
+                        size_mb = result.get('file_size') / (1024 * 1024)
+                        caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
+                    
+                    # Adaugă descrierea/hashtag-urile dacă există
+                    description = result.get('description', '')
+                    if description and len(description.strip()) > 0:
+                        # Limitează descrierea la 200 de caractere pentru a nu depăși limita Telegram
+                        if len(description) > 200:
+                            description = description[:200] + '...'
+                        caption += f"\n📝 **Descriere/Tags:**\n{description}"
+                    
+                    caption += "\n\n🎉 Mulțumesc că folosești botul!"
+                    
                     await update.message.reply_video(
                         video=video_file,
-                        caption=f"✅ Videoclip descărcat cu succes!\n🎬 Titlu: {result.get('title', 'N/A')}",
-                        supports_streaming=True
+                        caption=caption,
+                        supports_streaming=True,
+                        parse_mode='Markdown'
                     )
                 
                 # Șterge fișierul temporar
