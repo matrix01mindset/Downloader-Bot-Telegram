@@ -428,8 +428,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         
         await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
-# Inițializează aplicația înainte de a adăuga handler-ii
-initialize_telegram_application()
+# Handler-ii vor fi adăugați, iar aplicația va fi inițializată la primul request
 
 # Adaugă handler-ele la application
 application.add_handler(CommandHandler("start", start))
@@ -450,6 +449,9 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
+        # Asigură că aplicația este inițializată
+        ensure_app_initialized()
+        
         update = Update.de_json(request.get_json(force=True), bot)
         # Pentru versiunea 20.8, folosim un loop simplu
         loop = asyncio.new_event_loop()
@@ -516,10 +518,20 @@ def ping_endpoint():
         'status': 'alive'
     })
 
-# Inițializează aplicația la startup
-if __name__ == '__main__' or 'gunicorn' in os.environ.get('SERVER_SOFTWARE', ''):
-    logger.info("🚀 Inițializez aplicația Telegram la startup...")
-    initialize_telegram_application()
+# Funcție pentru inițializarea în contextul Flask
+def ensure_app_initialized():
+    """Asigură că aplicația este inițializată în contextul Flask"""
+    global _app_initialized
+    if not _app_initialized:
+        try:
+            # Folosește asyncio.run pentru inițializare
+            import asyncio
+            asyncio.run(application.initialize())
+            _app_initialized = True
+            logger.info("✅ Aplicația Telegram a fost inițializată cu succes în contextul Flask")
+        except Exception as e:
+            logger.error(f"❌ Eroare la inițializarea aplicației în contextul Flask: {e}")
+            raise
 
 # Aplicația este deja inițializată mai sus
 logger.info("Aplicația Telegram este configurată pentru webhook-uri")
