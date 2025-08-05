@@ -562,6 +562,9 @@ def webhook():
         
         def safe_process_update():
             """Procesează update-ul într-un mod thread-safe"""
+            import asyncio
+            import time
+            
             try:
                 # Verifică dacă există un event loop în thread-ul curent
                 try:
@@ -578,12 +581,10 @@ def webhook():
                     # Dacă loop-ul nu rulează, folosește run_until_complete
                     loop.run_until_complete(application.process_update(update))
                 else:
-                    # Dacă loop-ul rulează deja, creează un task
-                    import asyncio
+                    # Dacă loop-ul rulează deja, creează un task și așteaptă
                     task = loop.create_task(application.process_update(update))
                     # Așteaptă task-ul să se termine
                     while not task.done():
-                        import time
                         time.sleep(0.01)
                     
                     # Verifică dacă task-ul a avut excepții
