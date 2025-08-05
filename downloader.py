@@ -24,6 +24,14 @@ def download_video(url, output_path=None):
         'embed_subs': False,
         'writesubtitles': False,
         'writeautomaticsub': False,
+        # Opțiuni pentru Instagram și alte platforme
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        'extractor_retries': 3,
+        'fragment_retries': 3,
+        'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
+        'ignoreerrors': False,
     }
     
     try:
@@ -110,10 +118,38 @@ def download_video(url, output_path=None):
                  'file_size': file_size
              }
             
+    except yt_dlp.DownloadError as e:
+        error_msg = str(e).lower()
+        if 'rate' in error_msg and 'limit' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Instagram/TikTok: Limită de rată atinsă. Încearcă din nou în câteva minute.',
+                'title': 'N/A'
+            }
+        elif 'login' in error_msg or 'authentication' in error_msg or 'cookies' in error_msg:
+            help_msg = '\n\nPentru Instagram: Folosește --cookies-from-browser sau --cookies pentru autentificare.'
+            help_msg += '\nVezi: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp'
+            return {
+                'success': False,
+                'error': f'❌ Instagram/TikTok: Conținut privat sau necesită autentificare.{help_msg}',
+                'title': 'N/A'
+            }
+        elif 'not available' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Conținutul nu este disponibil sau a fost șters.',
+                'title': 'N/A'
+            }
+        else:
+            return {
+                'success': False,
+                'error': f'❌ Eroare la descărcare: {str(e)}',
+                'title': 'N/A'
+            }
     except Exception as e:
         return {
             'success': False,
-            'error': f'Eroare la descărcarea videoclipului: {str(e)}',
+            'error': f'❌ Eroare neașteptată: {str(e)}',
             'title': 'N/A'
         }
 
