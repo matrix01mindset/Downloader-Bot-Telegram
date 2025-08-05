@@ -782,10 +782,18 @@ def set_webhook():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'bot_info': bot.get_me().to_dict()
-    })
+    try:
+        import time
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'server': 'online'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
