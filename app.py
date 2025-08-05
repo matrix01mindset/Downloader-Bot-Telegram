@@ -541,17 +541,24 @@ def ping_endpoint():
 
 # Funcție pentru inițializarea în contextul Flask
 def ensure_app_initialized():
-    """Asigură că aplicația este inițializată în contextul Flask"""
+    """Asigură că aplicația și bot-ul sunt inițializate în contextul Flask"""
     global _app_initialized
     if not _app_initialized:
         try:
             # Folosește asyncio.run pentru inițializare
             import asyncio
-            asyncio.run(application.initialize())
+            
+            async def init_all():
+                # Inițializează bot-ul
+                await bot.initialize()
+                # Inițializează aplicația
+                await application.initialize()
+            
+            asyncio.run(init_all())
             _app_initialized = True
-            logger.info("✅ Aplicația Telegram a fost inițializată cu succes în contextul Flask")
+            logger.info("✅ Bot-ul și aplicația Telegram au fost inițializate cu succes în contextul Flask")
         except Exception as e:
-            logger.error(f"❌ Eroare la inițializarea aplicației în contextul Flask: {e}")
+            logger.error(f"❌ Eroare la inițializarea bot-ului și aplicației în contextul Flask: {e}")
             raise
 
 # Aplicația este deja inițializată mai sus
