@@ -48,8 +48,17 @@ if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
 
 # Inițializare bot și application
+# Configurare bot cu connection pool și timeout-uri optimizate
 bot = Bot(TOKEN)
-application = Application.builder().token(TOKEN).build()
+application = (
+    Application.builder()
+    .token(TOKEN)
+    .connection_pool_size(100)
+    .pool_timeout(30.0)
+    .get_updates_connection_pool_size(10)
+    .get_updates_pool_timeout(30.0)
+    .build()
+)
 
 # Variabilă globală pentru starea inițializării
 _app_initialized = False
@@ -527,6 +536,19 @@ def index():
         'message': 'Telegram Video Downloader Bot is active'
     })
 
+# Thread pool global pentru procesarea update-urilor
+_thread_pool = None
+
+def get_thread_pool():
+    global _thread_pool
+    if _thread_pool is None:
+        import concurrent.futures
+        _thread_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=5,
+            thread_name_prefix="telegram_webhook"
+        )
+    return _thread_pool
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -535,36 +557,61 @@ def webhook():
         
         update = Update.de_json(request.get_json(force=True), bot)
         
-        # Folosește un thread pool executor pentru a evita conflictele de event loop
+        # Folosește thread pool persistent pentru a evita overhead-ul de creare
         import concurrent.futures
-        import threading
         
-        def process_update_in_thread():
-            """Procesează update-ul într-un thread separat cu propriul event loop"""
+        def safe_process_update():
+            """Procesează update-ul într-un mod thread-safe"""
             try:
-                # Creează un nou event loop pentru acest thread
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                
+                # Verifică dacă există un event loop în thread-ul curent
                 try:
-                    # Procesează update-ul în noul loop
-                    new_loop.run_until_complete(application.process_update(update))
-                finally:
-                    # Închide loop-ul după utilizare
-                    new_loop.close()
+                    loop = asyncio.get_event_loop()
+                    if loop.is_closed():
+                        raise RuntimeError("Loop is closed")
+                except RuntimeError:
+                    # Creează un nou event loop pentru acest thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                # Procesează update-ul folosind loop-ul curent
+                if not loop.is_running():
+                    # Dacă loop-ul nu rulează, folosește run_until_complete
+                    loop.run_until_complete(application.process_update(update))
+                else:
+                    # Dacă loop-ul rulează deja, creează un task
+                    import asyncio
+                    task = loop.create_task(application.process_update(update))
+                    # Așteaptă task-ul să se termine
+                    while not task.done():
+                        import time
+                        time.sleep(0.01)
                     
+                    # Verifică dacă task-ul a avut excepții
+                    if task.exception():
+                        raise task.exception()
+                        
             except Exception as e:
-                logger.error(f"Eroare în thread-ul de procesare: {e}")
+                logger.error(f"Eroare la procesarea update-ului: {e}")
                 raise
         
-        # Rulează procesarea într-un thread separat cu timeout
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(process_update_in_thread)
+        # Rulează procesarea în thread pool cu retry logic
+        thread_pool = get_thread_pool()
+        future = thread_pool.submit(safe_process_update)
+        
+        try:
+            future.result(timeout=25)  # Timeout de 25 secunde
+        except concurrent.futures.TimeoutError:
+            logger.error("Timeout la procesarea update-ului")
+            return jsonify({'status': 'error', 'message': 'Timeout'}), 500
+        except Exception as e:
+            logger.error(f"Eroare la procesarea în thread pool: {e}")
+            # Retry o singură dată în caz de eroare
             try:
-                future.result(timeout=30)  # Timeout de 30 secunde
-            except concurrent.futures.TimeoutError:
-                logger.error("Timeout la procesarea update-ului")
-                return jsonify({'status': 'error', 'message': 'Timeout'}), 500
+                future = thread_pool.submit(safe_process_update)
+                future.result(timeout=15)
+            except Exception as retry_error:
+                logger.error(f"Retry eșuat: {retry_error}")
+                return jsonify({'status': 'error', 'message': 'Processing failed'}), 500
         
         return jsonify({'status': 'ok'})
     except Exception as e:
