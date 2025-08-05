@@ -450,6 +450,9 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         
         await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
+# Inițializează aplicația înainte de a adăuga handler-ii
+ensure_application_initialized()
+
 # Adaugă handler-ele la application
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("help", help_command))
@@ -538,12 +541,8 @@ def ping_endpoint():
         'status': 'alive'
     })
 
-# Pentru versiunea 20.8, inițializăm aplicația la startup
-try:
-    ensure_application_initialized()
-    logger.info("Aplicația Telegram este configurată pentru webhook-uri")
-except Exception as e:
-    logger.error(f"Eroare la inițializarea aplicației la startup: {e}")
+# Aplicația este deja inițializată mai sus
+logger.info("Aplicația Telegram este configurată pentru webhook-uri")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
