@@ -228,9 +228,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Adaugă descrierea/hashtag-urile dacă există
                     description = result.get('description', '')
                     if description and len(description.strip()) > 0:
-                        # Limitează descrierea la 200 de caractere pentru a nu depăși limita Telegram
-                        if len(description) > 200:
-                            description = description[:200] + '...'
                         caption += f"\n📝 **Descriere/Tags:**\n{description}"
                     
 
