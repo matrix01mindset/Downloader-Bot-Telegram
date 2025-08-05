@@ -2,10 +2,18 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from downloader import download_video, is_supported_url
 import tempfile
-import asyncio
+import time
+
+# Încarcă variabilele de mediu din .env pentru testare locală
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv nu este instalat, continuă fără el
+    pass
 
 # Configurare logging
 logging.basicConfig(
@@ -39,10 +47,10 @@ if not TOKEN:
 
 # Inițializare bot și application
 bot = Bot(TOKEN)
-application = Application.builder().token(TOKEN).build()
+updater = Updater(token=TOKEN, use_context=True)
 
 # Funcții pentru comenzi cu meniu interactiv
-def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update: Update, context: CallbackContext):
     """
     Comandă /start - mesaj de bun venit cu meniu interactiv
     """
@@ -76,7 +84,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     
     update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
-def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def help_command(update: Update, context: CallbackContext):
     """
     Comandă /help - informații de ajutor
     """
@@ -106,7 +114,7 @@ def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
 
-def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def menu_command(update: Update, context: CallbackContext):
     """
     Afișează meniul principal
     """
@@ -139,7 +147,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     
     update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
-def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def ping_command(update: Update, context: CallbackContext):
     """
     Trimite un ping către server pentru a-l menține activ
     """
@@ -194,13 +202,14 @@ def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
-def wakeup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def wakeup_command(update: Update, context: CallbackContext):
     """
     Trezește serverul din modul sleep cu multiple ping-uri
     """
     try:
         import requests
         import time
+        import asyncio
         
         # Trimite mesaj de confirmare
         message = update.message.reply_text(
@@ -279,7 +288,7 @@ def wakeup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
-def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def handle_message(update: Update, context: CallbackContext):
     """
     Gestionează mesajele text (link-uri) cu confirmare înainte de descărcare
     """
@@ -314,7 +323,7 @@ def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
+def process_download(update: Update, context: CallbackContext, url: str):
     """
     Procesează descărcarea efectivă a videoclipului
     """
@@ -391,7 +400,7 @@ def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, url: st
         except:
             pass
 
-def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def button_handler(update: Update, context: CallbackContext):
     """
     Gestionează toate callback-urile de la butoanele inline
     """
@@ -728,13 +737,13 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
             )
 
 # Adaugă handler-ele
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("help", help_command))
-application.add_handler(CommandHandler("menu", menu_command))
-application.add_handler(CommandHandler("ping", ping_command))
-application.add_handler(CommandHandler("wakeup", wakeup_command))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-application.add_handler(CallbackQueryHandler(button_handler))
+updater.dispatcher.add_handler(CommandHandler("start", start))
+updater.dispatcher.add_handler(CommandHandler("help", help_command))
+updater.dispatcher.add_handler(CommandHandler("menu", menu_command))
+updater.dispatcher.add_handler(CommandHandler("ping", ping_command))
+updater.dispatcher.add_handler(CommandHandler("wakeup", wakeup_command))
+updater.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+updater.dispatcher.add_handler(CallbackQueryHandler(button_handler))
 
 # Rute Flask
 @app.route('/', methods=['GET'])
@@ -748,12 +757,8 @@ def index():
 def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
-        # Pentru webhook sincron, folosim direct bot-ul
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(application.process_update(update))
-        loop.close()
+        # Pentru webhook sincron, folosim dispatcher-ul
+        updater.dispatcher.process_update(update)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
