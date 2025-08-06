@@ -37,6 +37,70 @@ def clean_title(title):
     
     return title if title else "Video"
 
+def try_youtube_fallback(url, output_path, title):
+    """
+    Încearcă descărcarea YouTube cu opțiuni conservative pentru a evita rate limiting
+    """
+    fallback_opts = {
+        'outtmpl': output_path,
+        'format': 'worst[height<=480]/worst',  # Calitate mai mică pentru a reduce load-ul
+        'quiet': True,
+        'noplaylist': True,
+        'extractaudio': False,
+        'embed_subs': False,
+        'writesubtitles': False,
+        'writeautomaticsub': False,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        },
+        'extractor_retries': 1,
+        'fragment_retries': 1,
+        'retry_sleep_functions': {
+            'http': lambda n: min(5 ** n, 120),  # Delay-uri mai mari
+            'fragment': lambda n: min(5 ** n, 120)
+        },
+        'socket_timeout': 120,
+        'retries': 1,
+        'sleep_interval': 3,  # Pauză mai mare între cereri
+        'max_sleep_interval': 15,
+        'cachedir': False,
+        'no_warnings': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+            # Adaugă un delay înainte de încercare
+            time.sleep(2)
+            ydl.download([url])
+            
+            # Găsește fișierul descărcat
+            temp_dir = os.path.dirname(output_path)
+            downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+            downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+            
+            if downloaded_files:
+                return {
+                    'success': True,
+                    'file_path': downloaded_files[0],
+                    'title': title,
+                    'description': '',
+                    'uploader': '',
+                    'duration': 0,
+                    'file_size': os.path.getsize(downloaded_files[0])
+                }
+    except Exception:
+        pass
+    
+    return {
+        'success': False,
+        'error': '❌ YouTube: Nu s-a putut descărca nici cu opțiunile alternative. Încearcă din nou mai târziu.',
+        'title': title
+    }
+
 def try_facebook_fallback(url, output_path, title):
     """
     Încearcă descărcarea Facebook cu opțiuni alternative
@@ -108,35 +172,72 @@ def download_video(url, output_path=None):
         temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
     
-    ydl_opts = {
-        'outtmpl': output_path,
-        'format': 'best[height<=720]/best',  # Limitează calitatea pentru a evita fișiere prea mari
-        'quiet': True,
-        'noplaylist': True,
-        'extractaudio': False,
-        'audioformat': 'mp3',
-        'embed_subs': False,
-        'writesubtitles': False,
-        'writeautomaticsub': False,
-        # Opțiuni pentru Instagram și alte platforme
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        },
-        'extractor_retries': 5,
-        'fragment_retries': 5,
-        'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
-        'ignoreerrors': False,
-        # Opțiuni specifice pentru Facebook
-        'extract_flat': False,
-        'skip_download': False,
-        # Gestionare îmbunătățită a erorilor
-        'socket_timeout': 30,
-        'retries': 3,
-    }
+    # Configurație specifică pentru YouTube pentru a evita HTTP 429
+    if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
+        ydl_opts = {
+            'outtmpl': output_path,
+            'format': 'best[height<=720]/best',
+            'quiet': True,
+            'noplaylist': True,
+            'extractaudio': False,
+            'embed_subs': False,
+            'writesubtitles': False,
+            'writeautomaticsub': False,
+            # Opțiuni specifice pentru YouTube anti-rate-limit
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin',
+            },
+            'extractor_retries': 3,
+            'fragment_retries': 3,
+            'retry_sleep_functions': {
+                'http': lambda n: min(2 ** n, 30),  # Exponential backoff mai conservator
+                'fragment': lambda n: min(2 ** n, 30)
+            },
+            'socket_timeout': 60,
+            'retries': 2,
+            'sleep_interval': 1,  # Pauză între cereri
+            'max_sleep_interval': 5,
+            'sleep_interval_subtitles': 1,
+            # Opțiuni pentru a evita detectarea ca bot
+            'nocheckcertificate': False,
+            'prefer_insecure': False,
+            'cachedir': False,  # Dezactivează cache-ul
+        }
+    else:
+        # Configurație pentru alte platforme
+        ydl_opts = {
+            'outtmpl': output_path,
+            'format': 'best[height<=720]/best',
+            'quiet': True,
+            'noplaylist': True,
+            'extractaudio': False,
+            'audioformat': 'mp3',
+            'embed_subs': False,
+            'writesubtitles': False,
+            'writeautomaticsub': False,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+            },
+            'extractor_retries': 5,
+            'fragment_retries': 5,
+            'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
+            'ignoreerrors': False,
+            'extract_flat': False,
+            'skip_download': False,
+            'socket_timeout': 30,
+            'retries': 3,
+        }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -187,8 +288,12 @@ def download_video(url, output_path=None):
             try:
                 ydl.download([url])
             except Exception as download_error:
+                error_str = str(download_error).lower()
+                # Încearcă cu opțiuni alternative pentru YouTube la erori de rate limiting
+                if ('youtube.com' in url.lower() or 'youtu.be' in url.lower()) and ('429' in error_str or 'too many requests' in error_str or 'rate' in error_str):
+                    return try_youtube_fallback(url, output_path, title)
                 # Încearcă cu opțiuni alternative pentru Facebook
-                if 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
+                elif 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
                     return try_facebook_fallback(url, output_path, title)
                 else:
                     raise download_error
@@ -232,7 +337,15 @@ def download_video(url, output_path=None):
             
     except yt_dlp.DownloadError as e:
         error_msg = str(e).lower()
-        if 'rate' in error_msg and 'limit' in error_msg:
+        
+        # Gestionare specifică pentru YouTube HTTP 429
+        if ('youtube' in url.lower() or 'youtu.be' in url.lower()) and ('429' in error_msg or 'too many requests' in error_msg or ('rate' in error_msg and 'limit' in error_msg)):
+            return {
+                'success': False,
+                'error': '❌ YouTube: Prea multe cereri. YouTube a limitat temporar accesul.\n\n💡 Soluții:\n• Încearcă din nou în 10-15 minute\n• Folosește un VPN dacă problema persistă\n• Verifică că link-ul este valid și public',
+                'title': 'N/A'
+            }
+        elif 'rate' in error_msg and 'limit' in error_msg:
             return {
                 'success': False,
                 'error': '❌ Instagram/TikTok: Limită de rată atinsă. Încearcă din nou în câteva minute.',
