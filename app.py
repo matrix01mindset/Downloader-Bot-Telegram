@@ -697,8 +697,12 @@ def process_message_sync(update):
     """Procesează mesajele în mod sincron"""
     try:
         message = update.message
-        chat_id = message.chat_id
-        text = message.text
+        chat_id = message.chat.id if hasattr(message.chat, 'id') else message.chat_id
+        text = message.text if hasattr(message, 'text') else None
+        
+        # Verifică dacă mesajul are text
+        if not text:
+            return
         
         if text == '/start':
             welcome_text = (
@@ -739,8 +743,14 @@ def process_callback_sync(update):
     """Procesează callback-urile în mod sincron"""
     try:
         query = update.callback_query
-        chat_id = query.message.chat_id
-        data = query.data
+        if not query or not query.message:
+            return
+            
+        chat_id = query.message.chat.id if hasattr(query.message.chat, 'id') else query.message.chat_id
+        data = query.data if hasattr(query, 'data') else None
+        
+        if not data:
+            return
         
         # Răspunde la callback pentru a elimina loading-ul
         answer_callback_query(query.id)
