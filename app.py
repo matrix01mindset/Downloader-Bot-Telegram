@@ -311,11 +311,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             if result.get('uploader'):
                                 caption += f"👤 **Creator:** {result.get('uploader')}\n"
                             
-                            if result.get('duration'):
-                                duration = result.get('duration')
-                                minutes = int(duration // 60)
-                                seconds = int(duration % 60)
-                                caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
+                            if result.get('duration') and isinstance(result.get('duration'), (int, float)):
+                                try:
+                                    duration = result.get('duration')
+                                    minutes = int(duration // 60)
+                                    seconds = int(duration % 60)
+                                    caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
+                                except (TypeError, ValueError):
+                                    pass  # Skip duration if formatting fails
                             
                             if result.get('file_size') and isinstance(result.get('file_size'), (int, float)):
                                 size_mb = result.get('file_size') / (1024 * 1024)
@@ -838,18 +841,24 @@ def send_video_file(chat_id, file_path, video_info):
         duration = video_info.get('duration', 0)
         file_size = video_info.get('file_size', 0)
         
-        # Formatează durata
-        if duration:
-            minutes = duration // 60
-            seconds = duration % 60
-            duration_str = f"{minutes}:{seconds:02d}"
+        # Formatează durata cu verificări de tip
+        if duration and isinstance(duration, (int, float)) and duration > 0:
+            try:
+                minutes = int(duration // 60)
+                seconds = int(duration % 60)
+                duration_str = f"{minutes}:{seconds:02d}"
+            except (TypeError, ValueError):
+                duration_str = "N/A"
         else:
             duration_str = "N/A"
         
-        # Formatează dimensiunea fișierului
-        if file_size:
-            size_mb = file_size / (1024 * 1024)
-            size_str = f"{size_mb:.1f} MB"
+        # Formatează dimensiunea fișierului cu verificări de tip
+        if file_size and isinstance(file_size, (int, float)) and file_size > 0:
+            try:
+                size_mb = float(file_size) / (1024 * 1024)
+                size_str = f"{size_mb:.1f} MB"
+            except (TypeError, ValueError):
+                size_str = "N/A"
         else:
             size_str = "N/A"
         
