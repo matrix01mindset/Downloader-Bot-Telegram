@@ -198,16 +198,16 @@ def create_youtube_session_advanced(client_type='mweb'):
         'geo_bypass': True,
         'geo_bypass_country': random.choice(['US', 'GB', 'CA', 'AU']),
         'age_limit': None,
-        'sleep_interval': random.uniform(2, 5),  # Pauză randomizată
-        'max_sleep_interval': random.uniform(10, 20),
-        'sleep_interval_subtitles': random.uniform(1, 3),
-        'socket_timeout': random.randint(120, 180),
-        'retries': 2,
-        'extractor_retries': 3,
-        'fragment_retries': 5,
+        'sleep_interval': 1,  # Redus pentru server mic
+        'max_sleep_interval': 5,  # Redus pentru server mic
+        'sleep_interval_subtitles': 1,
+        'socket_timeout': 30,  # Redus dramatic pentru server mic
+        'retries': 1,  # Redus pentru server mic
+        'extractor_retries': 1,  # Redus pentru server mic
+        'fragment_retries': 2,  # Redus pentru server mic
         'retry_sleep_functions': {
-            'http': lambda n: min(3 ** n + random.uniform(1, 3), 60),
-            'fragment': lambda n: min(3 ** n + random.uniform(1, 3), 60)
+            'http': lambda n: min(2 + n, 10),  # Simplificat pentru server mic
+            'fragment': lambda n: min(2 + n, 10)  # Simplificat pentru server mic
         },
         # Configurații extractor optimizate
         'extractor_args': extractor_args,
@@ -249,16 +249,16 @@ def create_youtube_session():
         'geo_bypass': True,
         'geo_bypass_country': 'US',
         'age_limit': None,
-        'sleep_interval': random.uniform(1.5, 3.5),  # Pauză randomizată
-        'max_sleep_interval': random.uniform(8, 15),
-        'sleep_interval_subtitles': random.uniform(1, 3),
-        'socket_timeout': random.randint(90, 150),
-        'retries': 2,
-        'extractor_retries': 3,
-        'fragment_retries': 5,
+        'sleep_interval': 1,  # Redus pentru server mic
+        'max_sleep_interval': 5,  # Redus pentru server mic
+        'sleep_interval_subtitles': 1,
+        'socket_timeout': 30,  # Redus dramatic pentru server mic
+        'retries': 1,  # Redus pentru server mic
+        'extractor_retries': 1,  # Redus pentru server mic
+        'fragment_retries': 2,  # Redus pentru server mic
         'retry_sleep_functions': {
-            'http': lambda n: min(2 ** n + random.uniform(0.5, 2), 30),
-            'fragment': lambda n: min(2 ** n + random.uniform(0.5, 2), 30)
+            'http': lambda n: min(2 + n, 10),  # Simplificat pentru server mic
+            'fragment': lambda n: min(2 + n, 10)  # Simplificat pentru server mic
         },
         # Simulează comportament de browser real
         'extract_comments': False,
@@ -399,59 +399,43 @@ def get_youtube_retry_strategy(attempt_number):
 def get_youtube_retry_strategy_advanced(attempt_number):
     """Returnează strategia de retry avansată cu clienți optimi conform documentației yt-dlp 2024"""
     strategies = [
-        {  # Prima încercare - client mweb (cel mai recomandat)
+        {  # Prima încercare - client mweb optimizat pentru server mic
             'client': 'mweb',
-            'format': 'best[height<=720]/best',
+            'format': 'worst[height<=480]/worst',  # Calitate redusă pentru server mic
             'sleep_multiplier': 1.0,
             'geo_country': 'US',
-            'description': 'Client mweb - prioritate maximă, nu necesită PO Token',
+            'description': 'Client mweb - optimizat pentru server mic',
             'priority': 1
         },
         {  # A doua încercare - client tv_embedded
             'client': 'tv_embedded', 
-            'format': 'best[height<=480]/best',
-            'sleep_multiplier': 1.5,
-            'geo_country': 'GB',
-            'description': 'Client TV embedded - fără PO Token, suportă HLS',
+            'format': 'worst[height<=360]/worst',  # Calitate redusă pentru server mic
+            'sleep_multiplier': 1.0,  # Redus pentru server mic
+            'geo_country': 'US',  # Același geo pentru simplitate
+            'description': 'Client TV embedded - optimizat pentru server mic',
             'priority': 2
         },
-        {  # A treia încercare - client web_safari cu HLS
+        {  # A treia încercare - client web_safari
             'client': 'web_safari',
-            'format': 'best[height<=360]/best',
-            'sleep_multiplier': 2.0,
-            'geo_country': 'CA',
-            'description': 'Client Safari cu HLS - fără PO Token',
+            'format': 'worst[height<=240]/worst',  # Calitate foarte mică pentru server mic
+            'sleep_multiplier': 1.0,  # Redus pentru server mic
+            'geo_country': 'US',  # Același geo pentru simplitate
+            'description': 'Client Safari - calitate minimă pentru server mic',
             'priority': 3
-        },
-        {  # A patra încercare - client android_vr
-            'client': 'android_vr',
-            'format': 'worst[height<=360]/worst',
-            'sleep_multiplier': 2.5,
-            'geo_country': 'AU',
-            'description': 'Client Android VR - fără HLS dar stabil',
-            'priority': 4
-        },
-        {  # A cincea încercare - client mediaconnect pentru cazuri extreme
-            'client': 'mediaconnect',
-            'format': 'worst[height<=240]/worst',
-            'sleep_multiplier': 3.0,
-            'geo_country': 'NZ',
-            'description': 'Client MediaConnect - pentru cazuri speciale',
-            'priority': 5
         }
     ]
     
     if attempt_number < len(strategies):
         return strategies[attempt_number]
     else:
-        # Pentru încercări suplimentare, folosește strategii randomizate
+        # Pentru încercări suplimentare, folosește strategii simple
         fallback_strategy = {
-            'client': random.choice(['mweb', 'tv_embedded', 'web_safari']),
-            'format': 'worst[height<=240]/worst',
-            'sleep_multiplier': 3.0 + (attempt_number - len(strategies)) * 0.5,
-            'geo_country': random.choice(['NZ', 'IE', 'NL', 'DE', 'FR', 'IT', 'ES']),
-            'description': f'Fallback #{attempt_number + 1} - strategie randomizată',
-            'priority': 6 + attempt_number
+            'client': 'mweb',  # Folosește doar mweb pentru simplitate
+            'format': 'worst',  # Cea mai mică calitate posibilă
+            'sleep_multiplier': 1.0,  # Fără delay suplimentar
+            'geo_country': 'US',  # Același geo pentru simplitate
+            'description': f'Fallback #{attempt_number + 1} - calitate minimă',
+            'priority': 4 + attempt_number
         }
         return fallback_strategy
 
@@ -495,7 +479,7 @@ def try_youtube_fallback(url, output_path, title):
     
     fallback_opts = {
         'outtmpl': output_path,
-        'format': 'worst[height<=360]/worst[height<=240]/worst',  # Calitate foarte mică
+        'format': 'worst',  # Cea mai mică calitate posibilă pentru server mic
         'quiet': True,
         'noplaylist': True,
         'extractaudio': False,
@@ -504,17 +488,17 @@ def try_youtube_fallback(url, output_path, title):
         'writeautomaticsub': False,
         # Folosește headers anti-detecție din sesiune
         'http_headers': session_config['http_headers'],
-        'extractor_retries': 2,  # Încercări moderate
-        'fragment_retries': 3,
+        'extractor_retries': 1,  # Redus pentru server mic
+        'fragment_retries': 1,  # Redus pentru server mic
         'retry_sleep_functions': {
-            'http': lambda n: min(5 ** n + random.uniform(1, 3), 120),  # Delay randomizat
-            'fragment': lambda n: min(5 ** n + random.uniform(1, 3), 120)
+            'http': lambda n: min(2 + n, 5),  # Simplificat pentru server mic
+            'fragment': lambda n: min(2 + n, 5)  # Simplificat pentru server mic
         },
-        'socket_timeout': random.randint(90, 150),  # Timeout randomizat
+        'socket_timeout': 20,  # Redus pentru server mic
         'retries': 1,  # O reîncercare
-        'sleep_interval': random.uniform(8, 12),  # Pauză randomizată între cereri
-        'max_sleep_interval': random.uniform(25, 35),
-        'sleep_interval_subtitles': random.uniform(5, 8),
+        'sleep_interval': 1,  # Redus pentru server mic
+        'max_sleep_interval': 3,  # Redus pentru server mic
+        'sleep_interval_subtitles': 1,  # Redus pentru server mic
         'nocheckcertificate': False,
         'prefer_insecure': False,
         'cachedir': False,
@@ -534,8 +518,8 @@ def try_youtube_fallback(url, output_path, title):
     
     try:
         with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-            # Adaugă un delay randomizat înainte de încercare pentru a simula comportament uman
-            time.sleep(random.uniform(10, 20))
+            # Delay minim pentru server mic
+            time.sleep(1)
             ydl.download([url])
             
             # Găsește fișierul descărcat
@@ -571,7 +555,7 @@ def try_facebook_fallback(url, output_path, title):
     # Configurație alternativă pentru Facebook cu mai multe opțiuni
     fallback_opts = {
         'outtmpl': output_path,
-        'format': 'best[height<=720]/best[height<=480]/worst',  # Încercări multiple de calitate
+        'format': 'worst[height<=480]/worst',  # Calitate redusă pentru server mic
         'quiet': False,  # Activez logging pentru debugging
         'noplaylist': True,
         'extractaudio': False,
@@ -584,10 +568,10 @@ def try_facebook_fallback(url, output_path, title):
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
         },
-        'extractor_retries': 3,
-        'fragment_retries': 3,
-        'socket_timeout': 30,
-        'retries': 3,
+        'extractor_retries': 1,  # Redus pentru server mic
+        'fragment_retries': 2,  # Redus pentru server mic
+        'socket_timeout': 20,  # Redus pentru server mic
+        'retries': 1,  # Redus pentru server mic
         'ignoreerrors': False,  # Vreau să văd erorile pentru debugging
         # Opțiuni îmbunătățite pentru Facebook
         'extract_flat': False,
@@ -767,13 +751,13 @@ def download_video(url, output_path=None):
                     'ignoreerrors': True,
                     'noplaylist': True,
                     'retries': session_config.get('retries', 2),
-                    'extractor_retries': session_config.get('extractor_retries', 3),
-                    'fragment_retries': session_config.get('fragment_retries', 5),
-                    'socket_timeout': session_config.get('socket_timeout', 120),
+                    'extractor_retries': 1,  # Redus pentru server mic
+                    'fragment_retries': 2,  # Redus pentru server mic
+                    'socket_timeout': 30,  # Redus pentru server mic
                     'http_headers': session_config['http_headers'],
-                    'sleep_interval': session_config.get('sleep_interval', 2) * strategy['sleep_multiplier'],
-                    'max_sleep_interval': session_config.get('max_sleep_interval', 10) * strategy['sleep_multiplier'],
-                    'sleep_interval_subtitles': session_config.get('sleep_interval_subtitles', 2) * strategy['sleep_multiplier'],
+                    'sleep_interval': 1,  # Redus pentru server mic
+                    'max_sleep_interval': 3,  # Redus pentru server mic
+                    'sleep_interval_subtitles': 1,  # Redus pentru server mic
                     'retry_sleep_functions': session_config.get('retry_sleep_functions', {}),
                     # Configurații suplimentare anti-detecție
                     'geo_bypass': session_config.get('geo_bypass', True),
