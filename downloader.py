@@ -7,7 +7,15 @@ import re
 import unicodedata
 import random
 import json
+import logging
 from datetime import datetime, timedelta
+
+# Configurare logging centralizat
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
 # Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
@@ -114,16 +122,12 @@ def get_random_headers():
     return headers
 
 def get_youtube_cookies():
-    """Generează cookies simulate pentru YouTube"""
-    # Simulează cookies de sesiune YouTube reali
-    cookies = {
-        'CONSENT': f'YES+cb.20210328-17-p0.en+FX+{random.randint(100, 999)}',
-        'VISITOR_INFO1_LIVE': ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=22)),
-        'YSC': ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_', k=16)),
-        'PREF': f'f4=4000000&tz=Europe.Bucharest&f5=30000&f6=8&f7=100',
-        'GPS': '1',
-    }
-    return cookies
+    """Generează cookies simulate pentru YouTube (fără a fi trimise ca header pentru securitate)
+    Conform avertismentului yt-dlp, cookies nu trebuie trimise ca header HTTP
+    """
+    # Nu mai returnăm cookies ca string în header pentru a evita avertismentul de securitate
+    # În schimb, folosim configurații extractor specifice
+    return None
 
 def get_youtube_extractor_args(client_type='mweb'):
     """Configurează argumentele extractor pentru YouTube conform documentației oficiale"""
@@ -172,7 +176,6 @@ def get_youtube_extractor_args(client_type='mweb'):
 def create_youtube_session_advanced(client_type='mweb'):
     """Creează o sesiune YouTube avansată cu configurații anti-detecție și client optim"""
     headers = get_random_headers()
-    cookies = get_youtube_cookies()
     client_config = YOUTUBE_CLIENT_CONFIGS.get(client_type, YOUTUBE_CLIENT_CONFIGS['mweb'])
     extractor_args = get_youtube_extractor_args(client_type)
     
@@ -218,16 +221,14 @@ def create_youtube_session_advanced(client_type='mweb'):
         'youtube_include_dash_manifest': False,  # Evită DASH pentru simplitate
     }
     
-    # Adaugă cookies în format yt-dlp
-    cookie_string = '; '.join([f'{k}={v}' for k, v in cookies.items()])
-    session_config['http_headers']['Cookie'] = cookie_string
+    # Nu mai adăugăm cookies în header pentru a evita avertismentele de securitate
+    # Cookies sunt gestionate prin configurații extractor specifice
     
     return session_config, client_config
 
 def create_youtube_session():
     """Creează o sesiune YouTube cu configurații anti-detecție"""
     headers = get_random_headers()
-    cookies = get_youtube_cookies()
     
     # Configurații avansate pentru a evita detecția
     session_config = {
@@ -264,9 +265,8 @@ def create_youtube_session():
         'writeannotations': False,
     }
     
-    # Adaugă cookies în format yt-dlp
-    cookie_string = '; '.join([f'{k}={v}' for k, v in cookies.items()])
-    session_config['http_headers']['Cookie'] = cookie_string
+    # Nu mai adăugăm cookies în header pentru a evita avertismentele de securitate
+    # Cookies sunt gestionate prin configurații extractor specifice
     
     return session_config
 
@@ -320,7 +320,13 @@ def is_youtube_bot_detection_error(error_msg):
         'authentication',
         'session',
         'csrf',
-        'token expired'
+        'token expired',
+        
+        # Erori DNS și de conectivitate
+        'failed to resolve',
+        'name or service not known',
+        'unable to download api page',
+        'failed to extract any player response'
     ]
     
     error_lower = str(error_msg).lower()
@@ -597,14 +603,46 @@ def try_facebook_fallback(url, output_path, title):
             'title': title or 'N/A'
         }
 
+def validate_url(url):
+    """Validează URL-ul pentru a preveni erorile DNS"""
+    if not url or len(url.strip()) < 10:
+        return False, "URL invalid sau prea scurt"
+    
+    url = url.strip()
+    
+    # Verifică dacă URL-ul conține domenii suportate
+    supported_domains = [
+        'youtube.com', 'youtu.be', 'tiktok.com', 'instagram.com', 
+        'facebook.com', 'fb.watch', 'twitter.com', 'x.com'
+    ]
+    
+    if not any(domain in url.lower() for domain in supported_domains):
+        return False, "Domeniu nesuportat"
+    
+    # Verifică dacă URL-ul nu este corupt (ex: doar "w")
+    if len(url) < 15 or not url.startswith(('http://', 'https://')):
+        return False, "URL corupt sau incomplet"
+    
+    return True, "URL valid"
+
 def download_video(url, output_path=None):
     """
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
     Returnează un dicționar cu rezultatul
     """
+    # Validează URL-ul înainte de procesare
+    is_valid, validation_msg = validate_url(url)
+    if not is_valid:
+        return {
+            'success': False,
+            'error': f'❌ URL invalid: {validation_msg}',
+            'title': 'N/A'
+        }
+    
+    # Creează directorul temporar ÎNTOTDEAUNA
+    temp_dir = tempfile.mkdtemp()
+    
     if output_path is None:
-        # Creează un director temporar unic
-        temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
     
     # Configurație specifică pentru YouTube cu măsuri anti-detecție avansate (2024)
@@ -686,13 +724,23 @@ def download_video(url, output_path=None):
                 error_msg = str(client_error)
                 print(f"❌ Client {strategy['client']} eșuat: {error_msg}")
                 
+                # Logging centralizat pentru monitorizare
+                logger.error(f"YouTube client {strategy['client']} failed: {error_msg}", extra={
+                    'client': strategy['client'],
+                    'priority': strategy.get('priority', 'N/A'),
+                    'attempt': attempt + 1,
+                    'url': url[:50] + '...' if len(url) > 50 else url
+                })
+                
                 # Verifică dacă este o eroare care necesită PO Token
                 if is_po_token_required_error(error_msg):
                     print(f"⚠️  Detectată eroare PO Token pentru client {strategy['client']}")
+                    logger.warning(f"PO Token error detected for client {strategy['client']}")
                 
                 # Verifică dacă este o eroare de detecție bot
                 if is_youtube_bot_detection_error(error_msg):
                     print(f"🤖 Detectată eroare anti-bot pentru client {strategy['client']}")
+                    logger.warning(f"Anti-bot error detected for client {strategy['client']}")
                     # Adaugă delay suplimentar pentru următoarea încercare
                     extra_delay = random.uniform(5, 15)
                     print(f"Adaug delay suplimentar de {extra_delay:.1f} secunde...")
