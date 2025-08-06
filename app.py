@@ -47,19 +47,19 @@ if not TOKEN:
             print(f"  - {key}")
     raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
 
-# Inițializare bot și application cu configurații îmbunătățite
-# Configurare bot cu connection pool și timeout-uri optimizate
+# Inițializare bot și application cu configurații optimizate pentru producție
+# Configurare bot cu connection pool și timeout-uri reduse pentru Render
 bot = Bot(TOKEN)
 application = (
     Application.builder()
     .token(TOKEN)
-    .connection_pool_size(200)  # Mărit pentru mai multe conexiuni simultane
-    .pool_timeout(60.0)  # Timeout mărit
-    .get_updates_connection_pool_size(20)  # Mărit pentru get_updates
-    .get_updates_pool_timeout(60.0)  # Timeout mărit
-    .read_timeout(30.0)  # Timeout pentru citire
-    .write_timeout(30.0)  # Timeout pentru scriere
-    .connect_timeout(30.0)  # Timeout pentru conectare
+    .connection_pool_size(50)  # Redus pentru mediul de producție
+    .pool_timeout(20.0)  # Timeout redus
+    .get_updates_connection_pool_size(5)  # Redus pentru webhook mode
+    .get_updates_pool_timeout(20.0)  # Timeout redus
+    .read_timeout(15.0)  # Timeout redus pentru citire
+    .write_timeout(15.0)  # Timeout redus pentru scriere
+    .connect_timeout(10.0)  # Timeout redus pentru conectare
     .build()
 )
 
@@ -628,100 +628,61 @@ def index():
         'message': 'Telegram Video Downloader Bot is active'
     })
 
-# Thread pool global pentru procesarea update-urilor
-_thread_pool = None
-_thread_pool_lock = threading.Lock()
-
-def get_thread_pool():
-    global _thread_pool
-    if _thread_pool is None:
-        with _thread_pool_lock:
-            # Double-check locking pattern
-            if _thread_pool is None:
-                import concurrent.futures
-                _thread_pool = concurrent.futures.ThreadPoolExecutor(
-                    max_workers=3,  # Redus pentru a evita overhead-ul
-                    thread_name_prefix="telegram_webhook"
-                )
-                logger.info("✅ Thread pool pentru webhook-uri inițializat cu 3 workers")
-    return _thread_pool
-
-def cleanup_thread_pool():
-    """Închide thread pool-ul în mod graceful"""
-    global _thread_pool
-    if _thread_pool is not None:
-        with _thread_pool_lock:
-            if _thread_pool is not None:
-                _thread_pool.shutdown(wait=True)
-                _thread_pool = None
-                logger.info("✅ Thread pool închis cu succes")
-
-# Înregistrează cleanup la ieșirea din aplicație
-import atexit
-atexit.register(cleanup_thread_pool)
+# Configurații simplificate pentru webhook-uri
+# Thread pool eliminat pentru a evita problemele în producție
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    """Webhook simplificat pentru a evita problemele cu event loop-urile"""
     try:
         # Asigură că aplicația este inițializată
         ensure_app_initialized()
         
-        update = Update.de_json(request.get_json(force=True), bot)
+        # Obține datele JSON
+        json_data = request.get_json(force=True)
+        if not json_data:
+            return jsonify({'status': 'error', 'message': 'No JSON data'}), 400
         
-        # Folosește thread pool persistent pentru a evita overhead-ul de creare
-        import concurrent.futures
+        # Creează update-ul
+        update = Update.de_json(json_data, bot)
+        if not update:
+            return jsonify({'status': 'error', 'message': 'Invalid update'}), 400
         
-        def safe_process_update():
-            """Procesează update-ul într-un mod thread-safe cu gestionare îmbunătățită a event loop-ului"""
-            import asyncio
-            import threading
-            
+        # Procesează update-ul într-un mod simplificat
+        def process_update_simple():
+            """Procesează update-ul fără event loop complex"""
             try:
-                # Creează întotdeauna un nou event loop pentru acest thread
-                # pentru a evita conflictele cu loop-uri existente
+                # Folosește un event loop nou și simplu
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                
                 try:
-                    # Procesează update-ul în noul loop
+                    # Procesează direct update-ul
                     loop.run_until_complete(application.process_update(update))
+                    return True
+                except Exception as e:
+                    logger.error(f"Eroare la procesarea update-ului: {e}")
+                    return False
                 finally:
-                    # Închide loop-ul în mod explicit pentru a evita memory leaks
+                    # Cleanup simplu
                     try:
-                        # Anulează toate task-urile pending
-                        pending = asyncio.all_tasks(loop)
-                        for task in pending:
-                            task.cancel()
-                        
-                        # Așteaptă ca task-urile să fie anulate
-                        if pending:
-                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    except Exception as cleanup_error:
-                        logger.warning(f"Eroare la cleanup loop: {cleanup_error}")
-                    finally:
                         loop.close()
-                        
+                    except:
+                        pass
             except Exception as e:
-                logger.error(f"Eroare la procesarea update-ului: {e}")
-                raise
+                logger.error(f"Eroare critică în procesarea update-ului: {e}")
+                return False
         
-        # Rulează procesarea în thread pool cu timeout redus
-        thread_pool = get_thread_pool()
-        future = thread_pool.submit(safe_process_update)
+        # Rulează procesarea în background și returnează imediat
+        import threading
+        thread = threading.Thread(target=process_update_simple, daemon=True)
+        thread.start()
         
-        try:
-            future.result(timeout=20)  # Timeout redus la 20 secunde
-        except concurrent.futures.TimeoutError:
-            logger.error("Timeout la procesarea update-ului")
-            return jsonify({'status': 'timeout', 'message': 'Request timeout'}), 408
-        except Exception as e:
-            logger.error(f"Eroare la procesarea în thread pool: {e}")
-            return jsonify({'status': 'error', 'message': 'Processing failed'}), 500
+        # Returnează imediat success pentru a evita timeout-urile
+        return jsonify({'status': 'ok'}), 200
         
-        return jsonify({'status': 'ok'})
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': 'Webhook error'}), 500
 
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
@@ -785,17 +746,10 @@ def health_check():
                 'timestamp': time.time()
             }), 503
         
-        # Verifică starea thread pool-ului
-        thread_pool_status = 'healthy'
-        if _thread_pool is None:
-            thread_pool_status = 'not_initialized'
-        elif _thread_pool._shutdown:
-            thread_pool_status = 'shutdown'
-        
         return jsonify({
             'status': 'healthy',
             'message': 'Bot is running',
-            'thread_pool_status': thread_pool_status,
+            'webhook_mode': 'simplified',
             'timestamp': time.time()
         })
     except Exception as e:
