@@ -716,10 +716,10 @@ def process_message_sync(update):
             welcome_text = (
                 "🎬 <b>Bun venit la Video Downloader Bot!</b>\n\n"
                 "📱 Trimite-mi un link de pe:\n"
-                "• YouTube\n"
                 "• TikTok\n"
                 "• Instagram\n"
-                "• Facebook\n\n"
+                "• Facebook\n"
+                "• Twitter/X\n\n"
                 "🔗 Doar copiază și lipește link-ul aici!"
             )
             send_telegram_message(chat_id, welcome_text)
@@ -729,15 +729,15 @@ def process_message_sync(update):
                 "📋 <b>Cum să folosești bot-ul:</b>\n\n"
                 "1️⃣ Copiază link-ul video\n"
                 "2️⃣ Lipește-l în chat\n"
-                "3️⃣ Alege calitatea dorită\n"
-                "4️⃣ Descarcă video-ul\n\n"
+                "3️⃣ Bot-ul va descărca automat în 720p\n"
+                "4️⃣ Primești video-ul descărcat\n\n"
                 "🎯 <b>Platforme suportate:</b>\n"
-                "• YouTube, TikTok, Instagram, Facebook\n\n"
+                "• TikTok, Instagram, Facebook, Twitter/X\n\n"
                 "❓ Pentru ajutor: /help"
             )
             send_telegram_message(chat_id, help_text)
             
-        elif text and ('youtube.com' in text or 'youtu.be' in text or 'tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text):
+        elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
             # Procesează link-ul video
             process_video_link_sync(chat_id, text)
             
@@ -792,7 +792,7 @@ def process_video_link_sync(chat_id, url):
     try:
         # Verifică dacă URL-ul este suportat
         if not is_supported_url(url):
-            send_telegram_message(chat_id, "❌ Link-ul nu este suportat. Încearcă cu YouTube, TikTok, Instagram sau Facebook.")
+            send_telegram_message(chat_id, "❌ Link-ul nu este suportat. Încearcă cu TikTok, Instagram, Facebook sau Twitter/X.")
             return
         
         # Trimite mesaj de procesare
@@ -814,8 +814,8 @@ def download_video_sync(chat_id, url):
         result = download_video(url)
         
         if result['success']:
-            # Trimite fișierul
-            send_video_file(chat_id, result['file_path'], result.get('title', 'Video'))
+            # Trimite fișierul cu toate informațiile
+            send_video_file(chat_id, result['file_path'], result)
         else:
             send_telegram_message(chat_id, f"❌ Eroare la descărcare: {result.get('error', 'Eroare necunoscută')}")
             
@@ -823,7 +823,7 @@ def download_video_sync(chat_id, url):
         logger.error(f"Eroare la descărcarea video-ului: {e}")
         send_telegram_message(chat_id, "❌ Eroare la descărcarea video-ului. Încearcă din nou.")
 
-def send_video_file(chat_id, file_path, title):
+def send_video_file(chat_id, file_path, video_info):
     """Trimite fișierul video prin Telegram"""
     try:
         import requests
@@ -831,11 +831,48 @@ def send_video_file(chat_id, file_path, title):
         
         url = f"https://api.telegram.org/bot{TOKEN}/sendVideo"
         
+        # Creează caption-ul detaliat
+        title = video_info.get('title', 'Video')
+        uploader = video_info.get('uploader', '')
+        description = video_info.get('description', '')
+        duration = video_info.get('duration', 0)
+        file_size = video_info.get('file_size', 0)
+        
+        # Formatează durata
+        if duration:
+            minutes = duration // 60
+            seconds = duration % 60
+            duration_str = f"{minutes}:{seconds:02d}"
+        else:
+            duration_str = "N/A"
+        
+        # Formatează dimensiunea fișierului
+        if file_size:
+            size_mb = file_size / (1024 * 1024)
+            size_str = f"{size_mb:.1f} MB"
+        else:
+            size_str = "N/A"
+        
+        # Truncate description la 100 caractere
+        if description and len(description) > 100:
+            description = description[:100] + "..."
+        
+        # Construiește caption-ul
+        caption = f"🎬 **{title}**\n"
+        if uploader:
+            caption += f"👤 {uploader}\n"
+        if description:
+            caption += f"📝 {description}\n"
+        caption += f"⏱️ Durată: {duration_str}\n"
+        caption += f"📁 Dimensiune: {size_str}\n\n"
+        caption += "✅ Descărcare completă!"
+        
         with open(file_path, 'rb') as video_file:
             files = {'video': video_file}
             data = {
                 'chat_id': chat_id,
-                'caption': f"🎬 {title}\n\n✅ Descărcare completă!"
+                'caption': caption,
+                'parse_mode': 'Markdown'
             }
             
             response = requests.post(url, files=files, data=data, timeout=300)
