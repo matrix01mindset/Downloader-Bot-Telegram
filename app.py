@@ -697,7 +697,15 @@ def process_message_sync(update):
     """Procesează mesajele în mod sincron"""
     try:
         message = update.message
-        chat_id = message.chat.id if hasattr(message.chat, 'id') else message.chat_id
+        # Accesează chat_id în mod sigur
+        if hasattr(message, 'chat_id'):
+            chat_id = message.chat_id
+        elif hasattr(message, 'chat') and hasattr(message.chat, 'id'):
+            chat_id = message.chat.id
+        else:
+            logger.error("Nu se poate obține chat_id din mesaj")
+            return
+            
         text = message.text if hasattr(message, 'text') else None
         
         # Verifică dacă mesajul are text
@@ -746,7 +754,15 @@ def process_callback_sync(update):
         if not query or not query.message:
             return
             
-        chat_id = query.message.chat.id if hasattr(query.message.chat, 'id') else query.message.chat_id
+        # Accesează chat_id în mod sigur
+        if hasattr(query.message, 'chat_id'):
+            chat_id = query.message.chat_id
+        elif hasattr(query.message, 'chat') and hasattr(query.message.chat, 'id'):
+            chat_id = query.message.chat.id
+        else:
+            logger.error("Nu se poate obține chat_id din callback")
+            return
+            
         data = query.data if hasattr(query, 'data') else None
         
         if not data:
@@ -755,13 +771,8 @@ def process_callback_sync(update):
         # Răspunde la callback pentru a elimina loading-ul
         answer_callback_query(query.id)
         
-        if data.startswith('download_'):
-            # Procesează descărcarea
-            parts = data.split('_', 2)
-            if len(parts) >= 3:
-                quality = parts[1]
-                url = parts[2]
-                download_video_sync(chat_id, url, quality)
+        # Callback-urile pentru descărcare cu calitate au fost eliminate
+        # Descărcarea se face automat în 720p când se trimite un link
         
     except Exception as e:
         logger.error(f"Eroare la procesarea callback-ului: {e}")
@@ -777,7 +788,7 @@ def answer_callback_query(callback_query_id):
         logger.error(f"Eroare la răspunsul callback: {e}")
 
 def process_video_link_sync(chat_id, url):
-    """Procesează link-ul video în mod sincron"""
+    """Procesează link-ul video în mod sincron și descarcă automat în 720p"""
     try:
         # Verifică dacă URL-ul este suportat
         if not is_supported_url(url):
@@ -785,31 +796,22 @@ def process_video_link_sync(chat_id, url):
             return
         
         # Trimite mesaj de procesare
-        send_telegram_message(chat_id, "🔄 Procesez video-ul... Te rog așteaptă.")
+        send_telegram_message(chat_id, "🔄 Procesez și descarc video-ul în 720p... Te rog așteaptă.")
         
-        # Creează butoanele pentru calitate
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "📱 Calitate Mobilă (360p)", "callback_data": f"download_360_{url}"}],
-                [{"text": "🎬 Calitate Standard (720p)", "callback_data": f"download_720_{url}"}],
-                [{"text": "🎯 Cea mai bună calitate", "callback_data": f"download_best_{url}"}]
-            ]
-        }
-        
-        text = "🎬 <b>Video găsit!</b>\n\nAlege calitatea pentru descărcare:"
-        send_telegram_message(chat_id, text, keyboard)
+        # Descarcă direct în calitate 720p
+        download_video_sync(chat_id, url)
         
     except Exception as e:
         logger.error(f"Eroare la procesarea link-ului: {e}")
         send_telegram_message(chat_id, "❌ Eroare la procesarea video-ului. Încearcă din nou.")
 
-def download_video_sync(chat_id, url, quality):
-    """Descarcă video-ul în mod sincron"""
+def download_video_sync(chat_id, url):
+    """Descarcă video-ul în mod sincron în 720p"""
     try:
-        send_telegram_message(chat_id, "⬇️ Încep descărcarea... Poate dura câteva minute.")
+        send_telegram_message(chat_id, "⬇️ Încep descărcarea în 720p... Poate dura câteva minute.")
         
-        # Descarcă video-ul
-        result = download_video(url, quality)
+        # Descarcă video-ul (funcția download_video folosește deja format 720p)
+        result = download_video(url)
         
         if result['success']:
             # Trimite fișierul
