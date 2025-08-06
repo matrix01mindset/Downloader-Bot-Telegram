@@ -1,0 +1,44 @@
+{
+  "timestamp": "20250806_090025",
+  "validation_passed": true,
+  "download_results": {
+    "TikTok": [
+      {
+        "url": "https://www.tiktok.com/@exkugga/video/7505397933236587822",
+        "success": true,
+        "error": "",
+        "download_time": 2.6860156059265137,
+        "file_size": 495716,
+        "duration": 6,
+        "quality": "Low (360p-) - 661 kbps"
+      }
+    ],
+    "Instagram": [
+      {
+        "url": "https://www.instagram.com/p/DCZXHzjRZ2u/",
+        "success": true,
+        "error": "",
+        "download_time": 2.0218465328216553,
+        "file_size": 5820610,
+        "duration": 29.0,
+        "quality": "HD (720p+) - 1606 kbps"
+      }
+    ],
+    "Facebook": [
+      {
+        "url": "https://www.facebook.com/share/v/1JQBkj2qGf/",
+        "success": true,
+        "error": "",
+        "download_time": 10.74570894241333,
+        "file_size": 2309926,
+        "duration": 22.666,
+        "quality": "SD (480p) - 815 kbps"
+      }
+    ]
+  },
+  "statistics": {
+    "total_tests": 3,
+    "total_success": 3,
+    "success_rate": 100.0
+  }
+}
