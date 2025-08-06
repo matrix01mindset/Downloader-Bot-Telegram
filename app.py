@@ -117,7 +117,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    await safe_send_message(update, welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -147,7 +147,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
+    await safe_send_message(update, help_text, parse_mode='Markdown', reply_markup=reply_markup)
 
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -181,38 +181,107 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    await safe_send_message(update, welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /ping - verifică dacă botul funcționează
     """
     start_time = time.time()
-    message = await update.message.reply_text("🏓 Pinging...")
+    message = await safe_send_message(update, "🏓 Pinging...")
     end_time = time.time()
     ping_time = round((end_time - start_time) * 1000, 2)
     
-    await message.edit_text(f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms")
+    if message:
+        await safe_edit_message(message, f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms")
+
+async def safe_send_message(update, text, **kwargs):
+    """
+    Trimite un mesaj în mod sigur, gestionând erorile de chat inexistent
+    """
+    try:
+        if hasattr(update.message, 'reply_text'):
+            return await update.message.reply_text(text, **kwargs)
+        else:
+            return await update.effective_chat.send_message(text, **kwargs)
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+            logger.warning(f"Chat inaccesibil pentru user {update.effective_user.id}: {e}")
+            return None
+        else:
+            logger.error(f"Eroare la trimiterea mesajului: {e}")
+            raise
+
+async def safe_edit_message(message, text, **kwargs):
+    """
+    Editează un mesaj în mod sigur, gestionând erorile de chat inexistent
+    """
+    try:
+        return await message.edit_text(text, **kwargs)
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+            logger.warning(f"Nu se poate edita mesajul - chat inaccesibil: {e}")
+            return None
+        else:
+            logger.error(f"Eroare la editarea mesajului: {e}")
+            return None
+
+async def safe_delete_message(message):
+    """
+    Șterge un mesaj în mod sigur, gestionând erorile de chat inexistent
+    """
+    try:
+        await message.delete()
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+            logger.warning(f"Nu se poate șterge mesajul - chat inaccesibil: {e}")
+        else:
+            logger.error(f"Eroare la ștergerea mesajului: {e}")
+
+async def safe_edit_callback_message(query, text, **kwargs):
+    """
+    Editează un mesaj de callback în mod sigur, gestionând erorile de chat inexistent
+    """
+    try:
+        return await query.edit_message_text(text, **kwargs)
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+            logger.warning(f"Nu se poate edita mesajul callback - chat inaccesibil: {e}")
+            return None
+        else:
+            logger.error(f"Eroare la editarea mesajului callback: {e}")
+            return None
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Procesează mesajele text (link-uri pentru descărcare)
     """
     try:
+        # Verifică dacă update-ul și mesajul sunt valide
+        if not update or not update.message or not update.effective_user:
+            logger.warning("Update invalid primit")
+            return
+            
         message_text = update.message.text
         user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
         
-        logger.info(f"Mesaj primit de la {user_id}: {message_text}")
+        logger.info(f"Mesaj primit de la {user_id} în chat {chat_id}: {message_text}")
         
         # Verifică dacă mesajul conține un URL suportat
         if is_supported_url(message_text):
             # Trimite mesaj de confirmare
-            try:
-                status_message = await update.message.reply_text(
-                    "🔄 Procesez videoclipul...\n⏳ Te rog să aștepți..."
-                )
-            except Exception as e:
-                logger.error(f"Eroare la trimiterea mesajului de status: {e}")
+            status_message = await safe_send_message(
+                update,
+                "🔄 Procesez videoclipul...\n⏳ Te rog să aștepți..."
+            )
+            
+            if not status_message:
+                logger.warning(f"Nu s-a putut trimite mesajul de status pentru user {user_id}")
                 return
             
             try:
@@ -227,10 +296,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     result = await loop.run_in_executor(executor, download_video, message_text)
                 
                 if result['success']:
-                    try:
-                        await status_message.edit_text("📤 Trimit videoclipul...")
-                    except Exception as e:
-                        logger.error(f"Eroare la editarea mesajului: {e}")
+                    await safe_edit_message(status_message, "📤 Trimit videoclipul...")
                     
                     # Trimite videoclipul
                     try:
@@ -257,20 +323,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             if description and len(description.strip()) > 0:
                                 caption += f"\n📝 **Descriere/Tags:**\n{description}"
                             
-                            await update.message.reply_video(
-                                video=video_file,
-                                caption=caption,
-                                supports_streaming=True,
-                                parse_mode='Markdown'
-                            )
+                            try:
+                                if hasattr(update.message, 'reply_video'):
+                                    await update.message.reply_video(
+                                        video=video_file,
+                                        caption=caption,
+                                        supports_streaming=True,
+                                        parse_mode='Markdown'
+                                    )
+                                else:
+                                    await update.effective_chat.send_video(
+                                        video=video_file,
+                                        caption=caption,
+                                        supports_streaming=True,
+                                        parse_mode='Markdown'
+                                    )
+                            except Exception as e:
+                                error_msg = str(e).lower()
+                                if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+                                    logger.warning(f"Nu se poate trimite videoclipul - chat inaccesibil pentru user {user_id}: {e}")
+                                    return
+                                else:
+                                    raise
                     except Exception as e:
                         logger.error(f"Eroare la trimiterea videoclipului: {e}")
-                        try:
-                            await status_message.edit_text(
-                                f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
-                            )
-                        except:
-                            pass
+                        await safe_edit_message(
+                            status_message,
+                            f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
+                        )
                     
                     # Șterge fișierul temporar
                     try:
@@ -278,55 +358,67 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     except:
                         pass
                         
-                    try:
-                        await status_message.delete()
-                    except Exception as e:
-                        logger.error(f"Eroare la ștergerea mesajului de status: {e}")
+                    await safe_delete_message(status_message)
                     
                 else:
-                    try:
-                        await status_message.edit_text(
-                            f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
-                        )
-                    except Exception as e:
-                        logger.error(f"Eroare la editarea mesajului de eroare: {e}")
+                    await safe_edit_message(
+                        status_message,
+                        f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
+                    )
                     
             except Exception as e:
                 logger.error(f"Eroare la procesarea videoclipului: {e}")
-                try:
-                    await status_message.edit_text(
+                if status_message:
+                    await safe_edit_message(
+                        status_message,
                         f"❌ Eroare neașteptată:\n{str(e)}"
                     )
-                except Exception as edit_error:
-                    logger.error(f"Eroare la editarea mesajului de eroare: {edit_error}")
         else:
             # Mesaj pentru URL-uri nesuportate
-            try:
-                await update.message.reply_text(
-                    "❌ Link-ul nu este suportat sau nu este valid.\n\n"
-                    "🔗 Platforme suportate:\n"
-                    "• YouTube\n"
-                    "• TikTok\n"
-                    "• Instagram\n"
-                    "• Facebook\n"
-                    "• Twitter/X\n\n"
-                    "💡 Trimite un link valid pentru a descărca videoclipul."
-                )
-            except Exception as e:
-                logger.error(f"Eroare la trimiterea mesajului de eroare pentru URL nesuportat: {e}")
+            await safe_send_message(
+                update,
+                "❌ Link-ul nu este suportat sau nu este valid.\n\n"
+                "🔗 Platforme suportate:\n"
+                "• YouTube\n"
+                "• TikTok\n"
+                "• Instagram\n"
+                "• Facebook\n"
+                "• Twitter/X\n\n"
+                "💡 Trimite un link valid pentru a descărca videoclipul."
+            )
     except Exception as e:
         logger.error(f"Eroare generală în handle_message: {e}")
+        # Încearcă să trimită un mesaj de eroare generică dacă este posibil
+        try:
+            await safe_send_message(
+                update,
+                "❌ A apărut o eroare neașteptată. Te rog să încerci din nou."
+            )
+        except:
+            logger.error("Nu s-a putut trimite mesajul de eroare generică")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează callback-urile de la butoanele inline
     """
     try:
+        # Verifică dacă update-ul și callback query sunt valide
+        if not update or not update.callback_query:
+            logger.warning("Callback query invalid primit")
+            return
+            
         query = update.callback_query
+        
+        # Răspunde la callback query în mod sigur
         try:
             await query.answer()
         except Exception as e:
-            logger.error(f"Eroare la răspunsul callback-ului: {e}")
+            error_msg = str(e).lower()
+            if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+                logger.warning(f"Nu se poate răspunde la callback - chat inaccesibil: {e}")
+                return
+            else:
+                logger.error(f"Eroare la răspunsul callback-ului: {e}")
         
         if query.data == 'help':
             help_text = """
@@ -353,10 +445,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            try:
-                await query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
-            except Exception as e:
-                logger.error(f"Eroare la editarea mesajului help: {e}")
+            await safe_edit_callback_message(query, help_text, parse_mode='Markdown', reply_markup=reply_markup)
             
         elif query.data == 'platforms':
             platforms_text = """
@@ -391,10 +480,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            try:
-                await query.edit_message_text(platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
-            except Exception as e:
-                logger.error(f"Eroare la editarea mesajului platforms: {e}")
+            await safe_edit_callback_message(query, platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
             
         elif query.data == 'settings':
             settings_text = """
@@ -424,10 +510,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            try:
-                await query.edit_message_text(settings_text, parse_mode='Markdown', reply_markup=reply_markup)
-            except Exception as e:
-                logger.error(f"Eroare la editarea mesajului settings: {e}")
+            await safe_edit_callback_message(query, settings_text, parse_mode='Markdown', reply_markup=reply_markup)
             
         elif query.data == 'faq':
             faq_text = """
@@ -455,42 +538,35 @@ A: Nu, doar videoclipuri individuale.
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            try:
-                await query.edit_message_text(faq_text, parse_mode='Markdown', reply_markup=reply_markup)
-            except Exception as e:
-                logger.error(f"Eroare la editarea mesajului faq: {e}")
+            await safe_edit_callback_message(query, faq_text, parse_mode='Markdown', reply_markup=reply_markup)
             
         elif query.data == 'ping_again':
-            try:
-                start_time = time.time()
-                await query.edit_message_text("🏓 Pinging...")
-                end_time = time.time()
-                ping_time = round((end_time - start_time) * 1000, 2)
-                
-                keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(
-                    f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms",
-                    reply_markup=reply_markup
-                )
-            except Exception as e:
-                logger.error(f"Eroare la ping: {e}")
+            start_time = time.time()
+            await safe_edit_callback_message(query, "🏓 Pinging...")
+            end_time = time.time()
+            ping_time = round((end_time - start_time) * 1000, 2)
+            
+            keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await safe_edit_callback_message(
+                query,
+                f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms",
+                reply_markup=reply_markup
+            )
             
         elif query.data == 'wakeup_server':
-            try:
-                await query.edit_message_text("🌅 Server trezit! Botul este activ și gata de utilizare.")
-                
-                keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await asyncio.sleep(2)
-                await query.edit_message_text(
-                    "✅ Server activ!\n🤖 Botul funcționează normal.",
-                    reply_markup=reply_markup
-                )
-            except Exception as e:
-                logger.error(f"Eroare la wakeup server: {e}")
+            await safe_edit_callback_message(query, "🌅 Server trezit! Botul este activ și gata de utilizare.")
+            
+            keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await asyncio.sleep(2)
+            await safe_edit_callback_message(
+                query,
+                "✅ Server activ!\n🤖 Botul funcționează normal.",
+                reply_markup=reply_markup
+            )
             
         elif query.data == 'back_to_menu':
             welcome_message = """
@@ -520,12 +596,16 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            try:
-                await query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
-            except Exception as e:
-                logger.error(f"Eroare la editarea mesajului back_to_menu: {e}")
+            await safe_edit_callback_message(query, welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+            
     except Exception as e:
         logger.error(f"Eroare generală în button_callback: {e}")
+        # Încearcă să răspundă la callback query dacă nu s-a făcut deja
+        try:
+            if update and update.callback_query:
+                await update.callback_query.answer("❌ A apărut o eroare neașteptată.")
+        except:
+            pass
 
 # Handler-ii vor fi adăugați, iar aplicația va fi inițializată la primul request
 
