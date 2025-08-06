@@ -5,6 +5,187 @@ import time
 import glob
 import re
 import unicodedata
+import random
+import json
+from datetime import datetime, timedelta
+
+# Lista de User Agents reali pentru a evita detecția
+REAL_USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+]
+
+# Lista de Accept-Language headers reali
+ACCEPT_LANGUAGES = [
+    'en-US,en;q=0.9',
+    'en-GB,en;q=0.9',
+    'en-US,en;q=0.8,es;q=0.6',
+    'en-US,en;q=0.9,fr;q=0.8',
+    'en-US,en;q=0.9,de;q=0.8',
+    'en-US,en;q=0.9,it;q=0.8',
+    'en-US,en;q=0.9,pt;q=0.8',
+]
+
+def get_random_headers():
+    """Generează headers HTTP reali pentru a evita detecția"""
+    user_agent = random.choice(REAL_USER_AGENTS)
+    accept_language = random.choice(ACCEPT_LANGUAGES)
+    
+    # Generează un viewport realist bazat pe user agent
+    if 'Mobile' in user_agent or 'Android' in user_agent:
+        viewport = random.choice(['375x667', '414x896', '360x640', '412x915'])
+    else:
+        viewport = random.choice(['1920x1080', '1366x768', '1536x864', '1440x900', '1280x720'])
+    
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': accept_language,
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+    }
+    
+    # Adaugă headers specifice pentru Chrome
+    if 'Chrome' in user_agent and 'Edg' not in user_agent:
+        headers.update({
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0' if 'Mobile' not in user_agent else '?1',
+            'sec-ch-ua-platform': '"Windows"' if 'Windows' in user_agent else ('"macOS"' if 'Mac' in user_agent else '"Linux"'),
+        })
+    
+    return headers
+
+def get_youtube_cookies():
+    """Generează cookies simulate pentru YouTube"""
+    # Simulează cookies de sesiune YouTube reali
+    cookies = {
+        'CONSENT': f'YES+cb.20210328-17-p0.en+FX+{random.randint(100, 999)}',
+        'VISITOR_INFO1_LIVE': ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=22)),
+        'YSC': ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_', k=16)),
+        'PREF': f'f4=4000000&tz=Europe.Bucharest&f5=30000&f6=8&f7=100',
+        'GPS': '1',
+    }
+    return cookies
+
+def create_youtube_session():
+    """Creează o sesiune YouTube cu configurații anti-detecție"""
+    headers = get_random_headers()
+    cookies = get_youtube_cookies()
+    
+    # Configurații avansate pentru a evita detecția
+    session_config = {
+        'http_headers': headers,
+        'cookiefile': None,  # Nu salvăm cookies pe disk
+        'nocheckcertificate': False,
+        'prefer_insecure': False,
+        'cachedir': False,
+        'no_warnings': True,
+        'extract_flat': False,
+        'ignoreerrors': False,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'age_limit': None,
+        'sleep_interval': random.uniform(1.5, 3.5),  # Pauză randomizată
+        'max_sleep_interval': random.uniform(8, 15),
+        'sleep_interval_subtitles': random.uniform(1, 3),
+        'socket_timeout': random.randint(90, 150),
+        'retries': 2,
+        'extractor_retries': 3,
+        'fragment_retries': 5,
+        'retry_sleep_functions': {
+            'http': lambda n: min(2 ** n + random.uniform(0.5, 2), 30),
+            'fragment': lambda n: min(2 ** n + random.uniform(0.5, 2), 30)
+        },
+        # Simulează comportament de browser real
+        'extract_comments': False,
+        'writesubtitles': False,
+        'writeautomaticsub': False,
+        'embed_subs': False,
+        'writeinfojson': False,
+        'writethumbnail': False,
+        'writedescription': False,
+        'writeannotations': False,
+    }
+    
+    # Adaugă cookies în format yt-dlp
+    cookie_string = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+    session_config['http_headers']['Cookie'] = cookie_string
+    
+    return session_config
+
+def is_youtube_bot_detection_error(error_msg):
+    """Detectează dacă eroarea este cauzată de sistemul anti-bot YouTube"""
+    bot_detection_keywords = [
+        'HTTP Error 429',
+        'Too Many Requests',
+        'rate limit',
+        'bot',
+        'automated',
+        'suspicious',
+        'blocked',
+        'forbidden',
+        'access denied',
+        'captcha',
+        'verification',
+        'unusual traffic',
+        'quota exceeded',
+        'service unavailable',
+        'temporarily unavailable',
+        'sign in to confirm',
+        'video unavailable',
+        'private video',
+        'age-restricted',
+        'region blocked'
+    ]
+    
+    error_lower = str(error_msg).lower()
+    return any(keyword in error_lower for keyword in bot_detection_keywords)
+
+def get_youtube_retry_strategy(attempt_number):
+    """Returnează strategia de retry bazată pe numărul încercării"""
+    strategies = [
+        {  # Prima încercare - configurații standard
+            'format': 'best[height<=720]/best',
+            'sleep_multiplier': 1.0,
+            'geo_country': 'US'
+        },
+        {  # A doua încercare - calitate mai mică
+            'format': 'best[height<=480]/best',
+            'sleep_multiplier': 1.5,
+            'geo_country': 'GB'
+        },
+        {  # A treia încercare - calitate minimă
+            'format': 'worst[height<=360]/worst',
+            'sleep_multiplier': 2.0,
+            'geo_country': 'CA'
+        }
+    ]
+    
+    if attempt_number < len(strategies):
+        return strategies[attempt_number]
+    else:
+        # Pentru încercări suplimentare, folosește ultima strategie cu delay crescut
+        last_strategy = strategies[-1].copy()
+        last_strategy['sleep_multiplier'] = 3.0 + (attempt_number - len(strategies))
+        last_strategy['geo_country'] = random.choice(['AU', 'NZ', 'IE', 'NL'])
+        return last_strategy
 
 def clean_title(title):
     """
@@ -39,8 +220,11 @@ def clean_title(title):
 
 def try_youtube_fallback(url, output_path, title):
     """
-    Încearcă descărcarea YouTube cu opțiuni ultra-conservative pentru a evita rate limiting
+    Încearcă descărcarea YouTube cu opțiuni ultra-conservative și anti-detecție pentru a evita rate limiting
     """
+    # Creează o sesiune cu configurații anti-detecție pentru fallback
+    session_config = create_youtube_session()
+    
     fallback_opts = {
         'outtmpl': output_path,
         'format': 'worst[height<=360]/worst[height<=240]/worst',  # Calitate foarte mică
@@ -50,27 +234,19 @@ def try_youtube_fallback(url, output_path, title):
         'embed_subs': False,
         'writesubtitles': False,
         'writeautomaticsub': False,
-        # Headers foarte simple pentru a evita detectarea
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        },
-        'extractor_retries': 1,  # Doar o încercare
-        'fragment_retries': 1,
+        # Folosește headers anti-detecție din sesiune
+        'http_headers': session_config['http_headers'],
+        'extractor_retries': 2,  # Încercări moderate
+        'fragment_retries': 3,
         'retry_sleep_functions': {
-            'http': lambda n: min(10 ** n, 300),  # Delay foarte mare
-            'fragment': lambda n: min(10 ** n, 300)
+            'http': lambda n: min(5 ** n + random.uniform(1, 3), 120),  # Delay randomizat
+            'fragment': lambda n: min(5 ** n + random.uniform(1, 3), 120)
         },
-        'socket_timeout': 180,  # Timeout foarte mare
-        'retries': 0,  # Fără retry-uri
-        'sleep_interval': 10,  # Pauză foarte mare între cereri
-        'max_sleep_interval': 30,
-        'sleep_interval_subtitles': 10,
+        'socket_timeout': random.randint(90, 150),  # Timeout randomizat
+        'retries': 1,  # O reîncercare
+        'sleep_interval': random.uniform(8, 12),  # Pauză randomizată între cereri
+        'max_sleep_interval': random.uniform(25, 35),
+        'sleep_interval_subtitles': random.uniform(5, 8),
         'nocheckcertificate': False,
         'prefer_insecure': False,
         'cachedir': False,
@@ -78,13 +254,20 @@ def try_youtube_fallback(url, output_path, title):
         'extract_flat': False,
         'ignoreerrors': False,
         'geo_bypass': True,
-        'geo_bypass_country': 'US',
+        'geo_bypass_country': random.choice(['US', 'GB', 'CA', 'AU']),  # Țară randomizată
+        # Configurații anti-detecție suplimentare
+        'age_limit': None,
+        'writeinfojson': False,
+        'writethumbnail': False,
+        'writedescription': False,
+        'writeannotations': False,
+        'extract_comments': False,
     }
     
     try:
         with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-            # Adaugă un delay foarte mare înainte de încercare
-            time.sleep(15)
+            # Adaugă un delay randomizat înainte de încercare pentru a simula comportament uman
+            time.sleep(random.uniform(10, 20))
             ydl.download([url])
             
             # Găsește fișierul descărcat
@@ -182,8 +365,11 @@ def download_video(url, output_path=None):
         temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
     
-    # Configurație specifică pentru YouTube pentru a evita HTTP 429
+    # Configurație specifică pentru YouTube cu măsuri anti-detecție avansate
     if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
+        # Creează o sesiune cu configurații anti-detecție
+        session_config = create_youtube_session()
+        
         ydl_opts = {
             'outtmpl': output_path,
             'format': 'worst[height<=480]/worst',  # Calitate mai mică pentru a reduce load-ul
@@ -193,33 +379,35 @@ def download_video(url, output_path=None):
             'embed_subs': False,
             'writesubtitles': False,
             'writeautomaticsub': False,
-            # Opțiuni specifice pentru YouTube anti-rate-limit
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            },
-            'extractor_retries': 2,
-            'fragment_retries': 2,
-            'retry_sleep_functions': {
-                'http': lambda n: min(3 ** n, 60),  # Exponential backoff mai agresiv
+            # Folosește configurațiile anti-detecție din sesiune
+            'http_headers': session_config['http_headers'],
+            'extractor_retries': session_config.get('extractor_retries', 3),
+            'fragment_retries': session_config.get('fragment_retries', 5),
+            'retry_sleep_functions': session_config.get('retry_sleep_functions', {
+                'http': lambda n: min(3 ** n, 60),
                 'fragment': lambda n: min(3 ** n, 60)
-            },
-            'socket_timeout': 120,  # Timeout mai mare
-            'retries': 1,  # Mai puține retry-uri
-            'sleep_interval': 2,  # Pauză mai mare între cereri
-            'max_sleep_interval': 10,
-            'sleep_interval_subtitles': 2,
-            # Opțiuni pentru a evita detectarea ca bot
+            }),
+            'socket_timeout': session_config.get('socket_timeout', 120),
+            'retries': session_config.get('retries', 2),
+            'sleep_interval': session_config.get('sleep_interval', 2),
+            'max_sleep_interval': session_config.get('max_sleep_interval', 10),
+            'sleep_interval_subtitles': session_config.get('sleep_interval_subtitles', 2),
+            # Configurații suplimentare anti-detecție
+            'geo_bypass': session_config.get('geo_bypass', True),
+            'geo_bypass_country': session_config.get('geo_bypass_country', 'US'),
             'nocheckcertificate': False,
             'prefer_insecure': False,
             'cachedir': False,  # Dezactivează cache-ul
             'no_warnings': True,
             'extract_flat': False,
             'ignoreerrors': False,
+            'age_limit': None,
+            # Evită salvarea de metadate care pot fi detectate
+            'writeinfojson': False,
+            'writethumbnail': False,
+            'writedescription': False,
+            'writeannotations': False,
+            'extract_comments': False,
         }
     else:
         # Configurație pentru alte platforme
@@ -300,8 +488,82 @@ def download_video(url, output_path=None):
                 ydl.download([url])
             except Exception as download_error:
                 error_str = str(download_error).lower()
-                # Încearcă cu opțiuni alternative pentru YouTube la orice eroare
-                if ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
+                # Încearcă cu strategii adaptive pentru YouTube la detectarea erorilor anti-bot
+                if ('youtube.com' in url.lower() or 'youtu.be' in url.lower()) and is_youtube_bot_detection_error(str(download_error)):
+                    print(f"Eroare anti-bot YouTube detectată, încerc strategii alternative: {str(download_error)}")
+                    
+                    # Încearcă mai multe strategii de retry
+                    for attempt in range(3):
+                        try:
+                            print(f"Încercare YouTube #{attempt + 1} cu strategie adaptivă")
+                            strategy = get_youtube_retry_strategy(attempt)
+                            
+                            # Creează o nouă sesiune pentru fiecare încercare
+                            session_config = create_youtube_session()
+                            
+                            # Configurații adaptive bazate pe strategie
+                            adaptive_opts = {
+                                'format': strategy['format'],
+                                'outtmpl': output_path,
+                                'quiet': True,
+                                'no_warnings': True,
+                                'extractaudio': False,
+                                'embed_subs': False,
+                                'writesubtitles': False,
+                                'writeautomaticsub': False,
+                                'noplaylist': True,
+                                'http_headers': session_config['http_headers'],
+                                'retries': 1,
+                                'extractor_retries': 2,
+                                'fragment_retries': 3,
+                                'socket_timeout': random.randint(120, 180),
+                                'sleep_interval': random.uniform(5, 10) * strategy['sleep_multiplier'],
+                                'max_sleep_interval': random.uniform(20, 40) * strategy['sleep_multiplier'],
+                                'sleep_interval_subtitles': random.uniform(3, 6) * strategy['sleep_multiplier'],
+                                'retry_sleep_functions': {
+                                    'http': lambda n: min((7 ** n) * strategy['sleep_multiplier'] + random.uniform(2, 5), 300),
+                                    'fragment': lambda n: min((7 ** n) * strategy['sleep_multiplier'] + random.uniform(2, 5), 300)
+                                },
+                                'geo_bypass': True,
+                                'geo_bypass_country': strategy['geo_country'],
+                                'cachedir': False,
+                                'nocheckcertificate': False,
+                                'prefer_insecure': False,
+                                'age_limit': None,
+                                'extract_flat': False,
+                                'ignoreerrors': False,
+                                'writeinfojson': False,
+                                'writethumbnail': False,
+                                'writedescription': False,
+                                'writeannotations': False,
+                                'extract_comments': False,
+                            }
+                            
+                            # Pauză adaptivă înainte de încercare
+                            delay = random.uniform(10, 25) * strategy['sleep_multiplier']
+                            print(f"Aștept {delay:.1f} secunde înainte de încercare...")
+                            time.sleep(delay)
+                            
+                            with yt_dlp.YoutubeDL(adaptive_opts) as ydl_retry:
+                                ydl_retry.download([url])
+                                
+                            # Verifică dacă descărcarea a reușit
+                            temp_dir = os.path.dirname(output_path)
+                            downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+                            downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+                            
+                            if downloaded_files:
+                                print(f"Descărcare YouTube reușită cu strategia #{attempt + 1}")
+                                break
+                                
+                        except Exception as retry_error:
+                            print(f"Încercarea #{attempt + 1} eșuată: {str(retry_error)}")
+                            if attempt == 2:  # Ultima încercare
+                                print("Toate strategiile YouTube au eșuat, încerc fallback final")
+                                return try_youtube_fallback(url, output_path, title)
+                            continue
+                # Încearcă cu opțiuni alternative pentru YouTube la alte erori
+                elif ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
                     if ('429' in error_str or 'too many requests' in error_str or 'rate' in error_str or 
                         'unavailable' in error_str or 'private' in error_str or 'blocked' in error_str or
                         'sign in' in error_str or 'login' in error_str or 'bot' in error_str):
