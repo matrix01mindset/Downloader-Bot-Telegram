@@ -633,7 +633,7 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Webhook simplificat pentru a evita problemele cu event loop-urile"""
+    """Webhook complet sincron pentru a evita problemele cu event loop-urile"""
     try:
         # Asigură că aplicația este inițializată
         ensure_app_initialized()
@@ -648,33 +648,23 @@ def webhook():
         if not update:
             return jsonify({'status': 'error', 'message': 'Invalid update'}), 400
         
-        # Procesează update-ul într-un mod simplificat
-        def process_update_simple():
-            """Procesează update-ul fără event loop complex"""
+        # Procesează update-ul complet sincron
+        def process_update_sync():
+            """Procesează update-ul fără asyncio"""
             try:
-                # Folosește un event loop nou și simplu
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Procesează direct update-ul
-                    loop.run_until_complete(application.process_update(update))
-                    return True
-                except Exception as e:
-                    logger.error(f"Eroare la procesarea update-ului: {e}")
-                    return False
-                finally:
-                    # Cleanup simplu
-                    try:
-                        loop.close()
-                    except:
-                        pass
+                # Procesează manual diferite tipuri de update-uri
+                if update.message:
+                    process_message_sync(update)
+                elif update.callback_query:
+                    process_callback_sync(update)
+                else:
+                    logger.info("Update ignorat - tip nesuportat")
             except Exception as e:
-                logger.error(f"Eroare critică în procesarea update-ului: {e}")
-                return False
+                logger.error(f"Eroare la procesarea sincronă: {e}")
         
         # Rulează procesarea în background și returnează imediat
         import threading
-        thread = threading.Thread(target=process_update_simple, daemon=True)
+        thread = threading.Thread(target=process_update_sync, daemon=True)
         thread.start()
         
         # Returnează imediat success pentru a evita timeout-urile
@@ -683,6 +673,177 @@ def webhook():
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
         return jsonify({'status': 'error', 'message': 'Webhook error'}), 500
+
+def send_telegram_message(chat_id, text, reply_markup=None):
+    """Trimite mesaj prin API-ul Telegram folosind requests"""
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': text,
+            'parse_mode': 'HTML'
+        }
+        if reply_markup:
+            data['reply_markup'] = reply_markup
+        
+        response = requests.post(url, json=data, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        logger.error(f"Eroare la trimiterea mesajului: {e}")
+        return False
+
+def process_message_sync(update):
+    """Procesează mesajele în mod sincron"""
+    try:
+        message = update.message
+        chat_id = message.chat_id
+        text = message.text
+        
+        if text == '/start':
+            welcome_text = (
+                "🎬 <b>Bun venit la Video Downloader Bot!</b>\n\n"
+                "📱 Trimite-mi un link de pe:\n"
+                "• YouTube\n"
+                "• TikTok\n"
+                "• Instagram\n"
+                "• Facebook\n\n"
+                "🔗 Doar copiază și lipește link-ul aici!"
+            )
+            send_telegram_message(chat_id, welcome_text)
+            
+        elif text == '/help':
+            help_text = (
+                "📋 <b>Cum să folosești bot-ul:</b>\n\n"
+                "1️⃣ Copiază link-ul video\n"
+                "2️⃣ Lipește-l în chat\n"
+                "3️⃣ Alege calitatea dorită\n"
+                "4️⃣ Descarcă video-ul\n\n"
+                "🎯 <b>Platforme suportate:</b>\n"
+                "• YouTube, TikTok, Instagram, Facebook\n\n"
+                "❓ Pentru ajutor: /help"
+            )
+            send_telegram_message(chat_id, help_text)
+            
+        elif text and ('youtube.com' in text or 'youtu.be' in text or 'tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text):
+            # Procesează link-ul video
+            process_video_link_sync(chat_id, text)
+            
+        else:
+            send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
+            
+    except Exception as e:
+        logger.error(f"Eroare la procesarea mesajului: {e}")
+
+def process_callback_sync(update):
+    """Procesează callback-urile în mod sincron"""
+    try:
+        query = update.callback_query
+        chat_id = query.message.chat_id
+        data = query.data
+        
+        # Răspunde la callback pentru a elimina loading-ul
+        answer_callback_query(query.id)
+        
+        if data.startswith('download_'):
+            # Procesează descărcarea
+            parts = data.split('_', 2)
+            if len(parts) >= 3:
+                quality = parts[1]
+                url = parts[2]
+                download_video_sync(chat_id, url, quality)
+        
+    except Exception as e:
+        logger.error(f"Eroare la procesarea callback-ului: {e}")
+
+def answer_callback_query(callback_query_id):
+    """Răspunde la callback query"""
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{TOKEN}/answerCallbackQuery"
+        data = {'callback_query_id': callback_query_id}
+        requests.post(url, json=data, timeout=5)
+    except Exception as e:
+        logger.error(f"Eroare la răspunsul callback: {e}")
+
+def process_video_link_sync(chat_id, url):
+    """Procesează link-ul video în mod sincron"""
+    try:
+        # Verifică dacă URL-ul este suportat
+        if not is_supported_url(url):
+            send_telegram_message(chat_id, "❌ Link-ul nu este suportat. Încearcă cu YouTube, TikTok, Instagram sau Facebook.")
+            return
+        
+        # Trimite mesaj de procesare
+        send_telegram_message(chat_id, "🔄 Procesez video-ul... Te rog așteaptă.")
+        
+        # Creează butoanele pentru calitate
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "📱 Calitate Mobilă (360p)", "callback_data": f"download_360_{url}"}],
+                [{"text": "🎬 Calitate Standard (720p)", "callback_data": f"download_720_{url}"}],
+                [{"text": "🎯 Cea mai bună calitate", "callback_data": f"download_best_{url}"}]
+            ]
+        }
+        
+        text = "🎬 <b>Video găsit!</b>\n\nAlege calitatea pentru descărcare:"
+        send_telegram_message(chat_id, text, keyboard)
+        
+    except Exception as e:
+        logger.error(f"Eroare la procesarea link-ului: {e}")
+        send_telegram_message(chat_id, "❌ Eroare la procesarea video-ului. Încearcă din nou.")
+
+def download_video_sync(chat_id, url, quality):
+    """Descarcă video-ul în mod sincron"""
+    try:
+        send_telegram_message(chat_id, "⬇️ Încep descărcarea... Poate dura câteva minute.")
+        
+        # Descarcă video-ul
+        result = download_video(url, quality)
+        
+        if result['success']:
+            # Trimite fișierul
+            send_video_file(chat_id, result['file_path'], result.get('title', 'Video'))
+        else:
+            send_telegram_message(chat_id, f"❌ Eroare la descărcare: {result.get('error', 'Eroare necunoscută')}")
+            
+    except Exception as e:
+        logger.error(f"Eroare la descărcarea video-ului: {e}")
+        send_telegram_message(chat_id, "❌ Eroare la descărcarea video-ului. Încearcă din nou.")
+
+def send_video_file(chat_id, file_path, title):
+    """Trimite fișierul video prin Telegram"""
+    try:
+        import requests
+        import os
+        
+        url = f"https://api.telegram.org/bot{TOKEN}/sendVideo"
+        
+        with open(file_path, 'rb') as video_file:
+            files = {'video': video_file}
+            data = {
+                'chat_id': chat_id,
+                'caption': f"🎬 {title}\n\n✅ Descărcare completă!"
+            }
+            
+            response = requests.post(url, files=files, data=data, timeout=300)
+            
+        # Șterge fișierul temporar
+        try:
+            os.remove(file_path)
+        except:
+            pass
+            
+        if response.status_code == 200:
+            logger.info(f"Video trimis cu succes pentru chat {chat_id}")
+        else:
+            logger.error(f"Eroare la trimiterea video-ului: {response.status_code}")
+            send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului. Fișierul poate fi prea mare.")
+            
+    except Exception as e:
+        logger.error(f"Eroare la trimiterea fișierului: {e}")
+        send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului.")
+
 
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
