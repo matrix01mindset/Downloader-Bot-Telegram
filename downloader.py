@@ -9,6 +9,47 @@ import random
 import json
 from datetime import datetime, timedelta
 
+# Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
+# Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
+YOUTUBE_CLIENT_CONFIGS = {
+    'mweb': {
+        'player_client': 'mweb',
+        'description': 'Mobile web client - recomandat pentru evitarea PO Token',
+        'requires_po_token': False,  # Nu necesită PO Token conform documentației
+        'supports_hls': True,
+        'priority': 1  # Prioritate maximă
+    },
+    'tv_embedded': {
+        'player_client': 'tv_embedded', 
+        'description': 'TV embedded client - nu necesită PO Token',
+        'requires_po_token': False,
+        'supports_hls': True,
+        'priority': 2
+    },
+    'web_safari': {
+        'player_client': 'web_safari',
+        'description': 'Safari web client - oferă HLS fără PO Token',
+        'requires_po_token': False,
+        'supports_hls': True,
+        'priority': 3
+    },
+    'android_vr': {
+        'player_client': 'android_vr',
+        'description': 'Android VR client - nu necesită PO Token',
+        'requires_po_token': False,
+        'supports_hls': False,
+        'priority': 4
+    },
+    # Clienți suplimentari pentru cazuri extreme
+    'mediaconnect': {
+        'player_client': 'mediaconnect',
+        'description': 'Media Connect client - pentru cazuri speciale',
+        'requires_po_token': False,
+        'supports_hls': False,
+        'priority': 5
+    }
+}
+
 # Lista de User Agents reali pentru a evita detecția
 REAL_USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -84,6 +125,105 @@ def get_youtube_cookies():
     }
     return cookies
 
+def get_youtube_extractor_args(client_type='mweb'):
+    """Configurează argumentele extractor pentru YouTube conform documentației oficiale"""
+    client_config = YOUTUBE_CLIENT_CONFIGS.get(client_type, YOUTUBE_CLIENT_CONFIGS['mweb'])
+    
+    # Configurații de bază pentru extractor
+    extractor_args = {
+        'youtube': {
+            'player_client': [client_config['player_client']],
+            # Configurații pentru evitarea PO Token
+            'player_skip': ['webpage', 'configs'] if not client_config.get('requires_po_token') else [],
+            # Configurații pentru HLS
+            'skip': [] if client_config.get('supports_hls') else ['hls'],
+            # Configurații suplimentare pentru anti-detecție
+            'innertube_host': 'www.youtube.com',
+            'innertube_key': None,  # Lasă yt-dlp să detecteze automat
+            'comment_sort': 'top',
+            'max_comments': [0],  # Nu extrage comentarii
+        }
+    }
+    
+    # Configurații specifice pentru client mweb (recomandat)
+    if client_type == 'mweb':
+        extractor_args['youtube'].update({
+            'player_client': ['mweb'],
+            'player_skip': ['webpage'],  # Skip webpage pentru mweb
+            'innertube_host': 'm.youtube.com',  # Host mobil
+        })
+    
+    # Configurații pentru tv_embedded
+    elif client_type == 'tv_embedded':
+        extractor_args['youtube'].update({
+            'player_client': ['tv_embedded'],
+            'player_skip': ['webpage', 'configs'],
+        })
+    
+    # Configurații pentru web_safari
+    elif client_type == 'web_safari':
+        extractor_args['youtube'].update({
+            'player_client': ['web_safari'],
+            'player_skip': ['webpage'],
+        })
+    
+    return extractor_args
+
+def create_youtube_session_advanced(client_type='mweb'):
+    """Creează o sesiune YouTube avansată cu configurații anti-detecție și client optim"""
+    headers = get_random_headers()
+    cookies = get_youtube_cookies()
+    client_config = YOUTUBE_CLIENT_CONFIGS.get(client_type, YOUTUBE_CLIENT_CONFIGS['mweb'])
+    extractor_args = get_youtube_extractor_args(client_type)
+    
+    # Configurații avansate pentru a evita detecția
+    session_config = {
+        'http_headers': headers,
+        'cookiefile': None,  # Nu salvăm cookies pe disk pentru securitate
+        'nocheckcertificate': False,
+        'prefer_insecure': False,
+        'cachedir': False,  # Dezactivează cache pentru a evita detecția
+        'no_warnings': True,
+        'extract_flat': False,
+        'ignoreerrors': False,
+        'geo_bypass': True,
+        'geo_bypass_country': random.choice(['US', 'GB', 'CA', 'AU']),
+        'age_limit': None,
+        'sleep_interval': random.uniform(2, 5),  # Pauză randomizată
+        'max_sleep_interval': random.uniform(10, 20),
+        'sleep_interval_subtitles': random.uniform(1, 3),
+        'socket_timeout': random.randint(120, 180),
+        'retries': 2,
+        'extractor_retries': 3,
+        'fragment_retries': 5,
+        'retry_sleep_functions': {
+            'http': lambda n: min(3 ** n + random.uniform(1, 3), 60),
+            'fragment': lambda n: min(3 ** n + random.uniform(1, 3), 60)
+        },
+        # Configurații extractor optimizate
+        'extractor_args': extractor_args,
+        # Simulează comportament de browser real
+        'extract_comments': False,
+        'writesubtitles': False,
+        'writeautomaticsub': False,
+        'embed_subs': False,
+        'writeinfojson': False,
+        'writethumbnail': False,
+        'writedescription': False,
+        'writeannotations': False,
+        # Configurații suplimentare pentru evitarea detecției
+        'no_color': True,
+        'no_check_certificate': False,
+        'prefer_free_formats': True,
+        'youtube_include_dash_manifest': False,  # Evită DASH pentru simplitate
+    }
+    
+    # Adaugă cookies în format yt-dlp
+    cookie_string = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+    session_config['http_headers']['Cookie'] = cookie_string
+    
+    return session_config, client_config
+
 def create_youtube_session():
     """Creează o sesiune YouTube cu configurații anti-detecție"""
     headers = get_random_headers()
@@ -131,11 +271,15 @@ def create_youtube_session():
     return session_config
 
 def is_youtube_bot_detection_error(error_msg):
-    """Detectează dacă eroarea este cauzată de sistemul anti-bot YouTube"""
+    """Detectează dacă eroarea este cauzată de sistemul anti-bot YouTube sau necesită PO Token"""
     bot_detection_keywords = [
+        # Erori de rate limiting
         'HTTP Error 429',
         'Too Many Requests',
         'rate limit',
+        'quota exceeded',
+        
+        # Erori de detecție bot
         'bot',
         'automated',
         'suspicious',
@@ -145,18 +289,57 @@ def is_youtube_bot_detection_error(error_msg):
         'captcha',
         'verification',
         'unusual traffic',
-        'quota exceeded',
         'service unavailable',
         'temporarily unavailable',
         'sign in to confirm',
-        'video unavailable',
+        'Sign in required',
+        'not a bot',
+        'protect our community',
+        
+        # Erori specifice PO Token (conform documentației yt-dlp)
+        'po_token',
+        'proof of origin',
+        'player response',
+        'playability status',
+        'login required',
+        'members only',
         'private video',
         'age-restricted',
-        'region blocked'
+        'region blocked',
+        'video unavailable',
+        
+        # Erori de client nesuportat
+        'client not supported',
+        'invalid client',
+        'client error',
+        'player error',
+        'extraction failed',
+        
+        # Erori de cookies
+        'cookie',
+        'authentication',
+        'session',
+        'csrf',
+        'token expired'
     ]
     
     error_lower = str(error_msg).lower()
-    return any(keyword in error_lower for keyword in bot_detection_keywords)
+    return any(keyword.lower() in error_lower for keyword in bot_detection_keywords)
+
+def is_po_token_required_error(error_msg):
+    """Detectează dacă eroarea indică necesitatea unui PO Token"""
+    po_token_keywords = [
+        'po_token',
+        'proof of origin',
+        'player response',
+        'playability status',
+        'sign in to confirm',
+        'login required',
+        'members only'
+    ]
+    
+    error_lower = str(error_msg).lower()
+    return any(keyword.lower() in error_lower for keyword in po_token_keywords)
 
 def get_youtube_retry_strategy(attempt_number):
     """Returnează strategia de retry bazată pe numărul încercării"""
@@ -186,6 +369,65 @@ def get_youtube_retry_strategy(attempt_number):
         last_strategy['sleep_multiplier'] = 3.0 + (attempt_number - len(strategies))
         last_strategy['geo_country'] = random.choice(['AU', 'NZ', 'IE', 'NL'])
         return last_strategy
+
+def get_youtube_retry_strategy_advanced(attempt_number):
+    """Returnează strategia de retry avansată cu clienți optimi conform documentației yt-dlp 2024"""
+    strategies = [
+        {  # Prima încercare - client mweb (cel mai recomandat)
+            'client': 'mweb',
+            'format': 'best[height<=720]/best',
+            'sleep_multiplier': 1.0,
+            'geo_country': 'US',
+            'description': 'Client mweb - prioritate maximă, nu necesită PO Token',
+            'priority': 1
+        },
+        {  # A doua încercare - client tv_embedded
+            'client': 'tv_embedded', 
+            'format': 'best[height<=480]/best',
+            'sleep_multiplier': 1.5,
+            'geo_country': 'GB',
+            'description': 'Client TV embedded - fără PO Token, suportă HLS',
+            'priority': 2
+        },
+        {  # A treia încercare - client web_safari cu HLS
+            'client': 'web_safari',
+            'format': 'best[height<=360]/best',
+            'sleep_multiplier': 2.0,
+            'geo_country': 'CA',
+            'description': 'Client Safari cu HLS - fără PO Token',
+            'priority': 3
+        },
+        {  # A patra încercare - client android_vr
+            'client': 'android_vr',
+            'format': 'worst[height<=360]/worst',
+            'sleep_multiplier': 2.5,
+            'geo_country': 'AU',
+            'description': 'Client Android VR - fără HLS dar stabil',
+            'priority': 4
+        },
+        {  # A cincea încercare - client mediaconnect pentru cazuri extreme
+            'client': 'mediaconnect',
+            'format': 'worst[height<=240]/worst',
+            'sleep_multiplier': 3.0,
+            'geo_country': 'NZ',
+            'description': 'Client MediaConnect - pentru cazuri speciale',
+            'priority': 5
+        }
+    ]
+    
+    if attempt_number < len(strategies):
+        return strategies[attempt_number]
+    else:
+        # Pentru încercări suplimentare, folosește strategii randomizate
+        fallback_strategy = {
+            'client': random.choice(['mweb', 'tv_embedded', 'web_safari']),
+            'format': 'worst[height<=240]/worst',
+            'sleep_multiplier': 3.0 + (attempt_number - len(strategies)) * 0.5,
+            'geo_country': random.choice(['NZ', 'IE', 'NL', 'DE', 'FR', 'IT', 'ES']),
+            'description': f'Fallback #{attempt_number + 1} - strategie randomizată',
+            'priority': 6 + attempt_number
+        }
+        return fallback_strategy
 
 def clean_title(title):
     """
@@ -365,50 +607,112 @@ def download_video(url, output_path=None):
         temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
     
-    # Configurație specifică pentru YouTube cu măsuri anti-detecție avansate
+    # Configurație specifică pentru YouTube cu măsuri anti-detecție avansate (2024)
     if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
-        # Creează o sesiune cu configurații anti-detecție
-        session_config = create_youtube_session()
+        print("Detectat link YouTube - folosesc clienți optimi conform documentației yt-dlp")
         
-        ydl_opts = {
-            'outtmpl': output_path,
-            'format': 'worst[height<=480]/worst',  # Calitate mai mică pentru a reduce load-ul
-            'quiet': True,
-            'noplaylist': True,
-            'extractaudio': False,
-            'embed_subs': False,
-            'writesubtitles': False,
-            'writeautomaticsub': False,
-            # Folosește configurațiile anti-detecție din sesiune
-            'http_headers': session_config['http_headers'],
-            'extractor_retries': session_config.get('extractor_retries', 3),
-            'fragment_retries': session_config.get('fragment_retries', 5),
-            'retry_sleep_functions': session_config.get('retry_sleep_functions', {
-                'http': lambda n: min(3 ** n, 60),
-                'fragment': lambda n: min(3 ** n, 60)
-            }),
-            'socket_timeout': session_config.get('socket_timeout', 120),
-            'retries': session_config.get('retries', 2),
-            'sleep_interval': session_config.get('sleep_interval', 2),
-            'max_sleep_interval': session_config.get('max_sleep_interval', 10),
-            'sleep_interval_subtitles': session_config.get('sleep_interval_subtitles', 2),
-            # Configurații suplimentare anti-detecție
-            'geo_bypass': session_config.get('geo_bypass', True),
-            'geo_bypass_country': session_config.get('geo_bypass_country', 'US'),
-            'nocheckcertificate': False,
-            'prefer_insecure': False,
-            'cachedir': False,  # Dezactivează cache-ul
-            'no_warnings': True,
-            'extract_flat': False,
-            'ignoreerrors': False,
-            'age_limit': None,
-            # Evită salvarea de metadate care pot fi detectate
-            'writeinfojson': False,
-            'writethumbnail': False,
-            'writedescription': False,
-            'writeannotations': False,
-            'extract_comments': False,
-        }
+        # Încearcă cu clienți optimi în ordine de prioritate
+        max_attempts = 5  # Include și clientul mediaconnect
+        downloaded_files = []
+        
+        for attempt in range(max_attempts):
+            try:
+                strategy = get_youtube_retry_strategy_advanced(attempt)
+                session_config, client_config = create_youtube_session_advanced(strategy['client'])
+                
+                print(f"Încercare YouTube #{attempt + 1}/{max_attempts}: {strategy['description']}")
+                print(f"Client: {strategy['client']}, Prioritate: {strategy.get('priority', 'N/A')}")
+                
+                ydl_opts = {
+                    'format': strategy['format'],
+                    'outtmpl': output_path,
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extractaudio': False,
+                    'audioformat': 'mp3',
+                    'embed_subs': False,
+                    'writesubtitles': False,
+                    'writeautomaticsub': False,
+                    'ignoreerrors': True,
+                    'noplaylist': True,
+                    'retries': session_config.get('retries', 2),
+                    'extractor_retries': session_config.get('extractor_retries', 3),
+                    'fragment_retries': session_config.get('fragment_retries', 5),
+                    'socket_timeout': session_config.get('socket_timeout', 120),
+                    'http_headers': session_config['http_headers'],
+                    'sleep_interval': session_config.get('sleep_interval', 2) * strategy['sleep_multiplier'],
+                    'max_sleep_interval': session_config.get('max_sleep_interval', 10) * strategy['sleep_multiplier'],
+                    'sleep_interval_subtitles': session_config.get('sleep_interval_subtitles', 2) * strategy['sleep_multiplier'],
+                    'retry_sleep_functions': session_config.get('retry_sleep_functions', {}),
+                    # Configurații suplimentare anti-detecție
+                    'geo_bypass': session_config.get('geo_bypass', True),
+                    'geo_bypass_country': strategy['geo_country'],
+                    'cachedir': False,
+                    'nocheckcertificate': False,
+                    'prefer_insecure': False,
+                    'age_limit': None,
+                    # Evită salvarea de metadate care pot fi detectate
+                    'writeinfojson': False,
+                    'writethumbnail': False,
+                    'writedescription': False,
+                    'writeannotations': False,
+                    'extract_comments': False,
+                    # Configurații client specifice optimizate
+                    'extractor_args': session_config.get('extractor_args', {}),
+                    # Configurații suplimentare pentru evitarea detecției
+                    'no_color': True,
+                    'prefer_free_formats': True,
+                    'youtube_include_dash_manifest': False
+                }
+                
+                # Pauză adaptivă înainte de încercare
+                delay = random.uniform(3, 8) * strategy['sleep_multiplier']
+                print(f"Aștept {delay:.1f} secunde înainte de încercare...")
+                time.sleep(delay)
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+                    
+                # Verifică dacă descărcarea a reușit
+                downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+                downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+                
+                if downloaded_files:
+                    print(f"✅ Descărcare YouTube reușită cu {strategy['description']}")
+                    print(f"Client folosit: {strategy['client']} (prioritate {strategy.get('priority', 'N/A')})")
+                    break
+                    
+            except Exception as client_error:
+                error_msg = str(client_error)
+                print(f"❌ Client {strategy['client']} eșuat: {error_msg}")
+                
+                # Verifică dacă este o eroare care necesită PO Token
+                if is_po_token_required_error(error_msg):
+                    print(f"⚠️  Detectată eroare PO Token pentru client {strategy['client']}")
+                
+                # Verifică dacă este o eroare de detecție bot
+                if is_youtube_bot_detection_error(error_msg):
+                    print(f"🤖 Detectată eroare anti-bot pentru client {strategy['client']}")
+                    # Adaugă delay suplimentar pentru următoarea încercare
+                    extra_delay = random.uniform(5, 15)
+                    print(f"Adaug delay suplimentar de {extra_delay:.1f} secunde...")
+                    time.sleep(extra_delay)
+                
+                # Dacă este ultima încercare cu clienți, încearcă fallback final
+                if attempt == max_attempts - 1:
+                    print("🔄 Toți clienții au eșuat, încerc fallback final cu android_vr...")
+                    fallback_result = try_youtube_fallback(url, output_path, "fallback_video")
+                    if fallback_result:
+                        downloaded_files = [fallback_result]
+                        print("✅ Fallback final reușit!")
+                        break
+                    else:
+                        print("❌ Fallback final eșuat")
+                continue
+        
+        # Dacă nu s-a descărcat nimic după toate încercările
+        if not downloaded_files:
+            raise Exception("Toate strategiile YouTube au eșuat. Posibil link invalid sau restricții severe.")
     else:
         # Configurație pentru alte platforme
         ydl_opts = {
@@ -574,9 +878,11 @@ def download_video(url, output_path=None):
                 else:
                     raise download_error
             
-            # Găsește fișierul descărcat în directorul temporar
-            downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
-            downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+            # Pentru YouTube, fișierele au fost deja găsite în bucla de încercări
+            # Pentru alte platforme, găsește fișierul descărcat în directorul temporar
+            if not ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
+                downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+                downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
             
             if not downloaded_files:
                 return {
