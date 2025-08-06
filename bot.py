@@ -165,7 +165,15 @@ def process_download(update: Update, context: CallbackContext, url: str):
     
     try:
         # Descarcă videoclipul
-        filepath = download_video(url)
+        result = download_video(url)
+        
+        if not result['success']:
+            raise Exception(result['error'])
+        
+        filepath = result['file_path']
+        title = result.get('title', 'Video')
+        description = result.get('description', '')
+        uploader = result.get('uploader', '')
         
         if not filepath or not os.path.exists(filepath):
             raise Exception("Fișierul nu a fost găsit după descărcare")
@@ -175,11 +183,23 @@ def process_download(update: Update, context: CallbackContext, url: str):
         if file_size > 550 * 1024 * 1024:  # 550MB
             raise Exception("Fișierul este prea mare (max 550MB)")
         
-        # Trimite videoclipul
+        # Creează caption cu titlu și informații
+        caption = f"✅ **{title}**"
+        if uploader:
+            caption += f"\n👤 De la: {uploader}"
+        if description and len(description) > 0:
+            # Limitează descrierea la 200 caractere pentru caption
+            desc_preview = description[:200]
+            if len(description) > 200:
+                desc_preview += "..."
+            caption += f"\n📝 {desc_preview}"
+        
+        # Trimite videoclipul cu caption complet
         with open(filepath, 'rb') as video_file:
             query.message.reply_video(
                 video=video_file,
-                caption="✅ Videoclip descărcat cu succes!"
+                caption=caption,
+                parse_mode='Markdown'
             )
         
         # Trimite mesaj cu opțiuni după descărcare
