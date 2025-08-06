@@ -17,6 +17,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Reduce logging-ul pentru yt-dlp și alte biblioteci externe
+logging.getLogger('yt_dlp').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+
 # Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
 # Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
 YOUTUBE_CLIENT_CONFIGS = {
@@ -326,7 +332,21 @@ def is_youtube_bot_detection_error(error_msg):
         'failed to resolve',
         'name or service not known',
         'unable to download api page',
-        'failed to extract any player response'
+        'failed to extract any player response',
+        'connection error',
+        'timeout',
+        'network error',
+        'ssl error',
+        'certificate error',
+        
+        # Erori specifice YouTube 2024
+        'this video is unavailable',
+        'video is not available',
+        'content warning',
+        'age verification',
+        'restricted content',
+        'geo-blocked',
+        'country blocked'
     ]
     
     error_lower = str(error_msg).lower()
@@ -544,62 +564,135 @@ def try_youtube_fallback(url, output_path, title):
 
 def try_facebook_fallback(url, output_path, title):
     """
-    Încearcă descărcarea Facebook cu opțiuni alternative
+    Încearcă descărcarea Facebook cu opțiuni alternative și gestionare îmbunătățită a erorilor
     """
-    # Configurație alternativă pentru Facebook
+    logger.info(f"Încercare Facebook fallback pentru: {url[:50]}...")
+    
+    # Configurație alternativă pentru Facebook cu mai multe opțiuni
     fallback_opts = {
         'outtmpl': output_path,
-        'format': 'worst[height<=480]/worst',  # Calitate mai mică pentru compatibilitate
-        'quiet': True,
+        'format': 'best[height<=720]/best[height<=480]/worst',  # Încercări multiple de calitate
+        'quiet': False,  # Activez logging pentru debugging
         'noplaylist': True,
         'extractaudio': False,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
         },
-        'extractor_retries': 2,
-        'fragment_retries': 2,
-        'socket_timeout': 15,
-        'retries': 2,
-        'ignoreerrors': True,
-        # Opțiuni specifice pentru probleme de parsare
-        'extract_flat': True,
+        'extractor_retries': 3,
+        'fragment_retries': 3,
+        'socket_timeout': 30,
+        'retries': 3,
+        'ignoreerrors': False,  # Vreau să văd erorile pentru debugging
+        # Opțiuni îmbunătățite pentru Facebook
+        'extract_flat': False,
         'skip_download': False,
+        'writeinfojson': False,
+        'writethumbnail': False,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
     }
     
     try:
+        # Încearcă să obțină informații despre video mai întâi
+        info_opts = fallback_opts.copy()
+        info_opts['skip_download'] = True
+        
+        video_info = None
+        try:
+            with yt_dlp.YoutubeDL(info_opts) as ydl_info:
+                video_info = ydl_info.extract_info(url, download=False)
+                logger.info(f"Facebook video info extracted: {video_info.get('title', 'N/A')[:50]}...")
+        except Exception as info_error:
+            logger.warning(f"Nu s-au putut extrage informațiile video Facebook: {str(info_error)}")
+        
+        # Încearcă descărcarea efectivă
         with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-            # Încearcă să descarce cu opțiuni alternative
+            logger.info("Începe descărcarea Facebook...")
             ydl.download([url])
             
-            # Găsește fișierul descărcat
+            # Găsește fișierul descărcat cu verificări îmbunătățite
             temp_dir = os.path.dirname(output_path)
-            downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
-            downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+            logger.info(f"Căutare fișiere în: {temp_dir}")
+            
+            # Caută toate fișierele din directorul temporar
+            all_files = glob.glob(os.path.join(temp_dir, "*"))
+            downloaded_files = [f for f in all_files if os.path.isfile(f) and not f.endswith('.part')]
+            
+            logger.info(f"Fișiere găsite: {len(downloaded_files)}")
+            for file in downloaded_files:
+                logger.info(f"Fișier: {os.path.basename(file)} ({os.path.getsize(file)} bytes)")
             
             if downloaded_files:
-                downloaded_file = downloaded_files[0]
+                # Ia cel mai mare fișier (probabil videoul)
+                downloaded_file = max(downloaded_files, key=os.path.getsize)
                 file_size = os.path.getsize(downloaded_file)
                 
+                # Verifică că fișierul nu este prea mic (probabil corupt)
+                if file_size < 1024:  # Mai mic de 1KB
+                    logger.error(f"Fișierul descărcat este prea mic: {file_size} bytes")
+                    return {
+                        'success': False,
+                        'error': '❌ Facebook: Fișierul descărcat pare să fie corupt (prea mic).',
+                        'title': title or 'N/A'
+                    }
+                
+                logger.info(f"Facebook download successful: {os.path.basename(downloaded_file)} ({file_size} bytes)")
                 return {
                     'success': True,
                     'file_path': downloaded_file,
-                    'title': title or "Video Facebook",
-                    'description': "Descărcat cu opțiuni alternative",
-                    'uploader': "Facebook",
-                    'duration': 0,
+                    'title': video_info.get('title') if video_info else (title or "Video Facebook"),
+                    'description': video_info.get('description', 'Descărcat cu opțiuni alternative')[:200] if video_info else "Descărcat cu opțiuni alternative",
+                    'uploader': video_info.get('uploader', 'Facebook') if video_info else "Facebook",
+                    'duration': video_info.get('duration', 0) if video_info else 0,
                     'file_size': file_size
                 }
             else:
+                logger.error("Nu s-au găsit fișiere descărcate în directorul temporar")
                 return {
                     'success': False,
-                    'error': '❌ Facebook: Nu s-a putut descărca videoul cu opțiunile alternative.',
+                    'error': '❌ Facebook: Nu s-a putut descărca videoul. Fișierul nu a fost găsit după descărcare.',
                     'title': title or 'N/A'
                 }
                 
+    except yt_dlp.DownloadError as e:
+        error_msg = str(e).lower()
+        logger.error(f"Facebook DownloadError: {str(e)}")
+        
+        if 'private' in error_msg or 'login' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Facebook: Videoul este privat sau necesită autentificare.',
+                'title': title or 'N/A'
+            }
+        elif 'not available' in error_msg or 'removed' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Facebook: Videoul nu mai este disponibil sau a fost șters.',
+                'title': title or 'N/A'
+            }
+        elif 'parse' in error_msg or 'extract' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Facebook: Eroare la procesarea videului. Link-ul poate fi invalid sau conținutul restricționat.',
+                'title': title or 'N/A'
+            }
+        else:
+            return {
+                'success': False,
+                'error': f'❌ Facebook: Eroare la descărcare: {str(e)}',
+                'title': title or 'N/A'
+            }
     except Exception as e:
+        logger.error(f"Facebook unexpected error: {str(e)}")
         return {
             'success': False,
-            'error': f'❌ Facebook: Eroare la încercarea alternativă: {str(e)}',
+            'error': f'❌ Facebook: Eroare neașteptată: {str(e)}',
             'title': title or 'N/A'
         }
 
@@ -724,26 +817,33 @@ def download_video(url, output_path=None):
                 error_msg = str(client_error)
                 print(f"❌ Client {strategy['client']} eșuat: {error_msg}")
                 
-                # Logging centralizat pentru monitorizare
-                logger.error(f"YouTube client {strategy['client']} failed: {error_msg}", extra={
-                    'client': strategy['client'],
-                    'priority': strategy.get('priority', 'N/A'),
-                    'attempt': attempt + 1,
-                    'url': url[:50] + '...' if len(url) > 50 else url
-                })
+                # Logging centralizat pentru monitorizare cu nivel adaptat
+                if is_youtube_bot_detection_error(error_msg) or is_po_token_required_error(error_msg):
+                    # Pentru erori cunoscute, folosește WARNING în loc de ERROR
+                    logger.warning(f"YouTube client {strategy['client']} encountered known issue: {error_msg[:100]}...", extra={
+                        'client': strategy['client'],
+                        'priority': strategy.get('priority', 'N/A'),
+                        'attempt': attempt + 1,
+                        'error_type': 'known_issue'
+                    })
+                else:
+                    # Pentru erori necunoscute, păstrează ERROR
+                    logger.error(f"YouTube client {strategy['client']} failed with unexpected error: {error_msg[:100]}...", extra={
+                        'client': strategy['client'],
+                        'priority': strategy.get('priority', 'N/A'),
+                        'attempt': attempt + 1,
+                        'error_type': 'unexpected'
+                    })
                 
                 # Verifică dacă este o eroare care necesită PO Token
                 if is_po_token_required_error(error_msg):
-                    print(f"⚠️  Detectată eroare PO Token pentru client {strategy['client']}")
-                    logger.warning(f"PO Token error detected for client {strategy['client']}")
+                    logger.info(f"PO Token required for client {strategy['client']} - switching to alternative client")
                 
                 # Verifică dacă este o eroare de detecție bot
                 if is_youtube_bot_detection_error(error_msg):
-                    print(f"🤖 Detectată eroare anti-bot pentru client {strategy['client']}")
-                    logger.warning(f"Anti-bot error detected for client {strategy['client']}")
+                    logger.info(f"Anti-bot detection for client {strategy['client']} - applying countermeasures")
                     # Adaugă delay suplimentar pentru următoarea încercare
-                    extra_delay = random.uniform(5, 15)
-                    print(f"Adaug delay suplimentar de {extra_delay:.1f} secunde...")
+                    extra_delay = random.uniform(3, 8)  # Delay mai mic pentru eficiență
                     time.sleep(extra_delay)
                 
                 # Dacă este ultima încercare cu clienți, încearcă fallback final
