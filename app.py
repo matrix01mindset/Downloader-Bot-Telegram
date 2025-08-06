@@ -47,16 +47,19 @@ if not TOKEN:
             print(f"  - {key}")
     raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
 
-# Inițializare bot și application
+# Inițializare bot și application cu configurații îmbunătățite
 # Configurare bot cu connection pool și timeout-uri optimizate
 bot = Bot(TOKEN)
 application = (
     Application.builder()
     .token(TOKEN)
-    .connection_pool_size(100)
-    .pool_timeout(30.0)
-    .get_updates_connection_pool_size(10)
-    .get_updates_pool_timeout(30.0)
+    .connection_pool_size(200)  # Mărit pentru mai multe conexiuni simultane
+    .pool_timeout(60.0)  # Timeout mărit
+    .get_updates_connection_pool_size(20)  # Mărit pentru get_updates
+    .get_updates_pool_timeout(60.0)  # Timeout mărit
+    .read_timeout(30.0)  # Timeout pentru citire
+    .write_timeout(30.0)  # Timeout pentru scriere
+    .connect_timeout(30.0)  # Timeout pentru conectare
     .build()
 )
 
@@ -627,16 +630,35 @@ def index():
 
 # Thread pool global pentru procesarea update-urilor
 _thread_pool = None
+_thread_pool_lock = threading.Lock()
 
 def get_thread_pool():
     global _thread_pool
     if _thread_pool is None:
-        import concurrent.futures
-        _thread_pool = concurrent.futures.ThreadPoolExecutor(
-            max_workers=5,
-            thread_name_prefix="telegram_webhook"
-        )
+        with _thread_pool_lock:
+            # Double-check locking pattern
+            if _thread_pool is None:
+                import concurrent.futures
+                _thread_pool = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=3,  # Redus pentru a evita overhead-ul
+                    thread_name_prefix="telegram_webhook"
+                )
+                logger.info("✅ Thread pool pentru webhook-uri inițializat cu 3 workers")
     return _thread_pool
+
+def cleanup_thread_pool():
+    """Închide thread pool-ul în mod graceful"""
+    global _thread_pool
+    if _thread_pool is not None:
+        with _thread_pool_lock:
+            if _thread_pool is not None:
+                _thread_pool.shutdown(wait=True)
+                _thread_pool = None
+                logger.info("✅ Thread pool închis cu succes")
+
+# Înregistrează cleanup la ieșirea din aplicație
+import atexit
+atexit.register(cleanup_thread_pool)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -650,58 +672,51 @@ def webhook():
         import concurrent.futures
         
         def safe_process_update():
-            """Procesează update-ul într-un mod thread-safe"""
+            """Procesează update-ul într-un mod thread-safe cu gestionare îmbunătățită a event loop-ului"""
             import asyncio
-            import time
+            import threading
             
             try:
-                # Verifică dacă există un event loop în thread-ul curent
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_closed():
-                        raise RuntimeError("Loop is closed")
-                except RuntimeError:
-                    # Creează un nou event loop pentru acest thread
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+                # Creează întotdeauna un nou event loop pentru acest thread
+                # pentru a evita conflictele cu loop-uri existente
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 
-                # Procesează update-ul folosind loop-ul curent
-                if not loop.is_running():
-                    # Dacă loop-ul nu rulează, folosește run_until_complete
+                try:
+                    # Procesează update-ul în noul loop
                     loop.run_until_complete(application.process_update(update))
-                else:
-                    # Dacă loop-ul rulează deja, creează un task și așteaptă
-                    task = loop.create_task(application.process_update(update))
-                    # Așteaptă task-ul să se termine
-                    while not task.done():
-                        time.sleep(0.01)
-                    
-                    # Verifică dacă task-ul a avut excepții
-                    if task.exception():
-                        raise task.exception()
+                finally:
+                    # Închide loop-ul în mod explicit pentru a evita memory leaks
+                    try:
+                        # Anulează toate task-urile pending
+                        pending = asyncio.all_tasks(loop)
+                        for task in pending:
+                            task.cancel()
+                        
+                        # Așteaptă ca task-urile să fie anulate
+                        if pending:
+                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    except Exception as cleanup_error:
+                        logger.warning(f"Eroare la cleanup loop: {cleanup_error}")
+                    finally:
+                        loop.close()
                         
             except Exception as e:
                 logger.error(f"Eroare la procesarea update-ului: {e}")
                 raise
         
-        # Rulează procesarea în thread pool cu retry logic
+        # Rulează procesarea în thread pool cu timeout redus
         thread_pool = get_thread_pool()
         future = thread_pool.submit(safe_process_update)
         
         try:
-            future.result(timeout=25)  # Timeout de 25 secunde
+            future.result(timeout=20)  # Timeout redus la 20 secunde
         except concurrent.futures.TimeoutError:
             logger.error("Timeout la procesarea update-ului")
-            return jsonify({'status': 'error', 'message': 'Timeout'}), 500
+            return jsonify({'status': 'timeout', 'message': 'Request timeout'}), 408
         except Exception as e:
             logger.error(f"Eroare la procesarea în thread pool: {e}")
-            # Retry o singură dată în caz de eroare
-            try:
-                future = thread_pool.submit(safe_process_update)
-                future.result(timeout=15)
-            except Exception as retry_error:
-                logger.error(f"Retry eșuat: {retry_error}")
-                return jsonify({'status': 'error', 'message': 'Processing failed'}), 500
+            return jsonify({'status': 'error', 'message': 'Processing failed'}), 500
         
         return jsonify({'status': 'ok'})
     except Exception as e:
@@ -711,44 +726,83 @@ def webhook():
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
     try:
-        webhook_url = f"{WEBHOOK_URL}/webhook"
-        # Pentru versiunea 20.8, folosim loop manual
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(bot.set_webhook(url=webhook_url))
-        finally:
-            loop.close()
-        
-        if result:
-            return jsonify({
-                'status': 'success',
-                'message': f'Webhook setat la: {webhook_url}'
-            })
-        else:
+        # Verifică dacă WEBHOOK_URL este setat
+        if not WEBHOOK_URL:
             return jsonify({
                 'status': 'error',
-                'message': 'Nu s-a putut seta webhook-ul'
-            })
+                'message': 'WEBHOOK_URL nu este setat în variabilele de mediu'
+            }), 400
+        
+        webhook_url = f"{WEBHOOK_URL}/webhook"
+        
+        # Folosește requests direct pentru a evita problemele cu event loop-ul
+        import requests
+        
+        telegram_api_url = f"https://api.telegram.org/bot{TOKEN}/setWebhook"
+        payload = {'url': webhook_url}
+        
+        response = requests.post(telegram_api_url, data=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('ok'):
+                logger.info(f"Webhook setat cu succes la: {webhook_url}")
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Webhook setat la: {webhook_url}',
+                    'telegram_response': result
+                })
+            else:
+                logger.error(f"Telegram API a returnat eroare: {result}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Telegram API error: {result.get("description", "Unknown error")}'
+                }), 500
+        else:
+            logger.error(f"HTTP error {response.status_code}: {response.text}")
+            return jsonify({
+                'status': 'error',
+                'message': f'HTTP error {response.status_code}'
+            }), 500
+            
     except Exception as e:
+        logger.error(f"Eroare la setarea webhook-ului: {e}")
         return jsonify({
             'status': 'error',
-            'message': f'Eroare la setarea webhook-ului: {str(e)}'
-        })
+            'message': f'Error: {type(e).__name__}: {str(e)}'
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    """Endpoint pentru verificarea stării aplicației"""
     try:
         import time
+        # Verifică dacă bot-ul este inițializat
+        if not _app_initialized:
+            return jsonify({
+                'status': 'unhealthy',
+                'message': 'Bot not initialized',
+                'timestamp': time.time()
+            }), 503
+        
+        # Verifică starea thread pool-ului
+        thread_pool_status = 'healthy'
+        if _thread_pool is None:
+            thread_pool_status = 'not_initialized'
+        elif _thread_pool._shutdown:
+            thread_pool_status = 'shutdown'
+        
         return jsonify({
             'status': 'healthy',
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'server': 'online'
+            'message': 'Bot is running',
+            'thread_pool_status': thread_pool_status,
+            'timestamp': time.time()
         })
     except Exception as e:
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': str(e),
+            'timestamp': time.time()
         }), 500
 
 @app.route('/debug', methods=['GET'])
@@ -788,26 +842,52 @@ def ensure_app_initialized():
     global _app_initialized
     if not _app_initialized:
         try:
-            # Folosește asyncio.run pentru inițializare
             import asyncio
+            import threading
+            import concurrent.futures
             
-            async def init_all():
-                # Inițializează bot-ul
-                await bot.initialize()
-                # Inițializează aplicația
-                await application.initialize()
+            def run_init():
+                """Rulează inițializarea într-un thread separat cu propriul event loop"""
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    async def init_all():
+                        # Inițializează bot-ul
+                        await bot.initialize()
+                        # Inițializează aplicația
+                        await application.initialize()
+                    
+                    loop.run_until_complete(init_all())
+                finally:
+                    loop.close()
             
-            asyncio.run(init_all())
+            # Rulează inițializarea într-un thread separat
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_init)
+                future.result(timeout=30)
+            
             _app_initialized = True
             logger.info("✅ Bot-ul și aplicația Telegram au fost inițializate cu succes în contextul Flask")
         except Exception as e:
             logger.error(f"❌ Eroare la inițializarea bot-ului și aplicației în contextul Flask: {e}")
             raise
 
-# Aplicația este deja inițializată mai sus
+# Inițializează aplicația la pornirea serverului
+def initialize_on_startup():
+    """Inițializează aplicația la pornirea serverului Flask"""
+    try:
+        ensure_app_initialized()
+        logger.info("✅ Aplicația Telegram a fost inițializată la pornirea serverului")
+    except Exception as e:
+        logger.error(f"❌ Eroare la inițializarea aplicației la pornire: {e}")
+
 logger.info("Aplicația Telegram este configurată pentru webhook-uri")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Pornesc serverul Flask pe portul {port}")
+    
+    # Inițializează aplicația înainte de a porni serverul
+    initialize_on_startup()
+    
     app.run(host='0.0.0.0', port=port, debug=False)
