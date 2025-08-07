@@ -160,7 +160,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
     
     # Trimite mesaj de procesare
     processing_message = query.edit_message_text(
-        "⏳ Procesez videoclipul...\nTe rog să aștepți."
+        "✅ Procesez și descarc video-ul în 720p te rog asteapta"
     )
     
     try:

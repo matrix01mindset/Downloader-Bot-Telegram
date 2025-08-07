@@ -280,7 +280,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Trimite mesaj de confirmare
             status_message = await safe_send_message(
                 update,
-                "🔄 Procesez videoclipul...\n⏳ Te rog să aștepți..."
+                "✅ Procesez și descarc video-ul în 720p te rog asteapta"
             )
             
             if not status_message:
@@ -299,8 +299,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     result = await loop.run_in_executor(executor, download_video, message_text)
                 
                 if result['success']:
-                    await safe_edit_message(status_message, "📤 Trimit videoclipul...")
-                    
                     # Trimite videoclipul
                     try:
                         with open(result['file_path'], 'rb') as video_file:
@@ -799,7 +797,7 @@ def process_video_link_sync(chat_id, url):
             return
         
         # Trimite mesaj de procesare
-        send_telegram_message(chat_id, "🔄 Procesez și descarc video-ul în 720p... Te rog așteaptă.")
+        send_telegram_message(chat_id, "✅ Procesez și descarc video-ul în 720p te rog asteapta")
         
         # Descarcă direct în calitate 720p
         download_video_sync(chat_id, url)
@@ -811,8 +809,6 @@ def process_video_link_sync(chat_id, url):
 def download_video_sync(chat_id, url):
     """Descarcă video-ul în mod sincron în 720p"""
     try:
-        send_telegram_message(chat_id, "⬇️ Încep descărcarea în 720p... Poate dura câteva minute.")
-        
         # Descarcă video-ul (funcția download_video folosește deja format 720p)
         result = download_video(url)
         
