@@ -631,6 +631,7 @@ def download_video(url, output_path=None):
             
             # Pentru YouTube, fișierele au fost deja găsite în bucla de încercări
             # Pentru alte platforme, găsește fișierul descărcat în directorul temporar
+            downloaded_files = []
             if not ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
                 downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
                 downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
