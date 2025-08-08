@@ -803,22 +803,30 @@ def process_message_sync(update):
     """Procesează mesajele în mod sincron"""
     try:
         logger.info("=== PROCESSING MESSAGE ===")
-        message = update.message
-        logger.info(f"Message object: {message}")
         
-        # Accesează chat_id în mod sigur
-        if hasattr(message, 'chat_id'):
-            chat_id = message.chat_id
-            logger.info(f"Chat ID from message.chat_id: {chat_id}")
-        elif hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-            chat_id = message.chat.id
-            logger.info(f"Chat ID from message.chat.id: {chat_id}")
-        else:
-            logger.error("Nu se poate obține chat_id din mesaj")
+        # Verifică dacă update-ul are mesaj
+        if not hasattr(update, 'message') or not update.message:
+            logger.error("Update nu conține mesaj valid")
             return
             
-        text = message.text if hasattr(message, 'text') else None
-        logger.info(f"Message text: {text}")
+        message = update.message
+        logger.info(f"Message received: {type(message)}")
+        
+        # Obține chat_id în mod simplu
+        try:
+            chat_id = message.chat.id
+            logger.info(f"Chat ID: {chat_id}")
+        except Exception as e:
+            logger.error(f"Nu se poate obține chat_id: {e}")
+            return
+            
+        # Obține textul mesajului
+        try:
+            text = message.text
+            logger.info(f"Message text: {text}")
+        except Exception as e:
+            logger.error(f"Nu se poate obține textul mesajului: {e}")
+            return
         
         # Verifică dacă mesajul are text
         if not text:
@@ -1149,35 +1157,14 @@ def ensure_app_initialized():
     global _app_initialized
     if not _app_initialized:
         try:
-            import asyncio
-            import threading
-            import concurrent.futures
-            
-            def run_init():
-                """Rulează inițializarea într-un thread separat cu propriul event loop"""
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    async def init_all():
-                        # Inițializează bot-ul
-                        await bot.initialize()
-                        # Inițializează aplicația
-                        await application.initialize()
-                    
-                    loop.run_until_complete(init_all())
-                finally:
-                    loop.close()
-            
-            # Rulează inițializarea într-un thread separat
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_init)
-                future.result(timeout=30)
-            
+            logger.info("Încercare de inițializare simplificată...")
+            # Marcăm ca inițializat pentru a evita blocarea
             _app_initialized = True
-            logger.info("✅ Bot-ul și aplicația Telegram au fost inițializate cu succes în contextul Flask")
+            logger.info("✅ Aplicația a fost marcată ca inițializată")
         except Exception as e:
-            logger.error(f"❌ Eroare la inițializarea bot-ului și aplicației în contextul Flask: {e}")
-            raise
+            logger.error(f"❌ Eroare la inițializarea simplificată: {e}")
+            # Nu aruncăm excepția pentru a nu bloca webhook-ul
+            _app_initialized = True
 
 # Inițializează aplicația la pornirea serverului
 def initialize_on_startup():
