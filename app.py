@@ -941,6 +941,23 @@ def send_video_file(chat_id, file_path, video_info):
         else:
             size_str = "N/A"
         
+        # Verificări suplimentare pentru fișierul video
+        if not os.path.exists(file_path):
+            logger.error(f"Fișierul video nu există: {file_path}")
+            send_telegram_message(chat_id, "❌ Fișierul video nu a fost găsit.")
+            return
+        
+        # Verifică mărimea fișierului (Telegram are limită de 50MB, dar folosim 45MB pentru siguranță)
+        file_size_bytes = os.path.getsize(file_path)
+        if file_size_bytes > 45 * 1024 * 1024:  # 45MB
+            logger.error(f"Fișierul este prea mare: {file_size_bytes / (1024*1024):.1f}MB")
+            send_telegram_message(chat_id, "❌ Fișierul video este prea mare pentru Telegram (max 45MB pentru siguranță).")
+            try:
+                os.remove(file_path)
+            except:
+                pass
+            return
+        
         # Folosește funcția centrală pentru caption sigur
         caption = create_safe_caption(
             title=title,
@@ -949,6 +966,8 @@ def send_video_file(chat_id, file_path, video_info):
             duration=duration,
             file_size=file_size
         )
+        
+        logger.info(f"Trimit video de {file_size_bytes / (1024*1024):.1f}MB pentru chat {chat_id}")
         
         with open(file_path, 'rb') as video_file:
             files = {'video': video_file}
@@ -969,8 +988,20 @@ def send_video_file(chat_id, file_path, video_info):
         if response.status_code == 200:
             logger.info(f"Video trimis cu succes pentru chat {chat_id}")
         else:
-            logger.error(f"Eroare la trimiterea video-ului: {response.status_code}")
-            send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului. Fișierul poate fi prea mare.")
+            # Log mai detaliat pentru debugging
+            try:
+                error_details = response.json()
+                logger.error(f"Eroare la trimiterea video-ului: {response.status_code} - {error_details}")
+            except:
+                logger.error(f"Eroare la trimiterea video-ului: {response.status_code} - {response.text[:200]}")
+            
+            # Verifică tipul erorii și trimite mesaj corespunzător
+            if response.status_code == 400:
+                send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului. Fișierul poate fi corupt sau prea mare.")
+            elif response.status_code == 413:
+                send_telegram_message(chat_id, "❌ Fișierul video este prea mare pentru Telegram (max 45MB pentru siguranță).")
+            else:
+                send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului. Încearcă din nou.")
             
     except Exception as e:
         logger.error(f"Eroare la trimiterea fișierului: {e}")
