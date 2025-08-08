@@ -716,8 +716,39 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Webhook minimal pentru debugging"""
-    return jsonify({'status': 'ok', 'debug': 'minimal webhook'}), 200
+    """Procesează webhook-urile de la Telegram"""
+    try:
+        # Obține datele JSON de la Telegram
+        json_data = request.get_json()
+        
+        if not json_data:
+            logger.error("Nu s-au primit date JSON")
+            return jsonify({'status': 'error', 'message': 'No JSON data'}), 400
+        
+        logger.info(f"Webhook primit: {json_data}")
+        
+        # Creează obiectul Update din JSON
+        update = Update.de_json(json_data, bot)
+        
+        if not update:
+            logger.error("Nu s-a putut crea obiectul Update")
+            return jsonify({'status': 'error', 'message': 'Invalid update'}), 400
+        
+        # Procesează mesajul sau callback-ul
+        if update.message:
+            logger.info("Procesez mesaj")
+            process_message_sync(update)
+        elif update.callback_query:
+            logger.info("Procesez callback query")
+            process_callback_sync(update)
+        else:
+            logger.info("Update fără mesaj sau callback")
+        
+        return jsonify({'status': 'ok'}), 200
+        
+    except Exception as e:
+        logger.error(f"Eroare în webhook: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def send_telegram_message(chat_id, text, reply_markup=None):
     """Trimite mesaj prin API-ul Telegram folosind requests"""
