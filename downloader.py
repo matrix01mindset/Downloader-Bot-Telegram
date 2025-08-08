@@ -518,63 +518,61 @@ def download_video(url, output_path=None):
     logger.info(f"=== DOWNLOAD_VIDEO START === URL: {url}")
     
     try:
+        # Validează URL-ul înainte de procesare
+        logger.info(f"=== DOWNLOAD_VIDEO Validating URL ===")
+        is_valid, validation_msg = validate_url(url)
+        if not is_valid:
+            logger.error(f"=== DOWNLOAD_VIDEO URL Invalid === {validation_msg}")
+            return {
+                'success': False,
+                'error': f'❌ URL invalid: {validation_msg}',
+                'title': 'N/A'
+            }
+        
+        logger.info(f"=== DOWNLOAD_VIDEO URL Valid, creating temp dir ===")
+        # Creează directorul temporar ÎNTOTDEAUNA
+        temp_dir = tempfile.mkdtemp()
+        logger.info(f"=== DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
     
-    # Validează URL-ul înainte de procesare
-    logger.info(f"=== DOWNLOAD_VIDEO Validating URL ===")
-    is_valid, validation_msg = validate_url(url)
-    if not is_valid:
-        logger.error(f"=== DOWNLOAD_VIDEO URL Invalid === {validation_msg}")
-        return {
-            'success': False,
-            'error': f'❌ URL invalid: {validation_msg}',
-            'title': 'N/A'
-        }
+        if output_path is None:
+            output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
+        
+        # YouTube este dezactivat - returnează eroare
+        if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
+            return {
+                'success': False,
+                'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
+                'title': 'YouTube - Nu este suportat'
+            }
+        else:
+            # Configurație pentru alte platforme
+            ydl_opts = {
+                'outtmpl': output_path,
+                'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
+                'quiet': True,
+                'noplaylist': True,
+                'extractaudio': False,
+                'audioformat': 'mp3',
+                'embed_subs': False,
+                'writesubtitles': False,
+                'writeautomaticsub': False,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                },
+                'extractor_retries': 5,
+                'fragment_retries': 5,
+                'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
+                'ignoreerrors': False,
+                'extract_flat': False,
+                'skip_download': False,
+                'socket_timeout': 30,
+                'retries': 3,
+            }
     
-    logger.info(f"=== DOWNLOAD_VIDEO URL Valid, creating temp dir ===")
-    # Creează directorul temporar ÎNTOTDEAUNA
-    temp_dir = tempfile.mkdtemp()
-    logger.info(f"=== DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
-    
-    if output_path is None:
-        output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
-    
-    # YouTube este dezactivat - returnează eroare
-    if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
-        return {
-            'success': False,
-            'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
-            'title': 'YouTube - Nu este suportat'
-        }
-    else:
-        # Configurație pentru alte platforme
-        ydl_opts = {
-            'outtmpl': output_path,
-            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
-            'quiet': True,
-            'noplaylist': True,
-            'extractaudio': False,
-            'audioformat': 'mp3',
-            'embed_subs': False,
-            'writesubtitles': False,
-            'writeautomaticsub': False,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            },
-            'extractor_retries': 5,
-            'fragment_retries': 5,
-            'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
-            'ignoreerrors': False,
-            'extract_flat': False,
-            'skip_download': False,
-            'socket_timeout': 30,
-            'retries': 3,
-        }
-    
-    try:
         logger.info("=== DOWNLOAD_VIDEO Creating YoutubeDL instance ===")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extrage informații despre video
