@@ -273,11 +273,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
 🔗 **Platforme suportate:**
-• YouTube
-• TikTok  
+• TikTok
 • Instagram
 • Facebook
 • Twitter/X
+
+⚠️ YouTube nu este suportat momentan.
 
 ⚠️ **Limitări:**
 - Videoclipuri max 3 ore
@@ -311,11 +312,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 4. Primești videoclipul descărcat
 
 🔗 **Platforme suportate:**
-- YouTube (youtube.com, youtu.be)
 - TikTok (tiktok.com)
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch)
 - Twitter/X (twitter.com, x.com)
+
+⚠️ YouTube nu este suportat momentan.
 
 ⚠️ **Probleme frecvente:**
 - Videoclipul este privat → Nu poate fi descărcat
@@ -543,11 +545,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 update,
                 "❌ Link-ul nu este suportat sau nu este valid.\n\n"
                 "🔗 Platforme suportate:\n"
-                "• YouTube\n"
                 "• TikTok\n"
                 "• Instagram\n"
                 "• Facebook\n"
                 "• Twitter/X\n\n"
+                "⚠️ Notă: YouTube nu este suportat momentan.\n\n"
                 "💡 Trimite un link valid pentru a descărca videoclipul."
             )
     except Exception as e:
@@ -615,11 +617,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             platforms_text = """
 🔗 **Platforme suportate:**
 
-✅ **YouTube**
-- youtube.com
-- youtu.be
-- m.youtube.com
-
 ✅ **TikTok**
 - tiktok.com
 - vm.tiktok.com
@@ -639,6 +636,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - mobile.twitter.com
 
 ⚠️ **Notă:** Doar videoclipurile publice pot fi descărcate.
+
+❌ **YouTube nu este suportat momentan** din cauza complexității tehnice și a restricțiilor platformei.
             """
             
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]

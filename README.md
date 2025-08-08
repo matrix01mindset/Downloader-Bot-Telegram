@@ -20,9 +20,6 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
 
 ## 🔗 Platforme Suportate
 
-- **🎥 YouTube** (youtube.com, youtu.be)
-  - Videoclipuri publice și unlisted
-  - Playlist-uri (primul video)
 - **📱 TikTok** (tiktok.com)
   - Videoclipuri publice, fără watermark
 - **📸 Instagram** (instagram.com/p/)
@@ -31,6 +28,8 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
   - Videoclipuri publice
 - **🐦 Twitter/X** (twitter.com, x.com)
   - Tweet-uri cu video publice
+
+⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice.
 
 ## 📱 Cum să Folosești
 

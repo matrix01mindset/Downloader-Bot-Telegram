@@ -156,18 +156,19 @@ def help_command(update: Update, context: CallbackContext):
 4. Primești videoclipul descărcat
 
 🔗 <b>Platforme suportate:</b>
-- YouTube (youtube.com, youtu.be)
 - TikTok (tiktok.com)
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch)
 - Twitter/X (twitter.com, x.com)
+
+⚠️ <b>Notă:</b> YouTube nu este suportat momentan din cauza complexității tehnice.
 
 ⚠️ <b>Probleme frecvente:</b>
 - Videoclipul este privat → Nu poate fi descărcat
 - Videoclipul este prea lung → Max 3 ore
 - Videoclipul este prea mare → Max 550MB
 - Link invalid → Verifică că link-ul este corect
-    """
+        """
     
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -184,11 +185,12 @@ def menu_command(update: Update, context: CallbackContext):
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
 🔗 **Platforme suportate:**
-• YouTube
 • TikTok  
 • Instagram
 • Facebook
 • Twitter/X
+
+⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice.
 
 ⚠️ **Limitări:**
 - Videoclipuri max 15 minute
@@ -223,7 +225,7 @@ def handle_message(update: Update, context: CallbackContext):
         
         update.message.reply_text(
             "❌ Te rog să trimiți un link valid (care începe cu http:// sau https://)\n\n"
-            "💡 Trimite un link de pe YouTube, TikTok, Instagram, Facebook sau Twitter/X",
+            "💡 Trimite un link de pe TikTok, Instagram, Facebook sau Twitter/X",
             reply_markup=reply_markup
         )
         return
@@ -235,7 +237,7 @@ def handle_message(update: Update, context: CallbackContext):
         
         update.message.reply_text(
             "❌ Această platformă nu este suportată.\n\n"
-            "Platforme suportate: YouTube, TikTok, Instagram, Facebook, Twitter/X",
+            "Platforme suportate: TikTok, Instagram, Facebook, Twitter/X",
             reply_markup=reply_markup
         )
         return
@@ -367,7 +369,7 @@ def button_handler(update: Update, context: CallbackContext):
     elif query.data == 'new_download':
         query.edit_message_text(
             "📥 **Gata pentru o nouă descărcare!**\n\n"
-            "Trimite-mi un link de pe YouTube, TikTok, Instagram, Facebook sau Twitter/X"
+            "Trimite-mi un link de pe TikTok, Instagram, Facebook sau Twitter/X"
         )
         return
     
@@ -406,11 +408,6 @@ def button_handler(update: Update, context: CallbackContext):
         platforms_text = """
 🔗 **Platforme suportate în detaliu:**
 
-🎥 **YouTube**
-- youtube.com, youtu.be
-- Videoclipuri publice și unlisted
-- Playlist-uri (primul video)
-
 📱 **TikTok**
 - tiktok.com
 - Videoclipuri publice
@@ -428,6 +425,8 @@ def button_handler(update: Update, context: CallbackContext):
 🐦 **Twitter/X**
 - twitter.com, x.com
 - Tweet-uri cu video publice
+
+⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice și a restricțiilor platformei.
         """
         
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
@@ -498,11 +497,12 @@ A: Da, botul este complet gratuit!
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
 🔗 **Platforme suportate:**
-• YouTube
-• TikTok  
+• TikTok
 • Instagram
 • Facebook
 • Twitter/X
+
+⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice.
 
 ⚠️ **Limitări:**
 - Videoclipuri max 3 ore
