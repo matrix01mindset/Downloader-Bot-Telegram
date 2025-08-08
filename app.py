@@ -791,6 +791,12 @@ def send_telegram_message(chat_id, text, reply_markup=None):
     """Trimite mesaj prin API-ul Telegram folosind requests"""
     try:
         import requests
+        
+        # Verifică dacă TOKEN este setat
+        if not TOKEN:
+            logger.error("TOKEN nu este setat!")
+            return False
+            
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         data = {
             'chat_id': chat_id,
@@ -800,10 +806,19 @@ def send_telegram_message(chat_id, text, reply_markup=None):
         if reply_markup:
             data['reply_markup'] = reply_markup
         
+        logger.info(f"Trimit mesaj către chat_id {chat_id}: {text[:50]}...")
+        
         response = requests.post(url, json=data, timeout=10)
-        return response.status_code == 200
+        
+        if response.status_code == 200:
+            logger.info(f"Mesaj trimis cu succes către chat_id {chat_id}")
+            return True
+        else:
+            logger.error(f"Eroare la trimiterea mesajului: {response.status_code} - {response.text}")
+            return False
+            
     except Exception as e:
-        logger.error(f"Eroare la trimiterea mesajului: {e}")
+        logger.error(f"Excepție la trimiterea mesajului: {e}")
         return False
 
 def process_message_sync(update):
