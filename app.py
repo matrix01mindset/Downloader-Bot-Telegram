@@ -1205,7 +1205,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Pornesc serverul Flask pe portul {port}")
     
-    # Inițializează aplicația înainte de a porni serverul
-    initialize_on_startup()
+    # Nu mai inițializez la startup pentru a evita problemele
+    logger.info("Serverul pornește fără inițializare complexă")
     
     app.run(host='0.0.0.0', port=port, debug=False)
