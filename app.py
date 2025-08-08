@@ -736,17 +736,50 @@ def webhook():
                 
                 logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
                 
-                # Pentru debugging, doar loghează mesajul fără să trimită răspuns
                 logger.info(f"Mesaj primit: {text} de la chat_id: {chat_id}")
                 
-                if text == '/start':
-                    logger.info("Comandă /start primită - ar trebui să trimită mesajul de bun venit")
-                elif text == '/help':
-                    logger.info("Comandă /help primită - ar trebui să trimită mesajul de ajutor")
-                elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
-                    logger.info(f"Link video detectat: {text}")
-                else:
-                    logger.info("Mesaj necunoscut primit")
+                # Procesează mesajul și trimite răspuns
+                try:
+                    if text == '/start':
+                        welcome_text = (
+                            "🎬 <b>Bun venit la Video Downloader Bot!</b>\n\n"
+                            "📱 Trimite-mi un link de pe:\n"
+                            "• TikTok\n"
+                            "• Instagram\n"
+                            "• Facebook\n"
+                            "• Twitter/X\n\n"
+                            "🔗 Doar copiază și lipește link-ul aici!"
+                        )
+                        success = send_telegram_message(chat_id, welcome_text)
+                        logger.info(f"Mesaj de bun venit trimis: {success}")
+                        
+                    elif text == '/help':
+                        help_text = (
+                            "📋 <b>Cum să folosești bot-ul:</b>\n\n"
+                            "1️⃣ Copiază link-ul video\n"
+                            "2️⃣ Lipește-l în chat\n"
+                            "3️⃣ Bot-ul va descărca automat în 720p\n"
+                            "4️⃣ Primești video-ul descărcat\n\n"
+                            "🎯 <b>Platforme suportate:</b>\n"
+                            "• TikTok, Instagram, Facebook, Twitter/X\n\n"
+                            "❓ Pentru ajutor: /help"
+                        )
+                        success = send_telegram_message(chat_id, help_text)
+                        logger.info(f"Mesaj de ajutor trimis: {success}")
+                        
+                    elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
+                        logger.info(f"Link video detectat: {text}")
+                        # Pentru moment doar loghează, fără procesare video
+                        success = send_telegram_message(chat_id, "🔄 Link detectat! Funcționalitatea de descărcare va fi activată în curând.")
+                        logger.info(f"Mesaj de confirmare trimis: {success}")
+                        
+                    else:
+                        success = send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
+                        logger.info(f"Mesaj de eroare trimis: {success}")
+                        
+                except Exception as msg_error:
+                    logger.error(f"Eroare la procesarea mesajului: {msg_error}")
+                    # Nu ridica excepția, doar loghează
         
         return jsonify({'status': 'ok'}), 200
         
