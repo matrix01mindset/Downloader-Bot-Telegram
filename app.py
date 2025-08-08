@@ -727,22 +727,46 @@ def webhook():
         
         logger.info(f"Webhook primit: {json_data}")
         
-        # Creează obiectul Update din JSON
-        update = Update.de_json(json_data, bot)
-        
-        if not update:
-            logger.error("Nu s-a putut crea obiectul Update")
-            return jsonify({'status': 'error', 'message': 'Invalid update'}), 400
-        
-        # Procesează mesajul sau callback-ul
-        if update.message:
-            logger.info("Procesez mesaj")
-            process_message_sync(update)
-        elif update.callback_query:
-            logger.info("Procesez callback query")
-            process_callback_sync(update)
-        else:
-            logger.info("Update fără mesaj sau callback")
+        # Procesare simplificată fără crearea obiectului Update
+        if 'message' in json_data:
+            message = json_data['message']
+            if 'chat' in message and 'id' in message['chat']:
+                chat_id = message['chat']['id']
+                text = message.get('text', '')
+                
+                logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
+                
+                if text == '/start':
+                    welcome_text = (
+                        "🎬 <b>Bun venit la Video Downloader Bot!</b>\n\n"
+                        "📱 Trimite-mi un link de pe:\n"
+                        "• TikTok\n"
+                        "• Instagram\n"
+                        "• Facebook\n"
+                        "• Twitter/X\n\n"
+                        "🔗 Doar copiază și lipește link-ul aici!"
+                    )
+                    send_telegram_message(chat_id, welcome_text)
+                    
+                elif text == '/help':
+                    help_text = (
+                        "📋 <b>Cum să folosești bot-ul:</b>\n\n"
+                        "1️⃣ Copiază link-ul video\n"
+                        "2️⃣ Lipește-l în chat\n"
+                        "3️⃣ Bot-ul va descărca automat în 720p\n"
+                        "4️⃣ Primești video-ul descărcat\n\n"
+                        "🎯 <b>Platforme suportate:</b>\n"
+                        "• TikTok, Instagram, Facebook, Twitter/X\n\n"
+                        "❓ Pentru ajutor: /help"
+                    )
+                    send_telegram_message(chat_id, help_text)
+                    
+                elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
+                    # Procesează link-ul video
+                    process_video_link_sync(chat_id, text)
+                    
+                else:
+                    send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
         
         return jsonify({'status': 'ok'}), 200
         
