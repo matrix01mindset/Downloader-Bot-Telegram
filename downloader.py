@@ -283,11 +283,53 @@ def clean_title(title):
 
 # Funcția YouTube fallback a fost eliminată - YouTube nu mai este suportat
 
+def normalize_facebook_url(url):
+    """
+    Normalizează URL-urile Facebook noi în formate mai vechi pe care yt-dlp le poate procesa
+    """
+    import re
+    
+    # Extrage ID-ul din URL-urile noi de tip share/v/
+    share_pattern = r'facebook\.com/share/v/([^/?]+)'
+    match = re.search(share_pattern, url)
+    
+    if match:
+        video_id = match.group(1)
+        # Încearcă mai multe formate alternative
+        formats_to_try = [
+            f"https://www.facebook.com/watch?v={video_id}",
+            f"https://www.facebook.com/video.php?v={video_id}",
+            f"https://www.facebook.com/{video_id}/videos/{video_id}"
+        ]
+        
+        # Returnează primul format (cel mai comun)
+        old_format_url = formats_to_try[0]
+        logger.info(f"URL Facebook convertit: {url} -> {old_format_url}")
+        return old_format_url
+    
+    # Verifică și alte formate noi
+    reel_pattern = r'facebook\.com/reel/([^/?]+)'
+    reel_match = re.search(reel_pattern, url)
+    if reel_match:
+        reel_id = reel_match.group(1)
+        old_format_url = f"https://www.facebook.com/watch?v={reel_id}"
+        logger.info(f"URL Facebook Reel convertit: {url} -> {old_format_url}")
+        return old_format_url
+    
+    # Dacă URL-ul este deja în format vechi sau alt format, îl returnează neschimbat
+    return url
+
 def try_facebook_fallback(url, output_path, title):
     """
     Încearcă descărcarea Facebook cu opțiuni alternative și gestionare îmbunătățită a erorilor
     """
     logger.info(f"Încercare Facebook fallback pentru: {url[:50]}...")
+    
+    # Normalizează URL-ul Facebook
+    normalized_url = normalize_facebook_url(url)
+    if normalized_url != url:
+        logger.info(f"URL Facebook normalizat: {normalized_url}")
+        url = normalized_url
     
     # Configurații alternative pentru Facebook - optimizate pentru 2024
     fallback_configs = [
@@ -312,6 +354,12 @@ def try_facebook_fallback(url, output_path, title):
             'ignoreerrors': True,
             'extract_flat': False,
             'no_warnings': True,
+            'extractor_args': {
+                'facebook': {
+                    'legacy_ssl': True,
+                    'api_version': 'v18.0'
+                }
+            },
         },
         {
             'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
@@ -327,6 +375,12 @@ def try_facebook_fallback(url, output_path, title):
             'socket_timeout': 25,
             'retries': 2,
             'ignoreerrors': True,
+            'extractor_args': {
+                'facebook': {
+                    'mobile_client': True,
+                    'legacy_ssl': True
+                }
+            },
         },
         {
             'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
@@ -342,6 +396,13 @@ def try_facebook_fallback(url, output_path, title):
             'socket_timeout': 20,
             'retries': 1,
             'ignoreerrors': True,
+            'extractor_args': {
+                'facebook': {
+                    'android_client': True,
+                    'legacy_ssl': True,
+                    'low_quality': True
+                }
+            },
         }
     ]
     
@@ -545,6 +606,11 @@ def download_video(url, output_path=None):
                 'title': 'YouTube - Nu este suportat'
             }
         else:
+            # Normalizează URL-urile Facebook înainte de descărcare
+            if 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
+                url = normalize_facebook_url(url)
+                logger.info(f"URL procesat pentru Facebook: {url}")
+            
             # Configurație pentru alte platforme
             ydl_opts = {
                 'outtmpl': output_path,
