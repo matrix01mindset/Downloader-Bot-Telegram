@@ -515,10 +515,18 @@ def try_facebook_fallback(url, output_path, title):
                     'error': '❌ Facebook: Videoul nu mai este disponibil sau a fost șters.',
                     'title': title or 'N/A'
                 }
-            elif 'parse' in error_msg or 'extract' in error_msg:
+            elif 'parse' in error_msg or 'extract' in error_msg or 'Cannot parse data' in error_msg:
+                logger.warning(f"Facebook parsing error pentru URL: {url}")
                 return {
                     'success': False,
-                    'error': '❌ Facebook: Eroare la procesarea videului. Link-ul poate fi invalid sau conținutul restricționat.',
+                    'error': '❌ Facebook: Acest link nu poate fi procesat momentan din cauza schimbărilor recente ale Facebook. Te rog să încerci alt link sau să contactezi adminul.',
+                    'title': title or 'N/A'
+                }
+            elif 'Unsupported URL' in error_msg:
+                logger.warning(f"Facebook URL nesuportat: {url}")
+                return {
+                    'success': False,
+                    'error': '❌ Facebook: Formatul acestui link nu este suportat. Te rog să încerci un link direct către video.',
                     'title': title or 'N/A'
                 }
             else:
@@ -705,7 +713,23 @@ def download_video(url, output_path=None):
                     }
                 # Încearcă cu opțiuni alternative pentru Facebook
                 elif 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
-                    return try_facebook_fallback(url, output_path, title)
+                    error_str = str(download_error).lower()
+                    if 'cannot parse data' in error_str:
+                        logger.warning(f"Facebook parsing error în download_video pentru URL: {url}")
+                        return {
+                            'success': False,
+                            'error': '❌ Facebook: Acest link nu poate fi procesat momentan din cauza schimbărilor recente ale Facebook. Te rog să încerci alt link sau să contactezi adminul.',
+                            'title': title
+                        }
+                    elif 'unsupported url' in error_str:
+                        logger.warning(f"Facebook URL nesuportat în download_video: {url}")
+                        return {
+                            'success': False,
+                            'error': '❌ Facebook: Formatul acestui link nu este suportat. Te rog să încerci un link direct către video.',
+                            'title': title
+                        }
+                    else:
+                        return try_facebook_fallback(url, output_path, title)
                 else:
                     raise download_error
             
