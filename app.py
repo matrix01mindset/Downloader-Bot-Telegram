@@ -718,43 +718,66 @@ def index():
 def webhook():
     """Webhook complet sincron pentru a evita problemele cu event loop-urile"""
     try:
+        logger.info("=== WEBHOOK CALLED ===")
+        
         # Asigură că aplicația este inițializată
+        logger.info("Ensuring app is initialized...")
         ensure_app_initialized()
+        logger.info("App initialization complete")
         
         # Obține datele JSON
+        logger.info("Getting JSON data...")
         json_data = request.get_json(force=True)
         if not json_data:
+            logger.error("No JSON data received")
             return jsonify({'status': 'error', 'message': 'No JSON data'}), 400
         
+        logger.info(f"JSON data received: {json_data}")
+        
         # Creează update-ul
+        logger.info("Creating update object...")
         update = Update.de_json(json_data, bot)
         if not update:
+            logger.error("Failed to create update object")
             return jsonify({'status': 'error', 'message': 'Invalid update'}), 400
+        
+        logger.info("Update object created successfully")
         
         # Procesează update-ul complet sincron
         def process_update_sync():
             """Procesează update-ul fără asyncio"""
             try:
+                logger.info("Starting update processing...")
                 # Procesează manual diferite tipuri de update-uri
                 if update.message:
+                    logger.info("Processing message update")
                     process_message_sync(update)
                 elif update.callback_query:
+                    logger.info("Processing callback query update")
                     process_callback_sync(update)
                 else:
                     logger.info("Update ignorat - tip nesuportat")
+                logger.info("Update processing completed")
             except Exception as e:
                 logger.error(f"Eroare la procesarea sincronă: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
         
         # Rulează procesarea în background și returnează imediat
+        logger.info("Starting background thread...")
         import threading
         thread = threading.Thread(target=process_update_sync, daemon=True)
         thread.start()
+        logger.info("Background thread started")
         
         # Returnează imediat success pentru a evita timeout-urile
+        logger.info("Returning success response")
         return jsonify({'status': 'ok'}), 200
         
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
+        import traceback
+        logger.error(f"Webhook traceback: {traceback.format_exc()}")
         return jsonify({'status': 'error', 'message': 'Webhook error'}), 500
 
 def send_telegram_message(chat_id, text, reply_markup=None):
@@ -779,20 +802,27 @@ def send_telegram_message(chat_id, text, reply_markup=None):
 def process_message_sync(update):
     """Procesează mesajele în mod sincron"""
     try:
+        logger.info("=== PROCESSING MESSAGE ===")
         message = update.message
+        logger.info(f"Message object: {message}")
+        
         # Accesează chat_id în mod sigur
         if hasattr(message, 'chat_id'):
             chat_id = message.chat_id
+            logger.info(f"Chat ID from message.chat_id: {chat_id}")
         elif hasattr(message, 'chat') and hasattr(message.chat, 'id'):
             chat_id = message.chat.id
+            logger.info(f"Chat ID from message.chat.id: {chat_id}")
         else:
             logger.error("Nu se poate obține chat_id din mesaj")
             return
             
         text = message.text if hasattr(message, 'text') else None
+        logger.info(f"Message text: {text}")
         
         # Verifică dacă mesajul are text
         if not text:
+            logger.info("No text in message, returning")
             return
         
         if text == '/start':
