@@ -716,14 +716,9 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Webhook complet sincron pentru a evita problemele cu event loop-urile"""
+    """Webhook simplificat pentru debugging"""
     try:
         logger.info("=== WEBHOOK CALLED ===")
-        
-        # Asigură că aplicația este inițializată
-        logger.info("Ensuring app is initialized...")
-        ensure_app_initialized()
-        logger.info("App initialization complete")
         
         # Obține datele JSON
         logger.info("Getting JSON data...")
@@ -734,45 +729,9 @@ def webhook():
         
         logger.info(f"JSON data received: {json_data}")
         
-        # Creează update-ul
-        logger.info("Creating update object...")
-        update = Update.de_json(json_data, bot)
-        if not update:
-            logger.error("Failed to create update object")
-            return jsonify({'status': 'error', 'message': 'Invalid update'}), 400
-        
-        logger.info("Update object created successfully")
-        
-        # Procesează update-ul complet sincron
-        def process_update_sync():
-            """Procesează update-ul fără asyncio"""
-            try:
-                logger.info("Starting update processing...")
-                # Procesează manual diferite tipuri de update-uri
-                if update.message:
-                    logger.info("Processing message update")
-                    process_message_sync(update)
-                elif update.callback_query:
-                    logger.info("Processing callback query update")
-                    process_callback_sync(update)
-                else:
-                    logger.info("Update ignorat - tip nesuportat")
-                logger.info("Update processing completed")
-            except Exception as e:
-                logger.error(f"Eroare la procesarea sincronă: {e}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
-        
-        # Rulează procesarea în background și returnează imediat
-        logger.info("Starting background thread...")
-        import threading
-        thread = threading.Thread(target=process_update_sync, daemon=True)
-        thread.start()
-        logger.info("Background thread started")
-        
-        # Returnează imediat success pentru a evita timeout-urile
-        logger.info("Returning success response")
-        return jsonify({'status': 'ok'}), 200
+        # Pentru debugging, returnăm success fără procesare
+        logger.info("Returning success without processing")
+        return jsonify({'status': 'ok', 'debug': 'webhook received'}), 200
         
     except Exception as e:
         logger.error(f"Eroare în webhook: {e}")
