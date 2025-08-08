@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import html
 from flask import Flask, request, jsonify
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -25,6 +26,79 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Funcții pentru escaparea caracterelor speciale
+def escape_markdown_v2(text: str) -> str:
+    """
+    Escapează caracterele speciale pentru MarkdownV2 conform specificației Telegram.
+    Caractere ce trebuie escape-uite: _ * [ ] ( ) ~ > # + - = | { } . !
+    """
+    if not text:
+        return ""
+    
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+
+def escape_html(text: str) -> str:
+    """
+    Escapează caracterele speciale pentru HTML.
+    """
+    if not text:
+        return ""
+    
+    return html.escape(text)
+
+def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None):
+    """
+    Trimite mesaj cu fallback la text simplu dacă parse_mode eșuează.
+    """
+    import requests
+    
+    if not TOKEN:
+        logger.error("TOKEN nu este setat!")
+        return False
+    
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    
+    # Încearcă mai întâi cu parse_mode
+    data = {
+        'chat_id': chat_id,
+        'text': text,
+        'parse_mode': parse_mode
+    }
+    if reply_markup:
+        data['reply_markup'] = reply_markup
+    
+    try:
+        response = requests.post(url, json=data, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f"Mesaj trimis cu succes către chat_id {chat_id} cu {parse_mode}")
+            return True
+        else:
+            # Dacă eșuează cu parse_mode, încearcă fără
+            logger.warning(f"Eroare cu {parse_mode}: {response.status_code} - {response.text[:200]}")
+            logger.info(f"Încerc să trimit fără parse_mode...")
+            
+            data_fallback = {
+                'chat_id': chat_id,
+                'text': text
+            }
+            if reply_markup:
+                data_fallback['reply_markup'] = reply_markup
+            
+            response_fallback = requests.post(url, json=data_fallback, timeout=10)
+            
+            if response_fallback.status_code == 200:
+                logger.info(f"Mesaj trimis cu succes către chat_id {chat_id} fără parse_mode")
+                return True
+            else:
+                logger.error(f"Eroare și la fallback: {response_fallback.status_code} - {response_fallback.text[:200]}")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Excepție la trimiterea mesajului: {e}")
+        return False
+
 # Funcție centrală pentru crearea caption-urilor sigure
 def create_safe_caption(title, uploader=None, description=None, duration=None, file_size=None, max_length=1000):
     """
@@ -42,24 +116,25 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
         str: Caption-ul formatat și sigur pentru Telegram
     """
     try:
-        # Începe cu titlul
-        caption = f"✅ **{title[:200]}**"  # Limitează titlul la 200 caractere
+        # Escapează titlul pentru HTML
+        title_safe = escape_html(title[:200]) if title else "Video"
         if len(title) > 200:
-            caption = caption[:-2] + "...**"
+            title_safe = title_safe[:-3] + "..."
         
-        caption += "\n\n"
+        # Începe cu titlul
+        caption = f"✅ <b>{title_safe}</b>\n\n"
         
         # Adaugă creatorul dacă există
         if uploader and uploader.strip():
-            uploader_clean = uploader.strip()[:100]  # Limitează la 100 caractere
-            caption += f"👤 **Creator:** {uploader_clean}\n"
+            uploader_clean = escape_html(uploader.strip()[:100])  # Limitează la 100 caractere
+            caption += f"👤 <b>Creator:</b> {uploader_clean}\n"
         
         # Formatează durata cu verificări de tip
         if duration and isinstance(duration, (int, float)) and duration > 0:
             try:
                 minutes = int(duration // 60)
                 seconds = int(duration % 60)
-                caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
+                caption += f"⏱️ <b>Durată:</b> {minutes}:{seconds:02d}\n"
             except (TypeError, ValueError):
                 pass  # Skip duration if formatting fails
         
@@ -67,7 +142,7 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
         if file_size and isinstance(file_size, (int, float)) and file_size > 0:
             try:
                 size_mb = float(file_size) / (1024 * 1024)
-                caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
+                caption += f"📦 <b>Mărime:</b> {size_mb:.1f} MB\n"
             except (TypeError, ValueError):
                 pass  # Skip file size if formatting fails
         
@@ -104,7 +179,9 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
                     else:
                         description_clean = description_clean[:truncate_pos] + "..."
             
-            caption += f"\n📝 **Descriere:**\n{description_clean}"
+            # Escapează descrierea pentru HTML
+            description_safe = escape_html(description_clean)
+            caption += f"\n📝 <b>Descriere:</b>\n{description_safe}"
         
         # Adaugă footer-ul
         caption += footer
@@ -120,7 +197,8 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
     except Exception as e:
         logger.error(f"Eroare la crearea caption-ului: {e}")
         # Fallback la un caption minimal
-        return f"✅ **{title[:100] if title else 'Video'}**\n\n🎬 Descărcare completă!"
+        title_safe = escape_html(title[:100]) if title else 'Video'
+        return f"✅ <b>{title_safe}</b>\n\n🎬 Descărcare completă!"
 
 # Configurare Flask
 app = Flask(__name__)
@@ -804,38 +882,10 @@ def webhook():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def send_telegram_message(chat_id, text, reply_markup=None):
-    """Trimite mesaj prin API-ul Telegram folosind requests"""
-    try:
-        import requests
-        
-        # Verifică dacă TOKEN este setat
-        if not TOKEN:
-            logger.error("TOKEN nu este setat!")
-            return False
-            
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        data = {
-            'chat_id': chat_id,
-            'text': text,
-            'parse_mode': 'HTML'
-        }
-        if reply_markup:
-            data['reply_markup'] = reply_markup
-        
-        logger.info(f"Trimit mesaj către chat_id {chat_id}: {text[:50]}...")
-        
-        response = requests.post(url, json=data, timeout=10)
-        
-        if response.status_code == 200:
-            logger.info(f"Mesaj trimis cu succes către chat_id {chat_id}")
-            return True
-        else:
-            logger.error(f"Eroare la trimiterea mesajului: {response.status_code} - {response.text}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"Excepție la trimiterea mesajului: {e}")
-        return False
+    """Trimite mesaj prin API-ul Telegram cu fallback automat"""
+    # Escapează textul pentru HTML
+    text_safe = escape_html(text) if text else ""
+    return safe_send_with_fallback(chat_id, text_safe, 'HTML', reply_markup)
 
 def process_message_sync(update):
     """Procesează mesajele în mod sincron"""
@@ -1049,10 +1099,25 @@ def send_video_file(chat_id, file_path, video_info):
             data = {
                 'chat_id': chat_id,
                 'caption': caption,
-                'parse_mode': 'Markdown'
+                'parse_mode': 'HTML'
             }
             
             response = requests.post(url, files=files, data=data, timeout=300)
+            
+            # Dacă eșuează cu HTML, încearcă fără parse_mode
+            if response.status_code != 200:
+                logger.warning(f"Eroare cu HTML parse_mode: {response.status_code} - {response.text[:200]}")
+                logger.info("Încerc să trimit caption fără parse_mode...")
+                
+                # Reset file pointer
+                video_file.seek(0)
+                
+                data_fallback = {
+                    'chat_id': chat_id,
+                    'caption': caption  # Fără parse_mode
+                }
+                
+                response = requests.post(url, files={'video': video_file}, data=data_fallback, timeout=300)
             
         # Șterge fișierul temporar
         try:

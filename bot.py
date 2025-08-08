@@ -1,6 +1,7 @@
 import os
 import logging
 import re
+import html
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from downloader import download_video, is_supported_url
@@ -12,21 +13,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Funcții pentru escaparea caracterelor speciale
+def escape_markdown_v2(text: str) -> str:
+    """
+    Escapează caracterele speciale pentru MarkdownV2 conform specificației Telegram.
+    """
+    if not text:
+        return ""
+    
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+
+def escape_html(text: str) -> str:
+    """
+    Escapează caracterele speciale pentru HTML.
+    """
+    if not text:
+        return ""
+    
+    return html.escape(text)
+
 # Funcție pentru crearea caption-urilor sigure (versiunea pentru bot.py)
 def create_safe_caption_bot(title, uploader=None, description=None, max_length=1000):
     """
     Creează un caption sigur pentru Telegram în bot.py, respectând limitele de caractere.
     """
     try:
-        # Începe cu titlul
-        caption = f"✅ **{title[:200]}**"  # Limitează titlul la 200 caractere
+        # Escapează titlul pentru HTML
+        title_safe = escape_html(title[:200]) if title else "Video"
         if len(title) > 200:
-            caption = caption[:-2] + "...**"
+            title_safe = title_safe[:-3] + "..."
+        
+        # Începe cu titlul
+        caption = f"✅ <b>{title_safe}</b>\n\n"
         
         # Adaugă creatorul dacă există
         if uploader and uploader.strip():
-            uploader_clean = uploader.strip()[:100]  # Limitează la 100 caractere
-            caption += f"\n👤 **De la:** {uploader_clean}"
+            uploader_clean = escape_html(uploader.strip()[:100])  # Limitează la 100 caractere
+            caption += f"👤 <b>De la:</b> {uploader_clean}\n"
         
         # Calculează spațiul rămas pentru descriere
         current_length = len(caption)
@@ -61,7 +85,9 @@ def create_safe_caption_bot(title, uploader=None, description=None, max_length=1
                     else:
                         description_clean = description_clean[:truncate_pos] + "..."
             
-            caption += f"\n📝 **Descriere:**\n{description_clean}"
+            # Escapează descrierea pentru HTML
+            description_safe = escape_html(description_clean)
+            caption += f"\n📝 <b>Descriere:</b>\n{description_safe}"
         
         # Adaugă footer-ul
         caption += footer
@@ -77,7 +103,8 @@ def create_safe_caption_bot(title, uploader=None, description=None, max_length=1
     except Exception as e:
         logger.error(f"Eroare la crearea caption-ului: {e}")
         # Fallback la un caption minimal
-        return f"✅ **{title[:100] if title else 'Video'}**\n\n🎬 Descărcare completă!"
+        title_safe = escape_html(title[:100]) if title else 'Video'
+        return f"✅ <b>{title_safe}</b>\n\n🎬 Descărcare completă!"
 
 # Token-ul botului (va fi setat prin variabilă de mediu)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
@@ -91,14 +118,14 @@ def start(update: Update, context: CallbackContext):
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 • YouTube
 • TikTok  
 • Instagram
 • Facebook
 • Twitter/X
 
-⚠️ **Limitări:**
+⚠️ <b>Limitări:</b>
 - Videoclipuri max 3 ore
 - Mărime max 550MB
 - Calitate max 720p
@@ -114,28 +141,28 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
 def help_command(update: Update, context: CallbackContext):
     """
     Comandă /help - informații de ajutor
     """
     help_text = """
-🆘 **Cum să folosești botul:**
+🆘 <b>Cum să folosești botul:</b>
 
 1. Copiază link-ul videoclipului
 2. Trimite-l în acest chat
 3. Așteaptă să fie procesat
 4. Primești videoclipul descărcat
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 - YouTube (youtube.com, youtu.be)
 - TikTok (tiktok.com)
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch)
 - Twitter/X (twitter.com, x.com)
 
-⚠️ **Probleme frecvente:**
+⚠️ <b>Probleme frecvente:</b>
 - Videoclipul este privat → Nu poate fi descărcat
 - Videoclipul este prea lung → Max 3 ore
 - Videoclipul este prea mare → Max 550MB
@@ -145,7 +172,7 @@ def help_command(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
+    update.message.reply_text(help_text, parse_mode='HTML', reply_markup=reply_markup)
 
 def menu_command(update: Update, context: CallbackContext):
     """
@@ -177,7 +204,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
 def handle_message(update: Update, context: CallbackContext):
     """
@@ -222,7 +249,7 @@ def handle_message(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(confirmation_text, parse_mode='Markdown', reply_markup=reply_markup)
+    update.message.reply_text(confirmation_text, parse_mode='HTML', reply_markup=reply_markup)
 
 def process_download(update: Update, context: CallbackContext, url: str):
     """
@@ -267,7 +294,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
             query.message.reply_video(
                 video=video_file,
                 caption=caption,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         
         # Trimite mesaj cu opțiuni după descărcare
@@ -278,8 +305,8 @@ def process_download(update: Update, context: CallbackContext, url: str):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         query.edit_message_text(
-            "✅ **Descărcare completă!**\n\nVideoclipul a fost trimis cu succes.\nCe vrei să faci acum?",
-            parse_mode='Markdown',
+            "✅ <b>Descărcare completă!</b>\n\nVideoclipul a fost trimis cu succes.\nCe vrei să faci acum?",
+            parse_mode='HTML',
             reply_markup=reply_markup
         )
         
@@ -373,7 +400,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=reply_markup)
+        query.edit_message_text(help_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'platforms':
         platforms_text = """
@@ -406,7 +433,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
+        query.edit_message_text(platforms_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'settings':
         settings_text = """
@@ -434,7 +461,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(settings_text, parse_mode='Markdown', reply_markup=reply_markup)
+        query.edit_message_text(settings_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'faq':
         faq_text = """
@@ -462,7 +489,7 @@ A: Da, botul este complet gratuit!
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(faq_text, parse_mode='Markdown', reply_markup=reply_markup)
+        query.edit_message_text(faq_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'back_to_menu':
         welcome_message = """
@@ -492,7 +519,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+        query.edit_message_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
 def error_handler(update: Update, context: CallbackContext):
     """
