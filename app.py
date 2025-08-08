@@ -714,6 +714,9 @@ def index():
 # Configurații simplificate pentru webhook-uri
 # Thread pool eliminat pentru a evita problemele în producție
 
+# Set pentru a urmări mesajele procesate (previne duplicarea)
+processed_messages = set()
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Procesează webhook-urile de la Telegram"""
@@ -733,10 +736,24 @@ def webhook():
             if 'chat' in message and 'id' in message['chat']:
                 chat_id = message['chat']['id']
                 text = message.get('text', '')
+                message_id = message.get('message_id')
+                
+                # Creează un identificator unic pentru mesaj
+                unique_id = f"{chat_id}_{message_id}_{text}"
+                
+                # Verifică dacă mesajul a fost deja procesat
+                if unique_id in processed_messages:
+                    logger.info(f"Mesaj deja procesat, ignorat: {unique_id}")
+                    return jsonify({'status': 'ok'}), 200
+                
+                # Adaugă mesajul la lista celor procesate
+                processed_messages.add(unique_id)
+                
+                # Limitează dimensiunea set-ului (păstrează ultimele 1000 de mesaje)
+                if len(processed_messages) > 1000:
+                    processed_messages.clear()
                 
                 logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
-                
-                logger.info(f"Mesaj primit: {text} de la chat_id: {chat_id}")
                 
                 # Procesează mesajul și trimite răspuns
                 try:
@@ -769,9 +786,8 @@ def webhook():
                         
                     elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
                         logger.info(f"Link video detectat: {text}")
-                        # Pentru moment doar loghează, fără procesare video
-                        success = send_telegram_message(chat_id, "🔄 Link detectat! Funcționalitatea de descărcare va fi activată în curând.")
-                        logger.info(f"Mesaj de confirmare trimis: {success}")
+                        # Procesează link-ul video
+                        process_video_link_sync(chat_id, text)
                         
                     else:
                         success = send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
