@@ -8,13 +8,14 @@ from downloader import download_video, is_supported_url
 import tempfile
 import time
 import threading
+import re
 
 # Încarcă variabilele de mediu din .env pentru testare locală
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    # dotenv nu este instalat, continuă fără el
+    # dotenv nu este disponibil în producție, nu e problemă
     pass
 
 # Configurare logging
@@ -23,6 +24,103 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Funcție centrală pentru crearea caption-urilor sigure
+def create_safe_caption(title, uploader=None, description=None, duration=None, file_size=None, max_length=1000):
+    """
+    Creează un caption sigur pentru Telegram, respectând limitele de caractere.
+    
+    Args:
+        title (str): Titlul videoclipului
+        uploader (str, optional): Numele creatorului
+        description (str, optional): Descrierea videoclipului
+        duration (int/float, optional): Durata în secunde
+        file_size (int/float, optional): Mărimea fișierului în bytes
+        max_length (int): Lungimea maximă a caption-ului (default: 1000)
+    
+    Returns:
+        str: Caption-ul formatat și sigur pentru Telegram
+    """
+    try:
+        # Începe cu titlul
+        caption = f"✅ **{title[:200]}**"  # Limitează titlul la 200 caractere
+        if len(title) > 200:
+            caption = caption[:-2] + "...**"
+        
+        caption += "\n\n"
+        
+        # Adaugă creatorul dacă există
+        if uploader and uploader.strip():
+            uploader_clean = uploader.strip()[:100]  # Limitează la 100 caractere
+            caption += f"👤 **Creator:** {uploader_clean}\n"
+        
+        # Formatează durata cu verificări de tip
+        if duration and isinstance(duration, (int, float)) and duration > 0:
+            try:
+                minutes = int(duration // 60)
+                seconds = int(duration % 60)
+                caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
+            except (TypeError, ValueError):
+                pass  # Skip duration if formatting fails
+        
+        # Formatează dimensiunea fișierului cu verificări de tip
+        if file_size and isinstance(file_size, (int, float)) and file_size > 0:
+            try:
+                size_mb = float(file_size) / (1024 * 1024)
+                caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
+            except (TypeError, ValueError):
+                pass  # Skip file size if formatting fails
+        
+        # Calculează spațiul rămas pentru descriere
+        current_length = len(caption)
+        footer = "\n\n🎬 Descărcare completă!"
+        footer_length = len(footer)
+        
+        # Spațiul disponibil pentru descriere
+        available_space = max_length - current_length - footer_length - 50  # Buffer de siguranță
+        
+        # Adaugă descrierea dacă există și dacă avem spațiu
+        if description and description.strip() and available_space > 20:
+            description_clean = description.strip()
+            
+            # Curăță descrierea de caractere problematice
+            description_clean = re.sub(r'[\r\n]+', ' ', description_clean)  # Înlocuiește newlines cu spații
+            description_clean = re.sub(r'\s+', ' ', description_clean)  # Curăță spațiile multiple
+            
+            # Truncează descrierea la spațiul disponibil
+            if len(description_clean) > available_space:
+                # Găsește ultima propoziție completă sau ultimul spațiu
+                truncate_pos = available_space - 3  # Spațiu pentru "..."
+                
+                # Încearcă să găsești ultima propoziție completă
+                last_sentence = description_clean[:truncate_pos].rfind('.')
+                if last_sentence > available_space // 2:  # Dacă găsim o propoziție la jumătate
+                    description_clean = description_clean[:last_sentence + 1]
+                else:
+                    # Altfel, găsește ultimul spațiu
+                    last_space = description_clean[:truncate_pos].rfind(' ')
+                    if last_space > available_space // 2:
+                        description_clean = description_clean[:last_space] + "..."
+                    else:
+                        description_clean = description_clean[:truncate_pos] + "..."
+            
+            caption += f"\n📝 **Descriere:**\n{description_clean}"
+        
+        # Adaugă footer-ul
+        caption += footer
+        
+        # Verificare finală de siguranță
+        if len(caption) > max_length:
+            # Dacă încă este prea lung, truncează drastic
+            safe_length = max_length - len(footer) - 10
+            caption = caption[:safe_length] + "..." + footer
+        
+        return caption
+        
+    except Exception as e:
+        logger.error(f"Eroare la crearea caption-ului: {e}")
+        # Fallback la un caption minimal
+        return f"✅ **{title[:100] if title else 'Video'}**\n\n🎬 Descărcare completă!"
 
 # Configurare Flask
 app = Flask(__name__)
@@ -302,30 +400,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Trimite videoclipul
                     try:
                         with open(result['file_path'], 'rb') as video_file:
-                            # Construiește caption-ul cu informații detaliate
-                            caption = f"✅ Videoclip descărcat cu succes!\n\n"
-                            caption += f"🎬 **Titlu:** {result.get('title', 'N/A')}\n"
-                            
-                            if result.get('uploader'):
-                                caption += f"👤 **Creator:** {result.get('uploader')}\n"
-                            
-                            if result.get('duration') and isinstance(result.get('duration'), (int, float)):
-                                try:
-                                    duration = result.get('duration')
-                                    minutes = int(duration // 60)
-                                    seconds = int(duration % 60)
-                                    caption += f"⏱️ **Durată:** {minutes}:{seconds:02d}\n"
-                                except (TypeError, ValueError):
-                                    pass  # Skip duration if formatting fails
-                            
-                            if result.get('file_size') and isinstance(result.get('file_size'), (int, float)):
-                                size_mb = result.get('file_size') / (1024 * 1024)
-                                caption += f"📦 **Mărime:** {size_mb:.1f} MB\n"
-                            
-                            # Adaugă descrierea/hashtag-urile dacă există
-                            description = result.get('description', '')
-                            if description and len(description.strip()) > 0:
-                                caption += f"\n📝 **Descriere/Tags:**\n{description}"
+                            # Folosește funcția centrală pentru caption sigur
+                            caption = create_safe_caption(
+                                title=result.get('title', 'Video'),
+                                uploader=result.get('uploader'),
+                                description=result.get('description'),
+                                duration=result.get('duration'),
+                                file_size=result.get('file_size')
+                            )
                             
                             try:
                                 if hasattr(update.message, 'reply_video'):
@@ -858,19 +940,14 @@ def send_video_file(chat_id, file_path, video_info):
         else:
             size_str = "N/A"
         
-        # Truncate description la 100 caractere
-        if description and len(description) > 100:
-            description = description[:100] + "..."
-        
-        # Construiește caption-ul
-        caption = f"🎬 **{title}**\n"
-        if uploader:
-            caption += f"👤 {uploader}\n"
-        if description:
-            caption += f"📝 {description}\n"
-        caption += f"⏱️ Durată: {duration_str}\n"
-        caption += f"📁 Dimensiune: {size_str}\n\n"
-        caption += "✅ Descărcare completă!"
+        # Folosește funcția centrală pentru caption sigur
+        caption = create_safe_caption(
+            title=title,
+            uploader=uploader,
+            description=description,
+            duration=duration,
+            file_size=file_size
+        )
         
         with open(file_path, 'rb') as video_file:
             files = {'video': video_file}

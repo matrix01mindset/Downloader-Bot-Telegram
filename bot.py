@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from downloader import download_video, is_supported_url
@@ -10,6 +11,73 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Funcție pentru crearea caption-urilor sigure (versiunea pentru bot.py)
+def create_safe_caption_bot(title, uploader=None, description=None, max_length=1000):
+    """
+    Creează un caption sigur pentru Telegram în bot.py, respectând limitele de caractere.
+    """
+    try:
+        # Începe cu titlul
+        caption = f"✅ **{title[:200]}**"  # Limitează titlul la 200 caractere
+        if len(title) > 200:
+            caption = caption[:-2] + "...**"
+        
+        # Adaugă creatorul dacă există
+        if uploader and uploader.strip():
+            uploader_clean = uploader.strip()[:100]  # Limitează la 100 caractere
+            caption += f"\n👤 **De la:** {uploader_clean}"
+        
+        # Calculează spațiul rămas pentru descriere
+        current_length = len(caption)
+        footer = "\n\n🎬 Descărcare completă!"
+        footer_length = len(footer)
+        
+        # Spațiul disponibil pentru descriere
+        available_space = max_length - current_length - footer_length - 50  # Buffer de siguranță
+        
+        # Adaugă descrierea dacă există și dacă avem spațiu
+        if description and description.strip() and available_space > 20:
+            description_clean = description.strip()
+            
+            # Curăță descrierea de caractere problematice
+            description_clean = re.sub(r'[\r\n]+', ' ', description_clean)  # Înlocuiește newlines cu spații
+            description_clean = re.sub(r'\s+', ' ', description_clean)  # Curăță spațiile multiple
+            
+            # Truncează descrierea la spațiul disponibil
+            if len(description_clean) > available_space:
+                # Găsește ultima propoziție completă sau ultimul spațiu
+                truncate_pos = available_space - 3  # Spațiu pentru "..."
+                
+                # Încearcă să găsești ultima propoziție completă
+                last_sentence = description_clean[:truncate_pos].rfind('.')
+                if last_sentence > available_space // 2:  # Dacă găsim o propoziție la jumătate
+                    description_clean = description_clean[:last_sentence + 1]
+                else:
+                    # Altfel, găsește ultimul spațiu
+                    last_space = description_clean[:truncate_pos].rfind(' ')
+                    if last_space > available_space // 2:
+                        description_clean = description_clean[:last_space] + "..."
+                    else:
+                        description_clean = description_clean[:truncate_pos] + "..."
+            
+            caption += f"\n📝 **Descriere:**\n{description_clean}"
+        
+        # Adaugă footer-ul
+        caption += footer
+        
+        # Verificare finală de siguranță
+        if len(caption) > max_length:
+            # Dacă încă este prea lung, truncează drastic
+            safe_length = max_length - len(footer) - 10
+            caption = caption[:safe_length] + "..." + footer
+        
+        return caption
+        
+    except Exception as e:
+        logger.error(f"Eroare la crearea caption-ului: {e}")
+        # Fallback la un caption minimal
+        return f"✅ **{title[:100] if title else 'Video'}**\n\n🎬 Descărcare completă!"
 
 # Token-ul botului (va fi setat prin variabilă de mediu)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
@@ -183,16 +251,12 @@ def process_download(update: Update, context: CallbackContext, url: str):
         if file_size > 550 * 1024 * 1024:  # 550MB
             raise Exception("Fișierul este prea mare (max 550MB)")
         
-        # Creează caption cu titlu și informații
-        caption = f"✅ **{title}**"
-        if uploader:
-            caption += f"\n👤 De la: {uploader}"
-        if description and len(description) > 0:
-            # Limitează descrierea la 200 caractere pentru caption
-            desc_preview = description[:200]
-            if len(description) > 200:
-                desc_preview += "..."
-            caption += f"\n📝 {desc_preview}"
+        # Creează caption sigur folosind aceeași logică ca în app.py
+        caption = create_safe_caption_bot(
+            title=title,
+            uploader=uploader,
+            description=description
+        )
         
         # Trimite videoclipul cu caption complet
         with open(filepath, 'rb') as video_file:
