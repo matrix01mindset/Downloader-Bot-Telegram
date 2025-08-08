@@ -3,7 +3,7 @@ import logging
 import re
 import html
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from downloader import download_video, is_supported_url
 
 # Configurare logging
@@ -109,7 +109,7 @@ def create_safe_caption_bot(title, uploader=None, description=None, max_length=1
 # Token-ul botului (va fi setat prin variabilă de mediu)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /start - mesaj de bun venit cu meniu interactiv
     """
@@ -141,9 +141,9 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
+    await update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
-def help_command(update: Update, context: CallbackContext):
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /help - informații de ajutor
     """
@@ -173,9 +173,9 @@ def help_command(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(help_text, parse_mode='HTML', reply_markup=reply_markup)
+    await update.message.reply_text(help_text, parse_mode='HTML', reply_markup=reply_markup)
 
-def menu_command(update: Update, context: CallbackContext):
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /menu - afișează meniul principal
     """
@@ -206,16 +206,12 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
+    await update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează mesajele cu link-uri video
     """
-    # Delay mic pentru prima descărcare după hibernare
-     import asyncio
-     await asyncio.sleep(0.5)  # 500ms delay pentru stabilizare
-    
     url = update.message.text.strip()
     
     # Verifică dacă este un URL valid
@@ -223,7 +219,7 @@ def handle_message(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("📖 Vezi cum să folosești botul", callback_data='help')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        update.message.reply_text(
+        await update.message.reply_text(
             "❌ Te rog să trimiți un link valid (care începe cu http:// sau https://)\n\n"
             "💡 Trimite un link de pe TikTok, Instagram, Facebook sau Twitter/X",
             reply_markup=reply_markup
@@ -235,7 +231,7 @@ def handle_message(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔗 Vezi platformele suportate", callback_data='platforms')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        update.message.reply_text(
+        await update.message.reply_text(
             "❌ Această platformă nu este suportată.\n\n"
             "Platforme suportate: TikTok, Instagram, Facebook, Twitter/X",
             reply_markup=reply_markup
@@ -251,16 +247,16 @@ def handle_message(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    update.message.reply_text(confirmation_text, parse_mode='HTML', reply_markup=reply_markup)
+    await update.message.reply_text(confirmation_text, parse_mode='HTML', reply_markup=reply_markup)
 
-def process_download(update: Update, context: CallbackContext, url: str):
+async def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
     """
     Procesează descărcarea videoclipului
     """
     query = update.callback_query
     
     # Trimite mesaj de procesare
-    processing_message = query.edit_message_text(
+    processing_message = await query.edit_message_text(
         "✅ Procesez și descarc video-ul în 720p te rog asteapta"
     )
     
@@ -280,7 +276,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
             raise Exception("Fișierul nu a fost găsit după descărcare")
         
         # Verifică mărimea fișierului (limită redusă la 512MB pentru siguranță)
-        file_size = os.path.getsize(file_path)
+        file_size = os.path.getsize(filepath)
         if file_size > 512 * 1024 * 1024:  # 512MB
             raise Exception("Fișierul este prea mare (max 512MB pentru siguranță)")
         
@@ -293,7 +289,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
         
         # Trimite videoclipul cu caption complet
         with open(filepath, 'rb') as video_file:
-            query.message.reply_video(
+            await query.message.reply_video(
                 video=video_file,
                 caption=caption,
                 parse_mode='HTML'
@@ -306,7 +302,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(
+        await query.edit_message_text(
             "✅ <b>Descărcare completă!</b>\n\nVideoclipul a fost trimis cu succes.\nCe vrei să faci acum?",
             parse_mode='HTML',
             reply_markup=reply_markup
@@ -320,7 +316,7 @@ def process_download(update: Update, context: CallbackContext, url: str):
             
         # Șterge mesajul de procesare
         try:
-            processing_message.delete()
+            await processing_message.delete()
         except:
             pass
             
@@ -344,30 +340,30 @@ def process_download(update: Update, context: CallbackContext, url: str):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(error_message, reply_markup=reply_markup)
+        await query.edit_message_text(error_message, reply_markup=reply_markup)
         
         # Șterge mesajul de procesare
         try:
-            processing_message.delete()
+            await processing_message.delete()
         except:
             pass
 
-def button_handler(update: Update, context: CallbackContext):
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează apăsările pe butoanele inline
     """
     query = update.callback_query
-    query.answer()
+    await query.answer()
     
     # Gestionează descărcarea
     if query.data.startswith('download_'):
         url = query.data.replace('download_', '')
-        process_download(update, context, url)
+        await process_download(update, context, url)
         return
     
     # Gestionează cererea pentru descărcare nouă
     elif query.data == 'new_download':
-        query.edit_message_text(
+        await query.edit_message_text(
             "📥 **Gata pentru o nouă descărcare!**\n\n"
             "Trimite-mi un link de pe TikTok, Instagram, Facebook sau Twitter/X"
         )
@@ -378,7 +374,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(
+        await query.edit_message_text(
             "❌ Descărcarea a fost anulată.\n\n💡 Trimite un alt link când ești gata!",
             reply_markup=reply_markup
         )
@@ -402,7 +398,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(help_text, parse_mode='HTML', reply_markup=reply_markup)
+        await query.edit_message_text(help_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'platforms':
         platforms_text = """
@@ -432,7 +428,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(platforms_text, parse_mode='HTML', reply_markup=reply_markup)
+        await query.edit_message_text(platforms_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'settings':
         settings_text = """
@@ -460,7 +456,7 @@ def button_handler(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(settings_text, parse_mode='HTML', reply_markup=reply_markup)
+        await query.edit_message_text(settings_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'faq':
         faq_text = """
@@ -488,7 +484,7 @@ A: Da, botul este complet gratuit!
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(faq_text, parse_mode='HTML', reply_markup=reply_markup)
+        await query.edit_message_text(faq_text, parse_mode='HTML', reply_markup=reply_markup)
         
     elif query.data == 'back_to_menu':
         welcome_message = """
@@ -519,15 +515,15 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        query.edit_message_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
+        await query.edit_message_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
-def error_handler(update: Update, context: CallbackContext):
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gestionează erorile
     """
     logger.warning('Update "%s" caused error "%s"', update, context.error)
 
-def main():
+async def main():
     """
     Funcția principală care pornește botul
     """
@@ -535,25 +531,24 @@ def main():
         print("❌ Eroare: Te rog să setezi TELEGRAM_BOT_TOKEN în variabilele de mediu")
         return
     
-    # Creează updater-ul
-    updater = Updater(token=TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
+    # Creează aplicația
+    app = Application.builder().token(TOKEN).build()
     
     # Adaugă handler-ele
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
-    dispatcher.add_handler(CommandHandler("menu", menu_command))
-    dispatcher.add_handler(CallbackQueryHandler(button_handler))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("menu", menu_command))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Adaugă handler pentru erori
-    dispatcher.add_error_handler(error_handler)
+    app.add_error_handler(error_handler)
     
     # Pornește botul
     print("🤖 Botul pornește...")
-    updater.start_polling()
+    await app.run_polling()
     print("✅ Botul rulează! Apasă Ctrl+C pentru a opri.")
-    updater.idle()
 
 if __name__ == '__main__':
-    main()
+    import asyncio
+    asyncio.run(main())

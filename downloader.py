@@ -250,6 +250,24 @@ def get_youtube_retry_strategy_advanced(attempt_number):
     """Funcție păstrată pentru compatibilitate - YouTube nu mai este suportat"""
     return None  # YouTube nu mai este suportat
 
+def sanitize_filename(filename):
+    """
+    Sanitizează numele fișierului pentru a fi compatibil cu Windows
+    """
+    import re
+    # Înlocuiește caracterele invalide pentru Windows
+    invalid_chars = r'[<>:"/\\|?*]'
+    filename = re.sub(invalid_chars, '_', filename)
+    
+    # Limitează lungimea numelui
+    if len(filename) > 200:
+        filename = filename[:200]
+    
+    # Elimină spațiile de la început și sfârșit
+    filename = filename.strip()
+    
+    return filename
+
 def clean_title(title):
     """
     Curăță titlul de emoticoane, caractere Unicode problematice și alte caractere speciale
@@ -286,28 +304,16 @@ def clean_title(title):
 def normalize_facebook_url(url):
     """
     Normalizează URL-urile Facebook noi în formate mai vechi pe care yt-dlp le poate procesa
+    IMPORTANT: URL-urile share/v/ funcționează direct, nu le convertim!
     """
     import re
     
-    # Extrage ID-ul din URL-urile noi de tip share/v/
-    share_pattern = r'facebook\.com/share/v/([^/?]+)'
-    match = re.search(share_pattern, url)
+    # URL-urile share/v/ funcționează direct cu yt-dlp, nu le convertim
+    if 'facebook.com/share/v/' in url:
+        logger.info(f"URL Facebook share/v/ păstrat original: {url}")
+        return url
     
-    if match:
-        video_id = match.group(1)
-        # Încearcă mai multe formate alternative
-        formats_to_try = [
-            f"https://www.facebook.com/watch?v={video_id}",
-            f"https://www.facebook.com/video.php?v={video_id}",
-            f"https://www.facebook.com/{video_id}/videos/{video_id}"
-        ]
-        
-        # Returnează primul format (cel mai comun)
-        old_format_url = formats_to_try[0]
-        logger.info(f"URL Facebook convertit: {url} -> {old_format_url}")
-        return old_format_url
-    
-    # Verifică și alte formate noi
+    # Verifică alte formate noi care ar putea necesita conversie
     reel_pattern = r'facebook\.com/reel/([^/?]+)'
     reel_match = re.search(reel_pattern, url)
     if reel_match:
@@ -335,6 +341,8 @@ def try_facebook_fallback(url, output_path, title):
     fallback_configs = [
         {
             'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -363,6 +371,8 @@ def try_facebook_fallback(url, output_path, title):
         },
         {
             'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -384,6 +394,8 @@ def try_facebook_fallback(url, output_path, title):
         },
         {
             'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -621,7 +633,7 @@ def download_video(url, output_path=None):
             
             # Configurație pentru alte platforme
             ydl_opts = {
-                'outtmpl': output_path,
+                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),  # Limitează titlul la 100 caractere
                 'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
                 'quiet': True,
                 'noplaylist': True,
@@ -630,6 +642,8 @@ def download_video(url, output_path=None):
                 'embed_subs': False,
                 'writesubtitles': False,
                 'writeautomaticsub': False,
+                'restrictfilenames': True,  # Restricționează caracterele în nume
+                'windowsfilenames': True,   # Compatibilitate Windows
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
