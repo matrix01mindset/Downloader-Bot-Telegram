@@ -9,6 +9,7 @@ from downloader import download_video, is_supported_url
 import tempfile
 import time
 import threading
+# Force redeploy - 2025-08-08
 import re
 
 # Încarcă variabilele de mediu din .env pentru testare locală
