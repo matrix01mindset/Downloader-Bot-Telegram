@@ -183,6 +183,10 @@ def handle_message(update: Update, context: CallbackContext):
     """
     Gestionează mesajele cu link-uri video
     """
+    # Delay mic pentru prima descărcare după hibernare
+     import asyncio
+     await asyncio.sleep(0.5)  # 500ms delay pentru stabilizare
+    
     url = update.message.text.strip()
     
     # Verifică dacă este un URL valid

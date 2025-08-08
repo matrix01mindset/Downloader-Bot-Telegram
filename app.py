@@ -1120,10 +1120,34 @@ def ensure_app_initialized():
 
 # Inițializează aplicația la pornirea serverului
 def initialize_on_startup():
-    """Inițializează aplicația la pornirea serverului Flask"""
+    """Inițializează aplicația la pornire cu delay pentru prevenirea erorilor după hibernare"""
     try:
+        # Delay inițial pentru a permite stabilizarea conexiunilor
+        import time
+        logger.info("⏳ Aștept 3 secunde pentru stabilizarea conexiunilor...")
+        time.sleep(3)
+        
         ensure_app_initialized()
+        
+        # Delay suplimentar pentru prima descărcare
+        logger.info("⏳ Pregătesc bot-ul pentru prima descărcare...")
+        time.sleep(2)
+        
+        # Warming-up: testez funcția de caption pentru a încărca toate dependențele
+        try:
+            test_caption = create_safe_caption(
+                title="Test warming-up",
+                uploader="Bot",
+                description="Test pentru încărcarea dependențelor",
+                duration="0:01",
+                file_size="1 MB"
+            )
+            logger.info("🔥 Warming-up complet - toate dependențele sunt încărcate")
+        except Exception as e:
+            logger.warning(f"⚠️ Warming-up parțial - unele dependențe pot să nu fie încărcate: {e}")
+        
         logger.info("✅ Aplicația Telegram a fost inițializată la pornirea serverului")
+        logger.info("🚀 Bot-ul este gata pentru descărcări!")
     except Exception as e:
         logger.error(f"❌ Eroare la inițializarea aplicației la pornire: {e}")
 
