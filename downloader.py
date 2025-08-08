@@ -515,9 +515,12 @@ def download_video(url, output_path=None):
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
     Returnează un dicționar cu rezultatul
     """
+    logger.info(f"Începe descărcarea pentru URL: {url}")
+    
     # Validează URL-ul înainte de procesare
     is_valid, validation_msg = validate_url(url)
     if not is_valid:
+        logger.error(f"URL invalid: {validation_msg}")
         return {
             'success': False,
             'error': f'❌ URL invalid: {validation_msg}',
@@ -567,9 +570,12 @@ def download_video(url, output_path=None):
         }
     
     try:
+        logger.info("Creez YoutubeDL instance...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extrage informații despre video
+            logger.info("Extrag informații despre video...")
             info = ydl.extract_info(url, download=False)
+            logger.info(f"Informații extrase cu succes: {info.get('title', 'N/A')}")
             
             # Extrage titlul și alte informații
             title = info.get('title', 'video')
@@ -613,8 +619,11 @@ def download_video(url, output_path=None):
             
             # Descarcă videoul
             try:
+                logger.info("Încep descărcarea video-ului...")
                 ydl.download([url])
+                logger.info("Descărcare completă!")
             except Exception as download_error:
+                logger.error(f"Eroare la descărcare: {download_error}")
                 error_str = str(download_error).lower()
                 # YouTube este dezactivat - returnează eroare
                 if ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
