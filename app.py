@@ -1070,14 +1070,9 @@ def send_video_file(chat_id, file_path, video_info):
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
     try:
-        # Verifică dacă WEBHOOK_URL este setat
-        if not WEBHOOK_URL:
-            return jsonify({
-                'status': 'error',
-                'message': 'WEBHOOK_URL nu este setat în variabilele de mediu'
-            }), 400
-        
-        webhook_url = f"{WEBHOOK_URL}/webhook"
+        # Folosește URL-ul curent al aplicației în loc de WEBHOOK_URL din variabilele de mediu
+        current_url = request.url_root.rstrip('/')
+        webhook_url = f"{current_url}/webhook"
         
         # Folosește requests direct pentru a evita problemele cu event loop-ul
         import requests
