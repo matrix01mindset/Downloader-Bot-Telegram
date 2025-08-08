@@ -292,7 +292,7 @@ def try_facebook_fallback(url, output_path, title):
     # Configurații alternative pentru Facebook - optimizate pentru 2024
     fallback_configs = [
         {
-            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best[filesize<45M]/best',
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -314,7 +314,7 @@ def try_facebook_fallback(url, output_path, title):
             'no_warnings': True,
         },
         {
-            'format': 'best[filesize<45M][height<=480]/best[height<=480]/best[filesize<45M]/best',
+            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -329,7 +329,7 @@ def try_facebook_fallback(url, output_path, title):
             'ignoreerrors': True,
         },
         {
-            'format': 'worst[filesize<45M][height<=360]/worst[height<=360]/worst[filesize<45M]/worst',
+            'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -544,7 +544,7 @@ def download_video(url, output_path=None):
         # Configurație pentru alte platforme
         ydl_opts = {
             'outtmpl': output_path,
-            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best[filesize<45M]/best',
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
             'quiet': True,
             'noplaylist': True,
             'extractaudio': False,
@@ -657,14 +657,14 @@ def download_video(url, output_path=None):
             
             # Verifică dimensiunea fișierului
             file_size = os.path.getsize(downloaded_file)
-            max_size = 45 * 1024 * 1024  # 45MB în bytes
+            max_size = 512 * 1024 * 1024  # 512MB în bytes
 
             if file_size > max_size:
                 os.remove(downloaded_file)
                 size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
                 return {
                     'success': False,
-                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 45MB pentru a evita erorile Telegram.',
+                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 512MB pentru a evita erorile Telegram.',
                     'title': title
                 }
             

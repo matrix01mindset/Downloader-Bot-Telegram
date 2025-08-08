@@ -946,11 +946,11 @@ def send_video_file(chat_id, file_path, video_info):
             send_telegram_message(chat_id, "❌ Fișierul video nu a fost găsit.")
             return
         
-        # Verifică mărimea fișierului (Telegram are limită de 50MB, dar folosim 45MB pentru siguranță)
+        # Verifică mărimea fișierului (Telegram are limită de 50MB, dar folosim 512MB pentru siguranță)
         file_size_bytes = os.path.getsize(file_path)
-        if file_size_bytes > 45 * 1024 * 1024:  # 45MB
+        if file_size_bytes > 512 * 1024 * 1024:  # 512MB
             logger.error(f"Fișierul este prea mare: {file_size_bytes / (1024*1024):.1f}MB")
-            send_telegram_message(chat_id, "❌ Fișierul video este prea mare pentru Telegram (max 45MB pentru siguranță).")
+            send_telegram_message(chat_id, "❌ Fișierul video este prea mare pentru Telegram (max 512MB pentru siguranță).")
             try:
                 os.remove(file_path)
             except:
@@ -998,7 +998,7 @@ def send_video_file(chat_id, file_path, video_info):
             if response.status_code == 400:
                 send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului. Fișierul poate fi corupt sau prea mare.")
             elif response.status_code == 413:
-                send_telegram_message(chat_id, "❌ Fișierul video este prea mare pentru Telegram (max 45MB pentru siguranță).")
+                send_telegram_message(chat_id, "❌ Fișierul video este prea mare pentru Telegram (max 512MB pentru siguranță).")
             else:
                 send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului. Încearcă din nou.")
             
