@@ -515,20 +515,25 @@ def download_video(url, output_path=None):
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
     Returnează un dicționar cu rezultatul
     """
-    logger.info(f"Începe descărcarea pentru URL: {url}")
+    logger.info(f"=== DOWNLOAD_VIDEO START === URL: {url}")
+    
+    try:
     
     # Validează URL-ul înainte de procesare
+    logger.info(f"=== DOWNLOAD_VIDEO Validating URL ===")
     is_valid, validation_msg = validate_url(url)
     if not is_valid:
-        logger.error(f"URL invalid: {validation_msg}")
+        logger.error(f"=== DOWNLOAD_VIDEO URL Invalid === {validation_msg}")
         return {
             'success': False,
             'error': f'❌ URL invalid: {validation_msg}',
             'title': 'N/A'
         }
     
+    logger.info(f"=== DOWNLOAD_VIDEO URL Valid, creating temp dir ===")
     # Creează directorul temporar ÎNTOTDEAUNA
     temp_dir = tempfile.mkdtemp()
+    logger.info(f"=== DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
     
     if output_path is None:
         output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
@@ -570,12 +575,14 @@ def download_video(url, output_path=None):
         }
     
     try:
-        logger.info("Creez YoutubeDL instance...")
+        logger.info("=== DOWNLOAD_VIDEO Creating YoutubeDL instance ===")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extrage informații despre video
-            logger.info("Extrag informații despre video...")
+            logger.info("=== DOWNLOAD_VIDEO Extracting video info ===")
             info = ydl.extract_info(url, download=False)
-            logger.info(f"Informații extrase cu succes: {info.get('title', 'N/A')}")
+            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Title: {info.get('title', 'N/A')}")
+            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Duration: {info.get('duration', 0)}")
+            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Uploader: {info.get('uploader', 'N/A')}")
             
             # Extrage titlul și alte informații
             title = info.get('title', 'video')
@@ -668,6 +675,7 @@ def download_video(url, output_path=None):
                     'title': title
                 }
             
+            logger.info(f"=== DOWNLOAD_VIDEO SUCCESS === File: {downloaded_file}")
             return {
                  'success': True,
                  'file_path': downloaded_file,
@@ -679,6 +687,7 @@ def download_video(url, output_path=None):
              }
             
     except yt_dlp.DownloadError as e:
+        logger.error(f"=== DOWNLOAD_VIDEO DownloadError === {str(e)}")
         error_msg = str(e).lower()
         
         # Gestionare specifică pentru YouTube - dezactivat
@@ -727,6 +736,9 @@ def download_video(url, output_path=None):
                 'title': 'N/A'
             }
     except Exception as e:
+        logger.error(f"=== DOWNLOAD_VIDEO Exception === {str(e)}")
+        import traceback
+        logger.error(f"=== DOWNLOAD_VIDEO Traceback === {traceback.format_exc()}")
         return {
             'success': False,
             'error': f'❌ Eroare neașteptată: {str(e)}',
