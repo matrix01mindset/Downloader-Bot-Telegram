@@ -799,7 +799,6 @@ def process_message_sync(update):
             welcome_text = (
                 "🎬 <b>Bun venit la Video Downloader Bot!</b>\n\n"
                 "📱 Trimite-mi un link de pe:\n"
-                "• YouTube\n"
                 "• TikTok\n"
                 "• Instagram\n"
                 "• Facebook\n"
@@ -816,12 +815,12 @@ def process_message_sync(update):
                 "3️⃣ Bot-ul va descărca automat în 720p\n"
                 "4️⃣ Primești video-ul descărcat\n\n"
                 "🎯 <b>Platforme suportate:</b>\n"
-                "• YouTube, TikTok, Instagram, Facebook, Twitter/X\n\n"
+                "• TikTok, Instagram, Facebook, Twitter/X\n\n"
                 "❓ Pentru ajutor: /help"
             )
             send_telegram_message(chat_id, help_text)
             
-        elif text and ('youtube.com' in text or 'youtu.be' in text or 'tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
+        elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
             # Procesează link-ul video
             process_video_link_sync(chat_id, text)
             
