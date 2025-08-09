@@ -275,10 +275,12 @@ async def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         if not filepath or not os.path.exists(filepath):
             raise Exception("Fișierul nu a fost găsit după descărcare")
         
-        # Verifică mărimea fișierului (limită redusă la 512MB pentru siguranță)
+        # Verifică mărimea fișierului (Telegram Bot API are limită strictă de 50MB)
         file_size = os.path.getsize(filepath)
-        if file_size > 512 * 1024 * 1024:  # 512MB
-            raise Exception("Fișierul este prea mare (max 512MB pentru siguranță)")
+        file_size_mb = file_size / (1024 * 1024)
+        
+        if file_size > 45 * 1024 * 1024:  # 45MB (buffer pentru limita Telegram de 50MB)
+            raise Exception(f"Fișierul este prea mare ({file_size_mb:.1f}MB). Limita Telegram: 50MB pentru bot-uri.")
         
         # Creează caption sigur folosind aceeași logică ca în app.py
         caption = create_safe_caption_bot(
@@ -331,7 +333,14 @@ async def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         elif "prea lung" in str(e):
             error_message = "❌ Videoclipul este prea lung (maximum 3 ore)."
         elif "prea mare" in str(e):
-            error_message = "❌ Fișierul este prea mare (maximum 512MB pentru siguranță)."
+            error_message = (
+                "❌ **Fișierul este prea mare pentru Telegram**\n\n"
+                "⚠️ **Limita Telegram:** 50MB (pentru bot-uri)\n\n"
+                "💡 **Soluții:**\n"
+                "• Încearcă un clip mai scurt\n"
+                "• Folosește o calitate mai mică\n"
+                "• Împarte clipul în segmente mai mici"
+            )
         
         # Adaugă butoane pentru a încerca din nou sau a merge la meniu
         keyboard = [

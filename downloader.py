@@ -905,16 +905,16 @@ def download_video(url, output_path=None):
             # Ia primul fișier găsit (ar trebui să fie singurul)
             downloaded_file = downloaded_files[0]
             
-            # Verifică dimensiunea fișierului
+            # Verifică dimensiunea fișierului (Telegram Bot API are limită strictă de 50MB)
             file_size = os.path.getsize(downloaded_file)
-            max_size = 512 * 1024 * 1024  # 512MB în bytes
+            max_size = 45 * 1024 * 1024  # 45MB în bytes (buffer pentru limita Telegram de 50MB)
+            size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
 
             if file_size > max_size:
                 os.remove(downloaded_file)
-                size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
                 return {
                     'success': False,
-                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 512MB pentru a evita erorile Telegram.',
+                    'error': f'❌ Fișierul este prea mare ({size_mb:.1f}MB).\n\n📊 Dimensiune: {size_mb:.1f}MB\n⚠️ Limita Telegram: 50MB (pentru bot-uri)\n\n💡 Încearcă un clip mai scurt sau o calitate mai mică.',
                     'title': title
                 }
             

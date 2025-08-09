@@ -26,11 +26,12 @@ telegram:
   drop_pending_updates: true
 
 # 🎥 Platforme suportate cu configurații specifice
+# IMPORTANT: Telegram Bot API are limită de 50MB pentru fișiere
 platforms:
   youtube:
     enabled: true
     priority: 1
-    max_file_size_mb: 512
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 3600
     rate_limit_per_minute: 10
     retry_attempts: 3
@@ -40,7 +41,7 @@ platforms:
   instagram:
     enabled: true
     priority: 2
-    max_file_size_mb: 256
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 1800
     rate_limit_per_minute: 15
     retry_attempts: 3
@@ -50,7 +51,7 @@ platforms:
   tiktok:
     enabled: true
     priority: 3
-    max_file_size_mb: 128
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 600
     rate_limit_per_minute: 20
     retry_attempts: 2
@@ -59,7 +60,7 @@ platforms:
   facebook:
     enabled: true
     priority: 4
-    max_file_size_mb: 512
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 3600
     rate_limit_per_minute: 8
     retry_attempts: 4
@@ -69,7 +70,7 @@ platforms:
   twitter:
     enabled: true
     priority: 5
-    max_file_size_mb: 256
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 1200
     rate_limit_per_minute: 12
     retry_attempts: 3
@@ -78,7 +79,7 @@ platforms:
   threads:
     enabled: true
     priority: 6
-    max_file_size_mb: 128
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 900
     rate_limit_per_minute: 10
     retry_attempts: 2
@@ -86,7 +87,7 @@ platforms:
   pinterest:
     enabled: true
     priority: 7
-    max_file_size_mb: 64
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 600
     rate_limit_per_minute: 15
     retry_attempts: 2
@@ -94,7 +95,7 @@ platforms:
   reddit:
     enabled: true
     priority: 8
-    max_file_size_mb: 256
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 1800
     rate_limit_per_minute: 10
     retry_attempts: 3
@@ -102,7 +103,7 @@ platforms:
   vimeo:
     enabled: true
     priority: 9
-    max_file_size_mb: 512
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 7200
     rate_limit_per_minute: 5
     retry_attempts: 3
@@ -110,7 +111,7 @@ platforms:
   dailymotion:
     enabled: true
     priority: 10
-    max_file_size_mb: 256
+    max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 3600
     rate_limit_per_minute: 8
     retry_attempts: 2

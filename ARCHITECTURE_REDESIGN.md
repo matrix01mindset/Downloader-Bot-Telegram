@@ -116,7 +116,7 @@ class BasePlatform(ABC):
         self.name = self.__class__.__name__.lower().replace('platform', '')
         self.supported_domains = []
         self.rate_limit = config.get('rate_limit', 60)  # requests/minute
-        self.max_file_size = config.get('max_file_size', 512)  # MB
+        self.max_file_size = config.get('max_file_size', 45)  # MB (Limită Telegram: 50MB)
         self.max_duration = config.get('max_duration', 3600)  # seconds
         
     @abstractmethod

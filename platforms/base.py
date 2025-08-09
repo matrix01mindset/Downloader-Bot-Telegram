@@ -82,7 +82,7 @@ class BasePlatform(ABC):
         self.priority = self.config.get('priority', 999)
         
         # Limitări configurabile pentru această platformă
-        self.max_file_size_mb = self.config.get('max_file_size_mb', 256)
+        self.max_file_size_mb = self.config.get('max_file_size_mb', 45)  # Limită Telegram: 50MB
         self.max_duration_seconds = self.config.get('max_duration_seconds', 1800)
         self.rate_limit_per_minute = self.config.get('rate_limit_per_minute', 10)
         self.retry_attempts = self.config.get('retry_attempts', 2)
@@ -102,7 +102,7 @@ class BasePlatform(ABC):
         return {
             'enabled': True,
             'priority': 999,
-            'max_file_size_mb': 256,
+            'max_file_size_mb': 45,  # Limită Telegram: 50MB
             'max_duration_seconds': 1800,
             'rate_limit_per_minute': 10,
             'retry_attempts': 2
