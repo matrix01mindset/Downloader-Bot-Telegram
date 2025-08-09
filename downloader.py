@@ -30,21 +30,20 @@ def upgrade_to_nightly_ytdlp():
     """Upgrade yt-dlp la versiunea nightly pentru fix-uri Facebook recente"""
     try:
         logger.info("Verificare și upgrade la yt-dlp nightly pentru fix-uri Facebook...")
-        # Încercare upgrade la nightly direct din master branch
+        # Încercare upgrade la nightly folosind --pre flag (metoda recomandată)
         result = subprocess.run([
-            sys.executable, '-m', 'pip', 'install', '-U', '--force-reinstall',
-            'https://github.com/yt-dlp/yt-dlp/archive/master.zip'
-        ], capture_output=True, text=True, timeout=180)
+            sys.executable, '-m', 'pip', 'install', '-U', '--pre', 'yt-dlp[default]'
+        ], capture_output=True, text=True, timeout=120)
         
         if result.returncode == 0:
-            logger.info("yt-dlp upgraded cu succes la versiunea nightly/master")
+            logger.info("yt-dlp upgraded cu succes la versiunea nightly")
             return True
         else:
             logger.warning(f"Upgrade la nightly eșuat, încercare versiune stabilă: {result.stderr}")
             # Fallback la versiunea stabilă cu extras
             result2 = subprocess.run([
-                sys.executable, '-m', 'pip', 'install', '-U', '--pre', 'yt-dlp[default]'
-            ], capture_output=True, text=True, timeout=60)
+                sys.executable, '-m', 'pip', 'install', '-U', 'yt-dlp[default]'
+            ], capture_output=True, text=True, timeout=90)
             
             if result2.returncode == 0:
                 logger.info("yt-dlp upgraded cu succes la versiunea stabilă cu extras")
