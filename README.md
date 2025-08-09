@@ -1,16 +1,24 @@
 # 🎬 Bot Telegram pentru Descărcare Video
 
-Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe diverse platforme, cu meniu intuitiv și experiență utilizator îmbunătățită.
+Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe diverse platforme, cu **arhitectură modulară avansată** și experiență utilizator îmbunătățită.
 
-## 🚀 Funcționalități
+## 🚀 Funcționalități Principale
 
+### 🎯 Interfață Utilizator
 - **🎯 Meniu interactiv** cu butoane inline
 - **📥 Descărcare automată** de videoclipuri
-- **🔗 Platforme multiple** suportate
 - **✅ Confirmare descărcare** cu preview link
 - **🔄 Opțiuni post-descărcare** (descărcare nouă, meniu)
 - **❓ Secțiune FAQ** integrată
-- **⚙️ Informații detaliate** despre limitări
+
+### 🏗️ Arhitectură Avansată
+- **🔧 Arhitectură modulară** cu separarea responsabilităților
+- **🔄 Retry Logic** cu backoff exponențial
+- **⚡ Rate Limiting** pentru protecție împotriva spam-ului
+- **💾 Memory Management** optimizat pentru Free Tier hosting
+- **📊 Monitoring System** cu metrici în timp real
+- **🧪 Testing Framework** complet cu pytest
+- **🔗 Platform Manager** pentru gestionarea multiplelor platforme
 
 ## 🎮 Comenzi Disponibile
 
@@ -20,6 +28,9 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
 
 ## 🔗 Platforme Suportate
 
+- **🎥 YouTube** (youtube.com, youtu.be)
+  - Videoclipuri publice cu suport pentru diverse formate
+  - Client rotation și anti-detection pentru stabilitate
 - **📱 TikTok** (tiktok.com)
   - Videoclipuri publice, fără watermark
 - **📸 Instagram** (instagram.com/p/)
@@ -29,7 +40,11 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
 - **🐦 Twitter/X** (twitter.com, x.com)
   - Tweet-uri cu video publice
 
-⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice.
+### 🛡️ Funcționalități Tehnice
+- **🔄 Auto-retry** cu fallback pentru platforme instabile
+- **⚡ Rate limiting** personalizabil per platformă
+- **🧠 Smart caching** pentru performanță îmbunătățită
+- **📊 Monitoring** în timp real al performanței
 
 ## 📱 Cum să Folosești
 
@@ -64,13 +79,57 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
 
 ```
 downloader_bot/
-├── app.py              # Server Flask pentru webhook
-├── bot.py              # Logica botului Telegram (pentru rulare locală)
-├── downloader.py       # Logică de descărcare cu yt-dlp
-├── requirements.txt    # Dependențe Python
-├── Procfile           # Pentru deployment
-└── README.md          # Acest fișier
+├── app.py                    # Server Flask pentru webhook
+├── bot.py                    # Logica botului Telegram (pentru rulare locală)
+├── downloader.py             # Logică de descărcare cu yt-dlp
+├── config.yaml               # Configurație centralizată
+├── requirements.txt          # Dependențe Python
+├── Procfile                  # Pentru deployment
+├── runtime.txt               # Versiunea Python pentru Render
+├── RENDER_DEPLOY_GUIDE.md    # Ghid complet deployment
+├── core/                     # 🏗️ Componente centrale
+│   ├── platform_manager.py  # Manager pentru platforme
+│   ├── retry_manager.py      # Logică retry cu backoff
+│   └── system_manager.py     # Management sistem
+├── platforms/                # 🔗 Suport platforme
+│   ├── base.py              # Clasa de bază pentru platforme
+│   ├── youtube.py           # Implementare YouTube
+│   ├── tiktok.py            # Implementare TikTok
+│   └── instagram.py         # Implementare Instagram
+├── utils/                    # 🛠️ Utilitare avansate
+│   ├── memory_manager.py    # Management memorie pentru Free Tier
+│   ├── rate_limiter.py      # Rate limiting inteligent
+│   ├── cache.py             # Sistem de cache
+│   └── monitoring.py        # Monitoring și metrici
+├── tests/                    # 🧪 Framework de testare
+│   ├── conftest.py          # Configurație pytest
+│   ├── run_tests.py         # Script rulare teste
+│   └── tests/               # Teste unitare și integrare
+└── api/                      # 🌐 Structură API modulară
+    └── __init__.py
 ```
+
+## 🏗️ Arhitectură Avansată
+
+### 🔧 Componente Centrale
+- **Platform Manager**: Gestionează toate platformele suportate cu fallback automat
+- **Retry Manager**: Implementează retry logic cu backoff exponențial
+- **Memory Manager**: Optimizat pentru Free Tier hosting cu cleanup automat
+- **Rate Limiter**: Protecție inteligentă împotriva spam-ului
+- **Monitoring System**: Metrici în timp real și logging avansat
+
+### 🧪 Calitatea Codului
+- **Testing Framework**: Teste unitare și de integrare cu pytest
+- **Code Coverage**: Raportare detaliată a acoperirii testelor
+- **Modular Design**: Separarea clară a responsabilităților
+- **Error Handling**: Gestionare robustă a erorilor
+- **Documentation**: Documentație completă și ghiduri de deployment
+
+### ⚡ Optimizări Performanță
+- **Smart Caching**: Cache inteligent pentru reducerea timpilor de răspuns
+- **Async Processing**: Procesare asincronă pentru multiple cereri
+- **Resource Management**: Gestionare eficientă a resurselor sistem
+- **Auto-cleanup**: Ștergere automată a fișierelor temporare
 
 ## 🛠️ Configurare
 
