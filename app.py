@@ -5,7 +5,7 @@ import html
 from flask import Flask, request, jsonify
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-from downloader import download_video, is_supported_url
+from downloader import download_video, is_supported_url, upgrade_to_nightly_ytdlp
 import tempfile
 import time
 import threading
@@ -1272,6 +1272,14 @@ def initialize_on_startup():
         import time
         logger.info("⏳ Aștept 3 secunde pentru stabilizarea conexiunilor...")
         time.sleep(3)
+        
+        # Upgrade yt-dlp la versiunea nightly pentru fix-uri Facebook
+        logger.info("🔄 Upgrading yt-dlp pentru fix-uri Facebook...")
+        upgrade_success = upgrade_to_nightly_ytdlp()
+        if upgrade_success:
+            logger.info("✅ yt-dlp upgraded cu succes")
+        else:
+            logger.warning("⚠️ yt-dlp upgrade parțial sau eșuat")
         
         ensure_app_initialized()
         

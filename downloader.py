@@ -8,6 +8,8 @@ import unicodedata
 import random
 import json
 import logging
+import subprocess
+import sys
 from datetime import datetime, timedelta
 
 # Configurare logging centralizat
@@ -22,6 +24,45 @@ logging.getLogger('yt_dlp').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
+
+# Funcție pentru upgrade automat la versiunea nightly de yt-dlp
+def upgrade_to_nightly_ytdlp():
+    """Upgrade yt-dlp la versiunea nightly pentru fix-uri Facebook recente"""
+    try:
+        logger.info("Verificare și upgrade la yt-dlp nightly pentru fix-uri Facebook...")
+        # Încercare upgrade la nightly direct din master branch
+        result = subprocess.run([
+            sys.executable, '-m', 'pip', 'install', '-U', '--force-reinstall',
+            'https://github.com/yt-dlp/yt-dlp/archive/master.zip'
+        ], capture_output=True, text=True, timeout=180)
+        
+        if result.returncode == 0:
+            logger.info("yt-dlp upgraded cu succes la versiunea nightly/master")
+            return True
+        else:
+            logger.warning(f"Upgrade la nightly eșuat, încercare versiune stabilă: {result.stderr}")
+            # Fallback la versiunea stabilă cu extras
+            result2 = subprocess.run([
+                sys.executable, '-m', 'pip', 'install', '-U', '--pre', 'yt-dlp[default]'
+            ], capture_output=True, text=True, timeout=60)
+            
+            if result2.returncode == 0:
+                logger.info("yt-dlp upgraded cu succes la versiunea stabilă cu extras")
+                return True
+            else:
+                logger.warning(f"Upgrade yt-dlp eșuat complet: {result2.stderr}")
+                return False
+    except Exception as e:
+        logger.error(f"Eroare la upgrade yt-dlp: {e}")
+        return False
+
+# Încercare upgrade la nightly la startup (doar o dată)
+try:
+    if not hasattr(upgrade_to_nightly_ytdlp, '_executed'):
+        upgrade_to_nightly_ytdlp()
+        upgrade_to_nightly_ytdlp._executed = True
+except Exception as e:
+    logger.warning(f"Nu s-a putut face upgrade la nightly: {e}")
 
 # Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
 # Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
@@ -337,14 +378,15 @@ def try_facebook_fallback(url, output_path, title):
         logger.info(f"URL Facebook normalizat: {normalized_url}")
         url = normalized_url
     
-    # Configurații alternative pentru Facebook - optimizate pentru 2024
+    # Configurații alternative pentru Facebook - optimizate pentru 2025 cu strategii diverse
     fallback_configs = [
+        # Configurația 1: Chrome desktop cu API v19.0 (cea mai recentă)
         {
             'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
@@ -354,67 +396,167 @@ def try_facebook_fallback(url, output_path, title):
                 'Sec-Fetch-Site': 'none',
                 'Sec-Fetch-User': '?1',
                 'Upgrade-Insecure-Requests': '1',
+                'Cache-Control': 'max-age=0',
+            },
+            'extractor_retries': 5,
+            'fragment_retries': 5,
+            'socket_timeout': 45,
+            'retries': 5,
+            'ignoreerrors': True,
+            'extract_flat': False,
+            'no_warnings': True,
+            'sleep_interval': 2,
+            'max_sleep_interval': 5,
+            'extractor_args': {
+                'facebook': {
+                    'legacy_ssl': True,
+                    'api_version': 'v19.0',
+                    'tab': 'videos'
+                }
+            },
+        },
+        # Configurația 2: Firefox desktop cu strategii alternative
+        {
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+            },
+            'extractor_retries': 4,
+            'fragment_retries': 4,
+            'socket_timeout': 40,
+            'retries': 4,
+            'ignoreerrors': True,
+            'sleep_interval': 3,
+            'max_sleep_interval': 7,
+            'extractor_args': {
+                'facebook': {
+                    'legacy_ssl': True,
+                    'api_version': 'v18.0',
+                    'tab': 'videos',
+                    'legacy_format': True
+                }
+            },
+        },
+        # Configurația 3: iPhone Safari mobile cu API v17.0
+        {
+            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+            },
+            'extractor_retries': 3,
+            'fragment_retries': 3,
+            'socket_timeout': 35,
+            'retries': 3,
+            'ignoreerrors': True,
+            'sleep_interval': 4,
+            'max_sleep_interval': 8,
+            'extractor_args': {
+                'facebook': {
+                    'mobile_client': True,
+                    'legacy_ssl': True,
+                    'api_version': 'v17.0',
+                    'tab': 'videos'
+                }
+            },
+        },
+        # Configurația 4: Android Chrome mobile cu strategii agresive
+        {
+            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
             },
             'extractor_retries': 3,
             'fragment_retries': 3,
             'socket_timeout': 30,
             'retries': 3,
             'ignoreerrors': True,
-            'extract_flat': False,
-            'no_warnings': True,
+            'sleep_interval': 5,
+            'max_sleep_interval': 10,
             'extractor_args': {
                 'facebook': {
+                    'android_client': True,
                     'legacy_ssl': True,
-                    'api_version': 'v18.0'
+                    'api_version': 'v18.0',
+                    'tab': 'videos'
                 }
             },
         },
+        # Configurația 5: Strategia de ultimă instanță - calitate scăzută, timeout mare
         {
-            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
+            'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:122.0) Gecko/122.0 Firefox/122.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate',
                 'Connection': 'keep-alive',
             },
             'extractor_retries': 2,
             'fragment_retries': 2,
-            'socket_timeout': 25,
+            'socket_timeout': 60,
             'retries': 2,
             'ignoreerrors': True,
-            'extractor_args': {
-                'facebook': {
-                    'mobile_client': True,
-                    'legacy_ssl': True
-                }
-            },
-        },
-        {
-            'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            },
-            'extractor_retries': 1,
-            'fragment_retries': 1,
-            'socket_timeout': 20,
-            'retries': 1,
-            'ignoreerrors': True,
+            'sleep_interval': 8,
+            'max_sleep_interval': 15,
             'extractor_args': {
                 'facebook': {
                     'android_client': True,
                     'legacy_ssl': True,
-                    'low_quality': True
+                    'low_quality': True,
+                    'api_version': 'v16.0',
+                    'tab': 'videos',
+                    'legacy_format': True
                 }
             },
+        },
+        # Configurația 6: Fallback extrem - fără extractor_args
+        {
+            'format': 'worst[filesize<256M]/worst',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                'Accept': '*/*',
+            },
+            'extractor_retries': 1,
+            'fragment_retries': 1,
+            'socket_timeout': 90,
+            'retries': 1,
+            'ignoreerrors': True,
+            'sleep_interval': 10,
+            'max_sleep_interval': 20,
         }
     ]
     
