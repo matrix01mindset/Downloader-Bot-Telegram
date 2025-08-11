@@ -323,28 +323,54 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Comandă /help - informații de ajutor
+    Comandă /help - informații complete de ajutor
     """
     help_text = """
-🆘 **Cum să folosești botul:**
+🤖 **Bot Descărcare Video - Ghid Complet**
 
-1. Copiază link-ul videoclipului
-2. Trimite-l în acest chat
-3. Așteaptă să fie procesat
-4. Primești videoclipul descărcat
+📋 **Comenzi disponibile:**
+• `/start` - Pornește botul și afișează meniul principal
+• `/help` - Afișează acest ghid complet
+• `/menu` - Revine la meniul principal
+• `/ping` - Verifică dacă botul funcționează
+
+🆘 **Cum să folosești botul:**
+1️⃣ Copiază link-ul videoclipului
+2️⃣ Trimite-l în acest chat
+3️⃣ Așteaptă să fie procesat (poate dura 30s-2min)
+4️⃣ Primești videoclipul descărcat automat
 
 🔗 **Platforme suportate:**
-- TikTok (tiktok.com)
-- Instagram (instagram.com)
-- Facebook (facebook.com, fb.watch)
-- Twitter/X (twitter.com, x.com)
+• TikTok (tiktok.com, vm.tiktok.com)
+• Instagram (instagram.com, reels, stories)
+• Facebook (facebook.com, fb.watch, watch)
+• Twitter/X (twitter.com, x.com)
 
-⚠️ YouTube nu este suportat momentan.
+⚠️ **Limitări importante:**
+• Mărime maximă: 45MB (limita Telegram)
+• Durată maximă: 3 ore
+• Calitate maximă: 720p
+• Doar videoclipuri publice
+• YouTube nu este suportat momentan
 
-⚠️ **Probleme frecvente:**
-- Videoclipul este privat → Nu poate fi descărcat
-- Videoclipul este prea lung → Max 15 minute
-- Link invalid → Verifică că link-ul este corect
+🔧 **Funcționalități:**
+• Descărcare automată în calitate optimă
+• Detectare automată a platformei
+• Cleanup automat al fișierelor temporare
+• Retry automat în caz de eroare
+• Validare chat_id pentru securitate
+
+❌ **Probleme frecvente și soluții:**
+• Videoclip privat → Fă-l public sau folosește alt link
+• Video prea mare → Botul va încerca să compreseze
+• Link invalid → Verifică că link-ul este complet
+• Eroare de rețea → Încearcă din nou după câteva minute
+• Platform rate limit → Așteaptă 5-10 minute
+
+💡 **Sfaturi:**
+• Folosește link-uri directe (nu scurtate)
+• Verifică că videoclipul este public
+• Pentru probleme persistente, folosește `/ping`
     """
     
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
@@ -880,14 +906,31 @@ def webhook():
                         
                     elif text == '/help':
                         help_text = (
-                            "📋 <b>Cum să folosești bot-ul:</b>\n\n"
-                            "1️⃣ Copiază link-ul video\n"
-                            "2️⃣ Lipește-l în chat\n"
-                            "3️⃣ Bot-ul va descărca automat în 720p\n"
-                            "4️⃣ Primești video-ul descărcat\n\n"
-                            "🎯 <b>Platforme suportate:</b>\n"
-                            "• TikTok, Instagram, Facebook, Twitter/X\n\n"
-                            "❓ Pentru ajutor: /help"
+                            "🤖 <b>Bot Descărcare Video - Ghid Complet</b>\n\n"
+                            "📋 <b>Comenzi disponibile:</b>\n"
+                            "• /start - Pornește botul și afișează meniul\n"
+                            "• /help - Afișează acest ghid complet\n"
+                            "• /menu - Revine la meniul principal\n"
+                            "• /ping - Verifică dacă botul funcționează\n\n"
+                            "🆘 <b>Cum să folosești botul:</b>\n"
+                            "1️⃣ Copiază link-ul videoclipului\n"
+                            "2️⃣ Trimite-l în acest chat\n"
+                            "3️⃣ Așteaptă să fie procesat (30s-2min)\n"
+                            "4️⃣ Primești videoclipul descărcat automat\n\n"
+                            "🔗 <b>Platforme suportate:</b>\n"
+                            "• TikTok (tiktok.com, vm.tiktok.com)\n"
+                            "• Instagram (instagram.com, reels, stories)\n"
+                            "• Facebook (facebook.com, fb.watch)\n"
+                            "• Twitter/X (twitter.com, x.com)\n\n"
+                            "⚠️ <b>Limitări importante:</b>\n"
+                            "• Mărime max: 45MB (limita Telegram)\n"
+                            "• Durată max: 3 ore\n"
+                            "• Calitate max: 720p\n"
+                            "• Doar videoclipuri publice\n\n"
+                            "💡 <b>Sfaturi:</b>\n"
+                            "• Folosește link-uri directe\n"
+                            "• Verifică că videoclipul este public\n"
+                            "• Pentru probleme, folosește /ping"
                         )
                         success = send_telegram_message(chat_id, help_text)
                         logger.info(f"Mesaj de ajutor trimis: {success}")
@@ -970,14 +1013,31 @@ def process_message_sync(update):
             
         elif text == '/help':
             help_text = (
-                "📋 <b>Cum să folosești bot-ul:</b>\n\n"
-                "1️⃣ Copiază link-ul video\n"
-                "2️⃣ Lipește-l în chat\n"
-                "3️⃣ Bot-ul va descărca automat în 720p\n"
-                "4️⃣ Primești video-ul descărcat\n\n"
-                "🎯 <b>Platforme suportate:</b>\n"
-                "• TikTok, Instagram, Facebook, Twitter/X\n\n"
-                "❓ Pentru ajutor: /help"
+                "🤖 <b>Bot Descărcare Video - Ghid Complet</b>\n\n"
+                "📋 <b>Comenzi disponibile:</b>\n"
+                "• /start - Pornește botul și afișează meniul\n"
+                "• /help - Afișează acest ghid complet\n"
+                "• /menu - Revine la meniul principal\n"
+                "• /ping - Verifică dacă botul funcționează\n\n"
+                "🆘 <b>Cum să folosești botul:</b>\n"
+                "1️⃣ Copiază link-ul videoclipului\n"
+                "2️⃣ Trimite-l în acest chat\n"
+                "3️⃣ Așteaptă să fie procesat (30s-2min)\n"
+                "4️⃣ Primești videoclipul descărcat automat\n\n"
+                "🔗 <b>Platforme suportate:</b>\n"
+                "• TikTok (tiktok.com, vm.tiktok.com)\n"
+                "• Instagram (instagram.com, reels, stories)\n"
+                "• Facebook (facebook.com, fb.watch)\n"
+                "• Twitter/X (twitter.com, x.com)\n\n"
+                "⚠️ <b>Limitări importante:</b>\n"
+                "• Mărime max: 45MB (limita Telegram)\n"
+                "• Durată max: 3 ore\n"
+                "• Calitate max: 720p\n"
+                "• Doar videoclipuri publice\n\n"
+                "💡 <b>Sfaturi:</b>\n"
+                "• Folosește link-uri directe\n"
+                "• Verifică că videoclipul este public\n"
+                "• Pentru probleme, folosește /ping"
             )
             send_telegram_message(chat_id, help_text)
             
