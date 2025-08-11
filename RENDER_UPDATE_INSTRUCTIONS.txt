@@ -1,0 +1,62 @@
+
+🌐 INSTRUCȚIUNI ACTUALIZARE RENDER.COM
+=====================================
+
+🔑 NOUL TOKEN: 8253089686:AAGbSnyOKFYt36_cjZdG5AaecRPCytvBDmI
+
+📋 PAȘI MANUALI:
+
+1. 🌍 Accesează Render Dashboard:
+   https://dashboard.render.com
+
+2. 🔍 Găsește serviciul:
+   Nume: telegram-video-downloader-1471
+   Tip: Web Service
+
+3. ⚙️ Accesează Environment:
+   - Click pe serviciu
+   - Tab "Environment"
+   - Găsește variabila "BOT_TOKEN"
+
+4. ✏️ Editează tokenul:
+   - Click "Edit" lângă BOT_TOKEN
+   - Șterge tokenul vechi
+   - Introdu: 8253089686:AAGbSnyOKFYt36_cjZdG5AaecRPCytvBDmI
+   - Click "Save Changes"
+
+5. 🔄 Redeployment automat:
+   - Render va detecta schimbarea
+   - Va redeployă automat în ~2-3 minute
+   - Verifică logs-urile pentru confirmare
+
+📊 VERIFICARE DEPLOYMENT:
+
+✅ Semne că deployment-ul a reușit:
+- Status: "Live" (verde)
+- Logs: "Application started successfully"
+- Bot răspunde la comenzi
+
+❌ Semne de probleme:
+- Status: "Deploy failed" (roșu)
+- Logs: erori de autentificare
+- Bot nu răspunde
+
+🆘 DACĂ CEVA NU MERGE:
+
+1. Verifică că tokenul este corect copiat
+2. Așteaptă 5 minute pentru propagare
+3. Restart manual serviciul
+4. Verifică logs-urile pentru erori
+
+🔒 SECURITATE SUPLIMENTARĂ:
+
+- Activează notificări Render pentru deployment-uri
+- Monitorizează logs-urile zilnic
+- Setează alerte pentru erori
+- Backup periodic al configurației
+
+📞 SUPORT:
+- Render Support: https://render.com/support
+- Telegram Bot API: https://core.telegram.org/bots/api
+
+⏰ Generat la: 2025-08-12T01:27:06.038875
