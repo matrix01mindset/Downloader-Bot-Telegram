@@ -103,15 +103,25 @@ def generate_facebook_url_variants(url):
     logger.info(f"Generated {len(variants)} Facebook URL variants for rotation")
     return variants
 
-def try_facebook_with_rotation(url, ydl_opts, max_attempts=3):
-    """Încearcă descărcarea Facebook cu rotarea URL-urilor"""
+def try_facebook_with_rotation(url, ydl_opts, max_attempts=4):
+    """Încearcă descărcarea cu rotarea URL-urilor Facebook și strategii multiple"""
     variants = generate_facebook_url_variants(url)
     logger.info(f"🔄 Începe rotația Facebook cu {len(variants)} variante URL disponibile")
+    
+    # Strategii diferite pentru fiecare încercare
+    strategies = [
+        {'name': 'standard', 'mobile': False, 'legacy': False},
+        {'name': 'mobile', 'mobile': True, 'legacy': False}, 
+        {'name': 'legacy', 'mobile': False, 'legacy': True},
+        {'name': 'mobile_legacy', 'mobile': True, 'legacy': True}
+    ]
     
     attempted_formats = []
     last_error = None
     
     for attempt, variant_url in enumerate(variants[:max_attempts], 1):
+        strategy = strategies[(attempt - 1) % len(strategies)]
+        
         # Determină tipul de format pentru logging
         if 'watch?v=' in variant_url:
             format_type = "watch format"
@@ -124,28 +134,47 @@ def try_facebook_with_rotation(url, ydl_opts, max_attempts=3):
         else:
             format_type = "unknown format"
             
-        attempted_formats.append(format_type)
-        logger.info(f"🔄 Încercare {attempt}/{max_attempts}: {format_type} - {variant_url[:60]}...")
+        attempted_formats.append(f"{format_type} ({strategy['name']})")
+        logger.info(f"🔄 Încercare {attempt}/{max_attempts}: {format_type} cu strategia {strategy['name']} - {variant_url[:60]}...")
+        
+        # Adaptează opțiunile pentru strategia curentă
+        current_opts = ydl_opts.copy()
+        
+        if strategy['mobile']:
+            current_opts['http_headers'] = current_opts.get('http_headers', {})
+            current_opts['http_headers']['User-Agent'] = 'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+            
+        if strategy['legacy']:
+            current_opts['extractor_args'] = current_opts.get('extractor_args', {})
+            current_opts['extractor_args']['facebook'] = {
+                'api_version': 'v18.0',
+                'legacy_ssl': True,
+                'legacy_format': True,
+                'tab': 'videos'
+            }
         
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(current_opts) as ydl:
                 # Încearcă să extragă informațiile
                 info = ydl.extract_info(variant_url, download=False)
-                if info:
-                    logger.info(f"✅ SUCCES! Facebook rotation reușită la încercarea {attempt} cu {format_type}")
+                if info and info.get('title'):
+                    logger.info(f"✅ SUCCES! Facebook rotation reușită la încercarea {attempt} cu {format_type} și strategia {strategy['name']}")
                     logger.info(f"📹 Video găsit: {info.get('title', 'N/A')[:50]}...")
                     return variant_url, info, {
-                        'successful_format': format_type,
+                        'successful_format': f"{format_type} ({strategy['name']})",
                         'attempt_number': attempt,
-                        'attempted_formats': attempted_formats
+                        'attempted_formats': attempted_formats,
+                        'strategy': strategy['name']
                     }
         except Exception as e:
             error_msg = str(e).lower()
             last_error = str(e)
-            logger.warning(f"❌ {format_type} eșuat: {error_msg[:80]}...")
             
-            # Dacă e o eroare critică, nu mai încerca
-            if any(keyword in error_msg for keyword in ['private', 'not available', 'unavailable', 'deleted']):
+            if 'cannot parse data' in error_msg:
+                logger.warning(f"❌ {format_type} cu strategia {strategy['name']} - Cannot parse data")
+            elif 'private' in error_msg or 'login' in error_msg:
+                logger.warning(f"❌ {format_type} cu strategia {strategy['name']} - Private content detected")
+                # Pentru conținut privat, nu mai încercăm alte variante
                 logger.info(f"🛑 Oprire rotație din cauza erorii critice: conținut privat/indisponibil")
                 return None, None, {
                     'error_type': 'critical',
@@ -153,6 +182,8 @@ def try_facebook_with_rotation(url, ydl_opts, max_attempts=3):
                     'attempted_formats': attempted_formats,
                     'stopped_at_attempt': attempt
                 }
+            else:
+                logger.warning(f"❌ {format_type} cu strategia {strategy['name']} eșuat: {error_msg[:80]}...")
             
             continue
     

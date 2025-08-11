@@ -906,7 +906,7 @@ def try_facebook_fallback(url, output_path, title):
                 logger.warning(f"Facebook parsing error pentru URL: {url}")
                 return {
                     'success': False,
-                    'error': '❌ Facebook: Acest link nu poate fi procesat momentan din cauza schimbărilor recente ale Facebook. Te rog să încerci alt link sau să contactezi adminul.',
+                    'error': '❌ Facebook: Nu pot procesa acest link din cauza schimbărilor recente ale Facebook.\n\n🔧 Soluții posibile:\n• Încearcă să copiezi link-ul direct din browser\n• Verifică dacă videoul este public\n• Încearcă un alt format de link Facebook\n• Contactează adminul dacă problema persistă\n\n💡 Facebook schimbă frecvent API-ul, ceea ce poate cauza probleme temporare.',
                     'title': title or 'N/A'
                 }
             elif 'Unsupported URL' in error_msg:
