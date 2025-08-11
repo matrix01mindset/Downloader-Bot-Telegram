@@ -10,6 +10,7 @@ import json
 import logging
 import subprocess
 import sys
+import shutil
 from datetime import datetime, timedelta
 
 # Configurare logging centralizat
@@ -985,9 +986,20 @@ def download_video(url, output_path=None):
             }
         
         logger.info(f"=== DOWNLOAD_VIDEO URL Valid, creating temp dir ===")
-        # Creează directorul temporar ÎNTOTDEAUNA
-        temp_dir = tempfile.mkdtemp()
-        logger.info(f"=== DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
+        # Creează directorul temporar cu fallback pentru Render
+        try:
+            # Încearcă să folosească /tmp pe Render sau directorul temporar implicit
+            temp_base = os.environ.get('TMPDIR', os.environ.get('TEMP', '/tmp'))
+            if not os.path.exists(temp_base):
+                temp_base = tempfile.gettempdir()
+            temp_dir = tempfile.mkdtemp(dir=temp_base)
+            logger.info(f"=== DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
+        except Exception as temp_error:
+            logger.warning(f"Eroare la crearea directorului temporar: {temp_error}")
+            # Fallback la directorul curent
+            temp_dir = os.path.join(os.getcwd(), 'temp_downloads')
+            os.makedirs(temp_dir, exist_ok=True)
+            logger.info(f"=== DOWNLOAD_VIDEO Fallback temp dir: {temp_dir} ===")
     
         if output_path is None:
             output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
@@ -1263,6 +1275,15 @@ def download_video(url, output_path=None):
             'error': f'❌ Eroare neașteptată: {str(e)}',
             'title': 'N/A'
         }
+    
+    finally:
+        # Cleanup temp dir - întotdeauna executat
+        try:
+            if 'temp_dir' in locals() and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+                logger.info(f"=== DOWNLOAD_VIDEO Temp dir cleaned up: {temp_dir} ===")
+        except Exception as cleanup_error:
+            logger.warning(f"Eroare la cleanup temp dir: {cleanup_error}")
 
 def is_supported_url(url):
     """

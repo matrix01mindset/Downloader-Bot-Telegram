@@ -48,6 +48,20 @@ def escape_html(text: str) -> str:
     
     return html.escape(text)
 
+def validate_chat_id(chat_id):
+    """
+    Validează chat_id înainte de trimiterea mesajelor
+    """
+    if not chat_id:
+        return False
+    if str(chat_id).lower() in ['none', 'null', '']:
+        return False
+    try:
+        int(chat_id)
+        return True
+    except (ValueError, TypeError):
+        return False
+
 def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None):
     """
     Trimite mesaj cu fallback la text simplu dacă parse_mode eșuează.
@@ -56,6 +70,11 @@ def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None)
     
     if not TOKEN:
         logger.error("TOKEN nu este setat!")
+        return False
+    
+    # Validează chat_id înainte de trimitere
+    if not validate_chat_id(chat_id):
+        logger.error(f"Chat ID invalid: {chat_id}")
         return False
     
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -70,7 +89,8 @@ def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None)
         data['reply_markup'] = reply_markup
     
     try:
-        response = requests.post(url, json=data, timeout=10)
+        # Timeout mărit pentru Render (connect=20s, read=30s)
+        response = requests.post(url, json=data, timeout=(20, 30))
         
         if response.status_code == 200:
             logger.info(f"Mesaj trimis cu succes către chat_id {chat_id} cu {parse_mode}")
@@ -87,7 +107,8 @@ def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None)
             if reply_markup:
                 data_fallback['reply_markup'] = reply_markup
             
-            response_fallback = requests.post(url, json=data_fallback, timeout=10)
+            # Timeout mărit pentru fallback
+            response_fallback = requests.post(url, json=data_fallback, timeout=(20, 30))
             
             if response_fallback.status_code == 200:
                 logger.info(f"Mesaj trimis cu succes către chat_id {chat_id} fără parse_mode")
@@ -231,12 +252,12 @@ application = (
     Application.builder()
     .token(TOKEN)
     .connection_pool_size(50)  # Redus pentru mediul de producție
-    .pool_timeout(20.0)  # Timeout redus
+    .pool_timeout(30.0)  # Timeout mărit pentru Render
     .get_updates_connection_pool_size(5)  # Redus pentru webhook mode
-    .get_updates_pool_timeout(20.0)  # Timeout redus
-    .read_timeout(15.0)  # Timeout redus pentru citire
-    .write_timeout(15.0)  # Timeout redus pentru scriere
-    .connect_timeout(10.0)  # Timeout redus pentru conectare
+    .get_updates_pool_timeout(30.0)  # Timeout mărit pentru Render
+    .read_timeout(30.0)  # Timeout mărit pentru Render
+    .write_timeout(30.0)  # Timeout mărit pentru Render
+    .connect_timeout(20.0)  # Timeout mărit pentru Render
     .build()
 )
 
@@ -891,7 +912,12 @@ def webhook():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def send_telegram_message(chat_id, text, reply_markup=None):
-    """Trimite mesaj prin API-ul Telegram cu fallback automat"""
+    """Trimite mesaj prin API-ul Telegram cu fallback automat și validare chat_id"""
+    # Validează chat_id înainte de trimitere
+    if not validate_chat_id(chat_id):
+        logger.error(f"Încercare trimitere mesaj către chat_id invalid: {chat_id}")
+        return False
+    
     # Escapează textul pentru HTML
     text_safe = escape_html(text) if text else ""
     return safe_send_with_fallback(chat_id, text_safe, 'HTML', reply_markup)
@@ -1126,7 +1152,8 @@ def send_video_file(chat_id, file_path, video_info):
                 'parse_mode': 'HTML'
             }
             
-            response = requests.post(url, files=files, data=data, timeout=300)
+            # Timeout mărit pentru Render (600 secunde = 10 minute)
+            response = requests.post(url, files=files, data=data, timeout=(30, 600))
             
             # Dacă eșuează cu HTML, încearcă fără parse_mode
             if response.status_code != 200:
@@ -1141,7 +1168,8 @@ def send_video_file(chat_id, file_path, video_info):
                     'caption': caption  # Fără parse_mode
                 }
                 
-                response = requests.post(url, files={'video': video_file}, data=data_fallback, timeout=300)
+                # Timeout mărit pentru fallback
+                response = requests.post(url, files={'video': video_file}, data=data_fallback, timeout=(30, 600))
             
         # Șterge fișierul temporar
         try:
