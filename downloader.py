@@ -135,20 +135,56 @@ except ImportError:
     def try_facebook_with_rotation(url, ydl_opts, max_attempts=4):
         """Fallback function for URL rotation"""
         variants = generate_facebook_url_variants(url)
+        attempted_formats = []
+        last_error = None
         
         for i, variant_url in enumerate(variants[:max_attempts]):
+            # Determină tipul de format
+            if 'watch?v=' in variant_url:
+                format_type = "watch format"
+            elif 'share/v/' in variant_url:
+                format_type = "share format"
+            elif 'reel/' in variant_url:
+                format_type = "reel format"
+            elif 'm.facebook.com' in variant_url:
+                format_type = "mobile format"
+            else:
+                format_type = "unknown format"
+                
+            attempted_formats.append(format_type)
+            
             try:
-                logger.info(f"🔄 Attempt {i+1}/{max_attempts}: {variant_url}")
+                logger.info(f"🔄 Attempt {i+1}/{max_attempts}: {format_type}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(variant_url, download=False)
                     if info:
-                        logger.info(f"✅ Success with variant: {variant_url}")
-                        return variant_url, info
+                        logger.info(f"✅ Success with {format_type}")
+                        return variant_url, info, {
+                            'successful_format': format_type,
+                            'attempt_number': i+1,
+                            'attempted_formats': attempted_formats
+                        }
             except Exception as e:
-                logger.warning(f"❌ Variant {i+1} failed: {str(e)[:50]}...")
+                error_msg = str(e).lower()
+                last_error = str(e)
+                logger.warning(f"❌ {format_type} failed: {error_msg[:50]}...")
+                
+                if any(keyword in error_msg for keyword in ['private', 'not available', 'unavailable', 'deleted']):
+                    logger.info("Stopping rotation due to critical error")
+                    return None, None, {
+                        'error_type': 'critical',
+                        'error_message': last_error,
+                        'attempted_formats': attempted_formats,
+                        'stopped_at_attempt': i+1
+                    }
                 continue
         
-        return None, None
+        return None, None, {
+            'error_type': 'all_failed',
+            'error_message': last_error,
+            'attempted_formats': attempted_formats,
+            'total_attempts': len(variants[:max_attempts])
+        }
 
 # Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
 # Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
@@ -483,10 +519,11 @@ def try_facebook_fallback(url, output_path, title):
         })
         
         # Încearcă rotarea URL-urilor
-        success_url, video_info = try_facebook_with_rotation(url, robust_opts, max_attempts=4)
+        rotation_result = try_facebook_with_rotation(url, robust_opts, max_attempts=4)
+        success_url, video_info, rotation_info = rotation_result
         
         if success_url and video_info:
-            logger.info(f"✅ Facebook rotation SUCCESS! Using URL: {success_url}")
+            logger.info(f"✅ Facebook rotation SUCCESS! Using {rotation_info['successful_format']} at attempt {rotation_info['attempt_number']}")
             
             # Acum descarcă cu URL-ul care funcționează
             download_opts = robust_opts.copy()
@@ -508,9 +545,25 @@ def try_facebook_fallback(url, output_path, title):
                         'file_path': downloaded_files[0],
                         'title': video_info.get('title', title),
                         'description': video_info.get('description', ''),
+                        'rotation_info': f"✅ Succes cu {rotation_info['successful_format']} la încercarea {rotation_info['attempt_number']}",
                         'uploader': video_info.get('uploader', ''),
                         'duration': video_info.get('duration', 0),
                         'file_size': os.path.getsize(downloaded_files[0])
+                    }
+        else:
+            # Rotația a eșuat - oferă mesaj detaliat bazat pe informațiile de rotație
+            if rotation_info:
+                if rotation_info.get('error_type') == 'critical':
+                    return {
+                        'success': False,
+                        'error': f"❌ Facebook: Conținut privat sau indisponibil.\n\n🔄 Formate încercate: {', '.join(rotation_info['attempted_formats'])}\n🛑 Oprire la încercarea {rotation_info['stopped_at_attempt']} din cauza erorii critice.\n\n💡 Verifică dacă link-ul este public și valid.",
+                        'title': title
+                    }
+                elif rotation_info.get('error_type') == 'all_failed':
+                    return {
+                        'success': False,
+                        'error': f"❌ Facebook: Toate formatele au eșuat.\n\n🔄 Formate încercate ({rotation_info['total_attempts']}): {', '.join(rotation_info['attempted_formats'])}\n\n📋 Continuă cu fallback-urile clasice...",
+                        'title': title
                     }
     except Exception as rotation_error:
         logger.warning(f"🔄 Sistemul de rotare eșuat: {str(rotation_error)[:100]}...")
@@ -1056,29 +1109,35 @@ def download_video(url, output_path=None):
                         # Încearcă fallback cu patch înainte de a returna eroare
                         fallback_result = try_facebook_fallback(url, output_path, title)
                         if fallback_result['success']:
+                            # Adaugă informații despre rotație dacă sunt disponibile
+                            if 'rotation_info' in fallback_result:
+                                fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
                             return fallback_result
                         else:
-                            return {
-                                'success': False,
-                                'error': '❌ Facebook: Eroare de parsare a datelor. Patch-ul aplicat dar link-ul rămâne problematic. Încearcă un alt link Facebook sau contactează adminul.',
-                                'title': title
-                            }
+                            # Mesajul de eroare va fi deja detaliat din try_facebook_fallback
+                            return fallback_result
                     elif 'unsupported url' in error_str:
                         logger.warning(f"Facebook URL nesuportat în download_video: {url}")
                         # Încearcă normalizarea URL-ului și fallback
                         normalized_url = normalize_facebook_url(url)
                         if normalized_url != url:
                             logger.info(f"Încercare cu URL normalizat: {normalized_url}")
-                            return try_facebook_fallback(normalized_url, output_path, title)
+                            fallback_result = try_facebook_fallback(normalized_url, output_path, title)
+                            if fallback_result['success'] and 'rotation_info' in fallback_result:
+                                fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                            return fallback_result
                         else:
-                            return {
-                                'success': False,
-                                'error': '❌ Facebook: Format URL nesuportat. Te rog să încerci un link direct către video (facebook.com/watch?v= sau facebook.com/share/v/).',
-                                'title': title
-                            }
+                            # Încearcă fallback chiar și pentru URL-uri nesuportate
+                            fallback_result = try_facebook_fallback(url, output_path, title)
+                            if fallback_result['success'] and 'rotation_info' in fallback_result:
+                                fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                            return fallback_result
                     else:
                         # Pentru orice altă eroare Facebook, încearcă fallback cu patch
-                        return try_facebook_fallback(url, output_path, title)
+                        fallback_result = try_facebook_fallback(url, output_path, title)
+                        if fallback_result['success'] and 'rotation_info' in fallback_result:
+                            fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                        return fallback_result
                 else:
                     raise download_error
             

@@ -106,30 +106,64 @@ def generate_facebook_url_variants(url):
 def try_facebook_with_rotation(url, ydl_opts, max_attempts=3):
     """Încearcă descărcarea Facebook cu rotarea URL-urilor"""
     variants = generate_facebook_url_variants(url)
+    logger.info(f"🔄 Începe rotația Facebook cu {len(variants)} variante URL disponibile")
+    
+    attempted_formats = []
+    last_error = None
     
     for attempt, variant_url in enumerate(variants[:max_attempts], 1):
-        logger.info(f"Facebook rotation attempt {attempt}/{max_attempts}: {variant_url}")
+        # Determină tipul de format pentru logging
+        if 'watch?v=' in variant_url:
+            format_type = "watch format"
+        elif 'share/v/' in variant_url:
+            format_type = "share format"
+        elif 'reel/' in variant_url:
+            format_type = "reel format"
+        elif 'm.facebook.com' in variant_url:
+            format_type = "mobile format"
+        else:
+            format_type = "unknown format"
+            
+        attempted_formats.append(format_type)
+        logger.info(f"🔄 Încercare {attempt}/{max_attempts}: {format_type} - {variant_url[:60]}...")
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 # Încearcă să extragă informațiile
                 info = ydl.extract_info(variant_url, download=False)
                 if info:
-                    logger.info(f"✅ Facebook rotation SUCCESS on attempt {attempt} with URL: {variant_url}")
-                    return variant_url, info
+                    logger.info(f"✅ SUCCES! Facebook rotation reușită la încercarea {attempt} cu {format_type}")
+                    logger.info(f"📹 Video găsit: {info.get('title', 'N/A')[:50]}...")
+                    return variant_url, info, {
+                        'successful_format': format_type,
+                        'attempt_number': attempt,
+                        'attempted_formats': attempted_formats
+                    }
         except Exception as e:
             error_msg = str(e).lower()
-            logger.warning(f"❌ Facebook rotation attempt {attempt} failed: {error_msg[:100]}...")
+            last_error = str(e)
+            logger.warning(f"❌ {format_type} eșuat: {error_msg[:80]}...")
             
             # Dacă e o eroare critică, nu mai încerca
-            if 'private' in error_msg or 'not available' in error_msg:
-                logger.info("Stopping rotation due to critical error (private/unavailable content)")
-                break
+            if any(keyword in error_msg for keyword in ['private', 'not available', 'unavailable', 'deleted']):
+                logger.info(f"🛑 Oprire rotație din cauza erorii critice: conținut privat/indisponibil")
+                return None, None, {
+                    'error_type': 'critical',
+                    'error_message': last_error,
+                    'attempted_formats': attempted_formats,
+                    'stopped_at_attempt': attempt
+                }
             
             continue
     
-    logger.error(f"❌ Facebook rotation failed after {len(variants[:max_attempts])} attempts")
-    return None, None
+    logger.error(f"❌ Facebook rotation eșuată după {len(variants[:max_attempts])} încercări")
+    logger.error(f"📋 Formate încercate: {', '.join(attempted_formats)}")
+    return None, None, {
+        'error_type': 'all_failed',
+        'error_message': last_error,
+        'attempted_formats': attempted_formats,
+        'total_attempts': len(variants[:max_attempts])
+    }
 
 def create_robust_facebook_opts():
     """Creează opțiuni robuste pentru Facebook"""

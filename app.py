@@ -478,6 +478,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     result = await loop.run_in_executor(executor, download_video, message_text)
                 
                 if result['success']:
+                    # Afișează mesaj de succes cu informații despre rotație (dacă există)
+                    if 'success_message' in result:
+                        await safe_edit_message(
+                            status_message,
+                            result['success_message']
+                        )
+                        # Așteaptă puțin pentru ca utilizatorul să vadă mesajul
+                        await asyncio.sleep(1)
+                    
                     # Trimite videoclipul
                     try:
                         with open(result['file_path'], 'rb') as video_file:
