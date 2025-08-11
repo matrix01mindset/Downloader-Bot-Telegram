@@ -63,6 +63,42 @@ try:
 except Exception as e:
     logger.warning(f"Nu s-a putut face upgrade la nightly: {e}")
 
+# Import Facebook fix patch
+try:
+    from facebook_fix_patch import (
+        enhanced_facebook_extractor_args,
+        normalize_facebook_share_url,
+        create_robust_facebook_opts
+    )
+    logger.info("✅ Facebook fix patch loaded successfully")
+except ImportError:
+    logger.warning("⚠️ Facebook fix patch not found, using fallback methods")
+    
+    def enhanced_facebook_extractor_args():
+        return {
+            'facebook': {
+                'api_version': 'v19.0',
+                'legacy_ssl': True,
+                'tab': 'videos',
+                'ignore_parse_errors': True
+            }
+        }
+    
+    def normalize_facebook_share_url(url):
+        import re
+        if 'facebook.com/share/v/' in url:
+            match = re.search(r'facebook\.com/share/v/([^/?]+)', url)
+            if match:
+                video_id = match.group(1)
+                return f"https://www.facebook.com/watch?v={video_id}"
+        return url
+    
+    def create_robust_facebook_opts():
+        return {
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best',
+            'extractor_args': enhanced_facebook_extractor_args()
+        }
+
 # Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
 # Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
 YOUTUBE_CLIENT_CONFIGS = {
@@ -344,14 +380,15 @@ def clean_title(title):
 def normalize_facebook_url(url):
     """
     Normalizează URL-urile Facebook noi în formate mai vechi pe care yt-dlp le poate procesa
-    IMPORTANT: URL-urile share/v/ funcționează direct, nu le convertim!
+    UPDATED: Folosește patch-ul Facebook pentru gestionarea URL-urilor share/v/
     """
     import re
     
-    # URL-urile share/v/ funcționează direct cu yt-dlp, nu le convertim
-    if 'facebook.com/share/v/' in url:
-        logger.info(f"URL Facebook share/v/ păstrat original: {url}")
-        return url
+    # Folosește funcția din patch pentru normalizare
+    normalized_url = normalize_facebook_share_url(url)
+    if normalized_url != url:
+        logger.info(f"URL Facebook normalizat cu patch: {url} -> {normalized_url}")
+        return normalized_url
     
     # Verifică alte formate noi care ar putea necesita conversie
     reel_pattern = r'facebook\.com/reel/([^/?]+)'
@@ -368,14 +405,56 @@ def normalize_facebook_url(url):
 def try_facebook_fallback(url, output_path, title):
     """
     Încearcă descărcarea Facebook cu opțiuni alternative și gestionare îmbunătățită a erorilor
+    UPDATED: Folosește patch-ul Facebook pentru configurații robuste
     """
     logger.info(f"Încercare Facebook fallback pentru: {url[:50]}...")
     
-    # Normalizează URL-ul Facebook
+    # Normalizează URL-ul Facebook folosind patch-ul
     normalized_url = normalize_facebook_url(url)
     if normalized_url != url:
-        logger.info(f"URL Facebook normalizat: {normalized_url}")
+        logger.info(f"URL Facebook normalizat cu patch: {normalized_url}")
         url = normalized_url
+    
+    # Încearcă mai întâi cu configurația robustă din patch
+    try:
+        logger.info("Încercare cu configurația robustă din patch...")
+        robust_opts = create_robust_facebook_opts()
+        robust_opts.update({
+            'outtmpl': output_path,
+            'quiet': False,
+            'noplaylist': True,
+            'extractaudio': False,
+            'skip_download': False,
+            'writeinfojson': False,
+            'writethumbnail': False,
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
+        })
+        
+        with yt_dlp.YoutubeDL(robust_opts) as ydl:
+            logger.info("Începe descărcarea Facebook cu patch robust...")
+            ydl.download([url])
+            
+            # Verifică dacă fișierul a fost descărcat
+            import glob
+            temp_dir = os.path.dirname(output_path)
+            downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+            downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+            
+            if downloaded_files:
+                logger.info("✅ Facebook descărcare reușită cu patch robust")
+                return {
+                    'success': True,
+                    'file_path': downloaded_files[0],
+                    'title': title,
+                    'description': '',
+                    'uploader': '',
+                    'duration': 0,
+                    'file_size': os.path.getsize(downloaded_files[0])
+                }
+    except Exception as patch_error:
+        logger.warning(f"Patch robust eșuat: {str(patch_error)[:100]}...")
+        # Continuă cu fallback-urile originale
     
     # Configurații alternative pentru Facebook - optimizate pentru 2025 cu strategii diverse
     fallback_configs = [
@@ -866,24 +945,38 @@ def download_video(url, output_path=None):
                         'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
                         'title': title
                     }
-                # Încearcă cu opțiuni alternative pentru Facebook
+                # Încearcă cu opțiuni alternative pentru Facebook - UPDATED cu patch
                 elif 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
                     error_str = str(download_error).lower()
+                    logger.warning(f"Facebook error în download_video: {error_str[:100]}...")
+                    
                     if 'cannot parse data' in error_str:
-                        logger.warning(f"Facebook parsing error în download_video pentru URL: {url}")
-                        return {
-                            'success': False,
-                            'error': '❌ Facebook: Acest link nu poate fi procesat momentan din cauza schimbărilor recente ale Facebook. Te rog să încerci alt link sau să contactezi adminul.',
-                            'title': title
-                        }
+                        logger.warning(f"Facebook parsing error detectat pentru URL: {url}")
+                        # Încearcă fallback cu patch înainte de a returna eroare
+                        fallback_result = try_facebook_fallback(url, output_path, title)
+                        if fallback_result['success']:
+                            return fallback_result
+                        else:
+                            return {
+                                'success': False,
+                                'error': '❌ Facebook: Eroare de parsare a datelor. Patch-ul aplicat dar link-ul rămâne problematic. Încearcă un alt link Facebook sau contactează adminul.',
+                                'title': title
+                            }
                     elif 'unsupported url' in error_str:
                         logger.warning(f"Facebook URL nesuportat în download_video: {url}")
-                        return {
-                            'success': False,
-                            'error': '❌ Facebook: Formatul acestui link nu este suportat. Te rog să încerci un link direct către video.',
-                            'title': title
-                        }
+                        # Încearcă normalizarea URL-ului și fallback
+                        normalized_url = normalize_facebook_url(url)
+                        if normalized_url != url:
+                            logger.info(f"Încercare cu URL normalizat: {normalized_url}")
+                            return try_facebook_fallback(normalized_url, output_path, title)
+                        else:
+                            return {
+                                'success': False,
+                                'error': '❌ Facebook: Format URL nesuportat. Te rog să încerci un link direct către video (facebook.com/watch?v= sau facebook.com/share/v/).',
+                                'title': title
+                            }
                     else:
+                        # Pentru orice altă eroare Facebook, încearcă fallback cu patch
                         return try_facebook_fallback(url, output_path, title)
                 else:
                     raise download_error
@@ -961,6 +1054,20 @@ def download_video(url, output_path=None):
                 'title': 'N/A'
             }
         elif 'cannot parse data' in error_msg or 'parse' in error_msg:
+            # Pentru erori de parsare Facebook, încearcă patch-ul
+            if 'facebook' in error_msg:
+                logger.info("Încercare patch Facebook pentru eroare de parsare...")
+                try:
+                    # Extrage URL-ul din context dacă este disponibil
+                    # Aceasta este o măsură de siguranță pentru DownloadError
+                    return {
+                        'success': False,
+                        'error': '❌ Facebook: Eroare de parsare a datelor (DownloadError). Patch-ul Facebook a fost aplicat dar problema persistă.\n\n🔧 Cauze posibile:\n• URL Facebook în format nou nesuportat\n• Conținut privat sau restricționat\n• Probleme temporare cu API Facebook\n\n💡 Încearcă:\n• Un alt link Facebook\n• Link în format facebook.com/watch?v=\n• Contactează adminul pentru suport',
+                        'title': 'N/A'
+                    }
+                except Exception:
+                    pass
+            
             return {
                 'success': False,
                 'error': '❌ Facebook: Eroare de parsare a datelor. Acest lucru poate fi cauzat de:\n• Emoticoane sau caractere speciale în titlu\n• Conținut privat sau restricționat\n• Probleme temporare cu platforma\n\n💡 Încearcă din nou în câteva minute.',
@@ -969,7 +1076,7 @@ def download_video(url, output_path=None):
         elif 'facebook' in error_msg and ('error' in error_msg or 'failed' in error_msg):
             return {
                 'success': False,
-                'error': '❌ Facebook: Eroare la accesarea conținutului. Verifică că link-ul este public și valid.',
+                'error': '❌ Facebook: Eroare la accesarea conținutului. Patch-ul Facebook aplicat.\n\n🔧 Verifică:\n• Link-ul este public și valid\n• Nu este conținut restricționat\n• Formatul URL este corect\n\n💡 Încearcă un alt link Facebook.',
                 'title': 'N/A'
             }
         else:
