@@ -68,7 +68,9 @@ try:
     from facebook_fix_patch import (
         enhanced_facebook_extractor_args,
         normalize_facebook_share_url,
-        create_robust_facebook_opts
+        create_robust_facebook_opts,
+        generate_facebook_url_variants,
+        try_facebook_with_rotation
     )
     logger.info("✅ Facebook fix patch loaded successfully")
 except ImportError:
@@ -98,6 +100,55 @@ except ImportError:
             'format': 'best[filesize<512M][height<=720]/best[height<=720]/best',
             'extractor_args': enhanced_facebook_extractor_args()
         }
+    
+    def generate_facebook_url_variants(url):
+        """Fallback function for URL variants generation"""
+        import re
+        variants = [url]
+        
+        # Extract video ID from various Facebook URL formats
+        video_id = None
+        patterns = [
+            r'/watch\?v=([^&]+)',
+            r'/share/v/([^/?]+)',
+            r'/reel/([^/?]+)',
+            r'/videos/([^/?]+)'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                video_id = match.group(1)
+                break
+        
+        if video_id:
+            base_variants = [
+                f"https://www.facebook.com/watch?v={video_id}",
+                f"https://www.facebook.com/share/v/{video_id}/",
+                f"https://www.facebook.com/reel/{video_id}",
+                f"https://m.facebook.com/watch?v={video_id}"
+            ]
+            variants.extend([v for v in base_variants if v not in variants])
+        
+        return variants
+    
+    def try_facebook_with_rotation(url, ydl_opts, max_attempts=4):
+        """Fallback function for URL rotation"""
+        variants = generate_facebook_url_variants(url)
+        
+        for i, variant_url in enumerate(variants[:max_attempts]):
+            try:
+                logger.info(f"🔄 Attempt {i+1}/{max_attempts}: {variant_url}")
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(variant_url, download=False)
+                    if info:
+                        logger.info(f"✅ Success with variant: {variant_url}")
+                        return variant_url, info
+            except Exception as e:
+                logger.warning(f"❌ Variant {i+1} failed: {str(e)[:50]}...")
+                continue
+        
+        return None, None
 
 # Configurații pentru clienții YouTube recomandați de yt-dlp (2024)
 # Bazat pe https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies
@@ -405,7 +456,7 @@ def normalize_facebook_url(url):
 def try_facebook_fallback(url, output_path, title):
     """
     Încearcă descărcarea Facebook cu opțiuni alternative și gestionare îmbunătățită a erorilor
-    UPDATED: Folosește patch-ul Facebook pentru configurații robuste
+    UPDATED: Folosește patch-ul Facebook pentru configurații robuste + sistem de rotare URL
     """
     logger.info(f"Încercare Facebook fallback pentru: {url[:50]}...")
     
@@ -415,9 +466,59 @@ def try_facebook_fallback(url, output_path, title):
         logger.info(f"URL Facebook normalizat cu patch: {normalized_url}")
         url = normalized_url
     
-    # Încearcă mai întâi cu configurația robustă din patch
+    # STEP 1: Încearcă cu sistemul de rotare URL înainte de fallback-uri
+    logger.info("🔄 STEP 1: Încercare cu sistemul de rotare URL...")
     try:
-        logger.info("Încercare cu configurația robustă din patch...")
+        robust_opts = create_robust_facebook_opts()
+        robust_opts.update({
+            'outtmpl': output_path,
+            'quiet': False,
+            'noplaylist': True,
+            'extractaudio': False,
+            'skip_download': True,  # Doar extragere info pentru rotare
+            'writeinfojson': False,
+            'writethumbnail': False,
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
+        })
+        
+        # Încearcă rotarea URL-urilor
+        success_url, video_info = try_facebook_with_rotation(url, robust_opts, max_attempts=4)
+        
+        if success_url and video_info:
+            logger.info(f"✅ Facebook rotation SUCCESS! Using URL: {success_url}")
+            
+            # Acum descarcă cu URL-ul care funcționează
+            download_opts = robust_opts.copy()
+            download_opts['skip_download'] = False
+            
+            with yt_dlp.YoutubeDL(download_opts) as ydl:
+                ydl.download([success_url])
+                
+                # Verifică dacă fișierul a fost descărcat
+                import glob
+                temp_dir = os.path.dirname(output_path)
+                downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+                downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+                
+                if downloaded_files:
+                    logger.info("✅ Facebook descărcare reușită cu sistem de rotare")
+                    return {
+                        'success': True,
+                        'file_path': downloaded_files[0],
+                        'title': video_info.get('title', title),
+                        'description': video_info.get('description', ''),
+                        'uploader': video_info.get('uploader', ''),
+                        'duration': video_info.get('duration', 0),
+                        'file_size': os.path.getsize(downloaded_files[0])
+                    }
+    except Exception as rotation_error:
+        logger.warning(f"🔄 Sistemul de rotare eșuat: {str(rotation_error)[:100]}...")
+        logger.info("📋 Continuă cu fallback-urile clasice...")
+    
+    # STEP 2: Încearcă cu configurația robustă din patch (fallback clasic)
+    logger.info("🔧 STEP 2: Încercare cu configurația robustă din patch...")
+    try:
         robust_opts = create_robust_facebook_opts()
         robust_opts.update({
             'outtmpl': output_path,
@@ -454,7 +555,7 @@ def try_facebook_fallback(url, output_path, title):
                 }
     except Exception as patch_error:
         logger.warning(f"Patch robust eșuat: {str(patch_error)[:100]}...")
-        # Continuă cu fallback-urile originale
+        logger.info("📋 Continuă cu fallback-urile alternative...")
     
     # Configurații alternative pentru Facebook - optimizate pentru 2025 cu strategii diverse
     fallback_configs = [
