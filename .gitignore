@@ -105,3 +105,8 @@ replit.nix
 # Cache
 .cache/
 *.cache
+# Security files
+.env.local
+.env.production
+secrets/
+# Logs that might contain sensitive data
