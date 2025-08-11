@@ -1214,19 +1214,28 @@ def download_video(url, output_path=None):
                 'title': 'N/A'
             }
         elif 'cannot parse data' in error_msg or 'parse' in error_msg:
-            # Pentru erori de parsare Facebook, încearcă patch-ul
-            if 'facebook' in error_msg:
-                logger.info("Încercare patch Facebook pentru eroare de parsare...")
+            # Pentru erori de parsare Facebook, încearcă patch-ul cu rotație
+            if 'facebook' in error_msg and ('facebook.com' in url.lower() or 'fb.watch' in url.lower()):
+                logger.info("Încercare patch Facebook cu rotație pentru eroare de parsare...")
                 try:
-                    # Extrage URL-ul din context dacă este disponibil
-                    # Aceasta este o măsură de siguranță pentru DownloadError
+                    # Încearcă fallback cu patch și rotație pentru DownloadError
+                    temp_output = os.path.join(temp_dir, "%(title)s.%(ext)s")
+                    fallback_result = try_facebook_fallback(url, temp_output, 'Facebook Video')
+                    if fallback_result['success']:
+                        # Adaugă informații despre rotație dacă sunt disponibile
+                        if 'rotation_info' in fallback_result:
+                            fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                        return fallback_result
+                    else:
+                        # Mesajul de eroare va fi deja detaliat din try_facebook_fallback
+                        return fallback_result
+                except Exception as fallback_error:
+                    logger.warning(f"Fallback Facebook eșuat în DownloadError: {fallback_error}")
                     return {
                         'success': False,
                         'error': '❌ Facebook: Eroare de parsare a datelor (DownloadError). Patch-ul Facebook a fost aplicat dar problema persistă.\n\n🔧 Cauze posibile:\n• URL Facebook în format nou nesuportat\n• Conținut privat sau restricționat\n• Probleme temporare cu API Facebook\n\n💡 Încearcă:\n• Un alt link Facebook\n• Link în format facebook.com/watch?v=\n• Contactează adminul pentru suport',
                         'title': 'N/A'
                     }
-                except Exception:
-                    pass
             
             return {
                 'success': False,
