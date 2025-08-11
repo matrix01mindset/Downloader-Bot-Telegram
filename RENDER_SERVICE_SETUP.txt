@@ -1,0 +1,84 @@
+
+🚀 CREARE SERVICIU RENDER.COM - PAS CU PAS
+==========================================
+
+🔑 TOKEN BOT: 8253089686:AAGbSnyOKFYt36_cjZdG5AaecRPCytvBDmI
+📂 REPOSITORY: https://github.com/matrix01mindset/Downloader-Bot-Telegram
+🏷️  NUME SERVICIU: telegram-video-downloader-bot
+
+📋 PAȘI DETALIAȚI:
+
+1️⃣ ACCESEAZĂ RENDER DASHBOARD
+   🌐 Deschide: https://dashboard.render.com
+   🔐 Login cu GitHub (dacă nu ești logat)
+
+2️⃣ CREEAZĂ SERVICIU NOU
+   ➕ Click "New" (buton albastru sus-dreapta)
+   🌐 Selectează "Web Service"
+
+3️⃣ CONECTEAZĂ REPOSITORY
+   📂 Caută: "Downloader-Bot-Telegram"
+   🔗 Click "Connect" lângă repository
+   
+   DACĂ NU VEZI REPOSITORY-UL:
+   - Click "Configure GitHub App"
+   - Selectează "matrix01mindset"
+   - Bifează "Downloader-Bot-Telegram"
+   - Click "Save"
+
+4️⃣ CONFIGUREAZĂ SERVICIUL
+   📝 Nume: telegram-video-downloader-bot
+   🌍 Region: Frankfurt (EU Central)
+   🌿 Branch: main
+   📁 Root Directory: (lasă gol)
+   🏗️  Build Command: pip install -r requirements.txt
+   ▶️  Start Command: python app.py
+
+5️⃣ SELECTEAZĂ PLANUL
+   💰 Plan: Free (0$/lună)
+   ⚡ Instance Type: Free
+
+6️⃣ CONFIGUREAZĂ ENVIRONMENT VARIABLES
+   ⚙️  Click "Advanced" → "Add Environment Variable"
+   
+   Variabila 1:
+   🔑 Key: BOT_TOKEN
+   🔒 Value: 8253089686:AAGbSnyOKFYt36_cjZdG5AaecRPCytvBDmI
+   
+   Variabila 2:
+   🔑 Key: PORT
+   🔒 Value: 10000
+   
+   Variabila 3:
+   🔑 Key: PYTHON_VERSION
+   🔒 Value: 3.11.0
+
+7️⃣ DEPLOY SERVICIUL
+   🚀 Click "Create Web Service"
+   ⏳ Așteaptă 3-5 minute pentru build
+   ✅ Verifică că statusul devine "Live"
+
+8️⃣ CONFIGUREAZĂ WEBHOOK TELEGRAM
+   📋 Copiază URL-ul serviciului (ex: https://telegram-video-downloader-bot.onrender.com)
+   🔗 Setează webhook: https://telegram-video-downloader-bot.onrender.com/webhook
+
+📊 VERIFICARE FINALĂ:
+
+✅ Checklist:
+   □ Serviciul este "Live" (verde)
+   □ Logs arată "Application started successfully"
+   □ Botul răspunde la comenzi în Telegram
+   □ Nu sunt erori în logs
+
+❌ Probleme comune:
+   - Build failed: verifică requirements.txt
+   - Start failed: verifică app.py și PORT
+   - Bot nu răspunde: verifică BOT_TOKEN
+   - Timeout: verifică că app.py rulează pe PORT 10000
+
+🆘 SUPORT:
+   📧 Render Support: https://render.com/support
+   📚 Documentație: https://render.com/docs
+   🤖 Telegram Bot API: https://core.telegram.org/bots/api
+
+⏰ Generat la: 2025-08-12T01:41:36.284188
