@@ -14,7 +14,7 @@ from datetime import datetime
 
 # Configurare
 RENDER_URL = "https://telegram-video-downloader-1471.onrender.com"
-BOT_TOKEN = "8253089686:AAGNOvUHXTVwz2Bi9KEpBpY4OAkTPC7ICAs"
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
 
 def check_git_status():
     """Verifică statusul Git"""

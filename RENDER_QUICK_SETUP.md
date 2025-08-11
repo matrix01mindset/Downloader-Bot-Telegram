@@ -2,8 +2,10 @@
 
 ## 🔑 Token-ul tău Telegram Bot:
 ```
-8253089686:AAGNOvUHXTVwz2Bi9KEpBpY4OAkTPC7ICAs
+YOUR_TELEGRAM_BOT_TOKEN_HERE
 ```
+
+**⚠️ IMPORTANT:** Înlocuiește cu token-ul real din BotFather!
 
 ## 🚀 Pași rapizi pentru deployment:
 
@@ -30,7 +32,7 @@ Adaugă aceste variabile în secțiunea "Environment":
 
 | Key | Value |
 |-----|-------|
-| `TELEGRAM_BOT_TOKEN` | `8253089686:AAGNOvUHXTVwz2Bi9KEpBpY4OAkTPC7ICAs` |
+| `TELEGRAM_BOT_TOKEN` | `YOUR_TELEGRAM_BOT_TOKEN_HERE` |
 | `PORT` | `10000` |
 | `WEBHOOK_URL` | `https://NUMELE-SERVICIULUI.onrender.com/webhook` |
 
@@ -77,7 +79,7 @@ https://telegram-video-downloader.onrender.com/set_webhook
 
 ## 📱 Bot-ul tău este gata!
 
-**Token:** `8253089686:AAGNOvUHXTVwz2Bi9KEpBpY4OAkTPC7ICAs`
+**Token:** `YOUR_TELEGRAM_BOT_TOKEN_HERE`
 **Platforme suportate:** YouTube, TikTok, Instagram, Facebook, Twitter/X
 **Limite:** 100MB, 15 minute
 **Status:** 24/7 online pe Render.com
