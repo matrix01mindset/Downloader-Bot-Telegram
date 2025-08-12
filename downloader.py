@@ -1183,6 +1183,24 @@ def download_video(url, output_path=None):
                 'retries': 3,
             }
             
+            # Configurații specifice pentru Reddit - adaugă suport pentru cookies din browser
+            if 'reddit.com' in url.lower():
+                logger.info("Reddit URL detectat - configurez autentificare prin cookies")
+                try:
+                    # Încearcă să folosească cookies din browser pentru Reddit
+                    ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
+                    logger.info("Configurare cookies din Firefox pentru Reddit")
+                except Exception as cookie_error:
+                    logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
+                    try:
+                        # Fallback la Chrome
+                        ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
+                        logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
+                    except Exception as chrome_error:
+                        logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
+                        # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
+                        logger.info("Continuă fără cookies - Reddit va necesita autentificare")
+            
             # Configurații specifice pentru Threads
             if 'threads.com' in url.lower() or 'threads.net' in url.lower():
                 # Threads folosește Instagram extractor - adaugă configurații specifice
@@ -1414,6 +1432,26 @@ def download_video(url, output_path=None):
                 'error': '❌ Instagram/TikTok: Limită de rată atinsă. Încearcă din nou în câteva minute.',
                 'title': 'N/A'
             }
+        # Gestionare specifică pentru Reddit
+        elif 'reddit.com' in url.lower():
+            if 'authentication' in error_msg or 'account authentication is required' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Reddit: Autentificare necesară pentru acest conținut.\n\n🔒 Acest post Reddit poate fi:\n• Privat sau restricționat\n• Disponibil doar pentru utilizatori autentificați\n• Din subreddit privat\n\n💡 Încearcă cu un post Reddit public.',
+                    'title': 'N/A'
+                }
+            elif 'not available' in error_msg or 'removed' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Reddit: Conținutul nu este disponibil sau a fost șters.\n\n🔧 Verifică că:\n• Link-ul este corect\n• Postul nu a fost șters\n• Postul este public',
+                    'title': 'N/A'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f'❌ Reddit: Eroare la descărcare.\n\n🔧 Detalii: {str(e)[:100]}...\n\n💡 Încearcă cu un post Reddit public care conține video.',
+                    'title': 'N/A'
+                }
         elif 'login' in error_msg or 'authentication' in error_msg or 'cookies' in error_msg:
             help_msg = '\n\nPentru Instagram: Folosește --cookies-from-browser sau --cookies pentru autentificare.'
             help_msg += '\nVezi: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp'
