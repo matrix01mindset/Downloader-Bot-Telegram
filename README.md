@@ -238,7 +238,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 10000
 
 # Run application
 CMD ["python", "app.py"]
@@ -247,7 +247,7 @@ CMD ["python", "app.py"]
 ```bash
 # Build and run with Docker
 docker build -t telegram-video-bot .
-docker run -p 8000:8000 --env-file .env telegram-video-bot
+docker run -p 10000:10000 --env-file .env telegram-video-bot
 ```
 
 ### 🌐 Platform-Specific Installation
@@ -293,7 +293,7 @@ railway deploy
 |----------|-------------|----------|----------|
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | ✅ Yes | - |
 | `WEBHOOK_URL` | Webhook URL for production | 🔶 Production | - |
-| `PORT` | Server port | ❌ No | `8000` |
+| `PORT` | Server port | ❌ No | `10000` |
 | `DEBUG` | Enable debug mode | ❌ No | `False` |
 | `MAX_DOWNLOAD_SIZE` | Max file size (MB) | ❌ No | `45` |
 | `RATE_LIMIT_REQUESTS` | Requests per minute | ❌ No | `10` |
@@ -308,7 +308,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token_here
 WEBHOOK_URL=https://your-domain.com/webhook
 
 # Application Settings
-PORT=8000
+PORT=10000
 DEBUG=False
 MAX_DOWNLOAD_SIZE=45
 
@@ -1029,16 +1029,16 @@ services:
   telegram-bot:
     build: .
     ports:
-      - "8000:8000"
+      - "10000:10000"
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - WEBHOOK_URL=${WEBHOOK_URL}
-      - PORT=8000
+      - PORT=10000
     volumes:
       - ./temp_downloads:/app/temp_downloads
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:10000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
