@@ -12,7 +12,6 @@ import subprocess
 import sys
 import shutil
 from datetime import datetime, timedelta
-from contextlib import contextmanager
 
 # Configurare logging centralizat
 logging.basicConfig(
@@ -99,7 +98,7 @@ except ImportError:
     
     def create_robust_facebook_opts():
         return {
-            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best',
             'extractor_args': enhanced_facebook_extractor_args()
         }
     
@@ -366,7 +365,7 @@ def create_youtube_session_advanced(client_type='mweb'):
         'sleep_interval': 1,  # Redus pentru server mic
         'max_sleep_interval': 5,  # Redus pentru server mic
         'sleep_interval_subtitles': 1,
-        'socket_timeout': 15,  # Redus dramatic pentru server mic
+        'socket_timeout': 30,  # Redus dramatic pentru server mic
         'retries': 1,  # Redus pentru server mic
         'extractor_retries': 1,  # Redus pentru server mic
         'fragment_retries': 2,  # Redus pentru server mic
@@ -616,7 +615,7 @@ def try_facebook_fallback(url, output_path, title):
     fallback_configs = [
         # Configurația 1: Chrome desktop cu API v19.0 (cea mai recentă)
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -634,7 +633,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 5,
             'fragment_retries': 5,
-            'socket_timeout': 15,
+            'socket_timeout': 45,
             'retries': 5,
             'ignoreerrors': True,
             'extract_flat': False,
@@ -651,7 +650,7 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 2: Firefox desktop cu strategii alternative
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -668,7 +667,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 4,
             'fragment_retries': 4,
-            'socket_timeout': 15,
+            'socket_timeout': 40,
             'retries': 4,
             'ignoreerrors': True,
             'sleep_interval': 3,
@@ -684,7 +683,7 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 3: iPhone Safari mobile cu API v17.0
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -699,7 +698,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 3,
             'fragment_retries': 3,
-            'socket_timeout': 15,
+            'socket_timeout': 35,
             'retries': 3,
             'ignoreerrors': True,
             'sleep_interval': 4,
@@ -715,7 +714,7 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 4: Android Chrome mobile cu strategii agresive
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -731,7 +730,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 3,
             'fragment_retries': 3,
-            'socket_timeout': 15,
+            'socket_timeout': 30,
             'retries': 3,
             'ignoreerrors': True,
             'sleep_interval': 5,
@@ -759,7 +758,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 2,
             'fragment_retries': 2,
-            'socket_timeout': 15,
+            'socket_timeout': 60,
             'retries': 2,
             'ignoreerrors': True,
             'sleep_interval': 8,
@@ -786,7 +785,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 1,
             'fragment_retries': 1,
-            'socket_timeout': 15,
+            'socket_timeout': 90,
             'retries': 1,
             'ignoreerrors': True,
             'sleep_interval': 10,
@@ -983,112 +982,6 @@ def validate_url(url):
     
     return True, "URL valid"
 
-
-class SecurityError(Exception):
-    """Excepție pentru probleme de securitate"""
-    pass
-
-def validate_and_create_temp_dir():
-    """Creează director temporar sigur cu validare împotriva path traversal"""
-    try:
-        # Creează directorul temporar
-        temp_dir = validate_and_create_temp_dir()
-        
-        # Validare strictă împotriva path traversal
-        real_path = os.path.realpath(temp_dir)
-        temp_base = os.path.realpath(tempfile.gettempdir())
-        
-        # Verifică că directorul este într-o locație sigură
-        if not real_path.startswith(temp_base):
-            # Curăță directorul creat
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise SecurityError(f"Invalid temp directory path: {real_path}")
-        
-        # Verifică permisiunile
-        if not os.access(temp_dir, os.W_OK):
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise SecurityError(f"No write access to temp directory: {temp_dir}")
-        
-        logger.info(f"🔒 Secure temp directory created: {temp_dir}")
-        return temp_dir
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to create secure temp directory: {e}")
-        raise SecurityError(f"Cannot create secure temp directory: {e}")
-
-@contextmanager
-def safe_temp_file(suffix=".mp4", prefix="video_"):
-    """Context manager pentru fișiere temporare sigure cu cleanup automat"""
-    temp_dir = None
-    temp_file = None
-    
-    try:
-        # Creează directorul temporar sigur
-        temp_dir = validate_and_create_temp_dir()
-        
-        # Creează numele fișierului temporar
-        timestamp = int(time.time())
-        filename = f"{prefix}{timestamp}{suffix}"
-        temp_file = os.path.join(temp_dir, filename)
-        
-        # Validează că calea finală este sigură
-        real_temp_file = os.path.realpath(temp_file)
-        real_temp_dir = os.path.realpath(temp_dir)
-        
-        if not real_temp_file.startswith(real_temp_dir):
-            raise SecurityError(f"Invalid temp file path: {real_temp_file}")
-        
-        logger.info(f"🔒 Secure temp file created: {temp_file}")
-        yield temp_file
-        
-    except Exception as e:
-        logger.error(f"❌ Error in safe_temp_file: {e}")
-        raise
-    finally:
-        # Cleanup garantat
-        cleanup_success = True
-        
-        # Șterge fișierul
-        if temp_file and os.path.exists(temp_file):
-            try:
-                os.remove(temp_file)
-                logger.info(f"🗑️ Temp file cleaned: {temp_file}")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to remove temp file {temp_file}: {e}")
-                cleanup_success = False
-        
-        # Șterge directorul
-        if temp_dir and os.path.exists(temp_dir):
-            try:
-                shutil.rmtree(temp_dir)
-                logger.info(f"🗑️ Temp directory cleaned: {temp_dir}")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to remove temp directory {temp_dir}: {e}")
-                cleanup_success = False
-        
-        if not cleanup_success:
-            logger.error("❌ Incomplete cleanup of temporary files!")
-
-
-def is_youtube_url(url):
-    """Verifică dacă URL-ul este de la YouTube"""
-    youtube_domains = [
-        'youtube.com', 'www.youtube.com', 'm.youtube.com',
-        'youtu.be', 'www.youtu.be'
-    ]
-    
-    for domain in youtube_domains:
-        if domain in url.lower():
-            return True
-    return False
-
-
 def download_video(url, output_path=None):
     """
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
@@ -1156,7 +1049,7 @@ def download_video(url, output_path=None):
             # Configurație pentru alte platforme
             ydl_opts = {
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),  # Limitează titlul la 100 caractere
-                'format': 'best[filesize<45M][height<=720]/best',
+                'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
                 'quiet': True,
                 'noplaylist': True,
                 'extractaudio': False,
@@ -1179,7 +1072,7 @@ def download_video(url, output_path=None):
                 'ignoreerrors': False,
                 'extract_flat': False,
                 'skip_download': False,
-                'socket_timeout': 15,
+                'socket_timeout': 30,
                 'retries': 3,
             }
             

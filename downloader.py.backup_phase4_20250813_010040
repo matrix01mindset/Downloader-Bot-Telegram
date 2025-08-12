@@ -12,7 +12,6 @@ import subprocess
 import sys
 import shutil
 from datetime import datetime, timedelta
-from contextlib import contextmanager
 
 # Configurare logging centralizat
 logging.basicConfig(
@@ -99,7 +98,7 @@ except ImportError:
     
     def create_robust_facebook_opts():
         return {
-            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
+            'format=best[filesize<45M][height<=720]][height<=720]/best[height<=720]/best',
             'extractor_args': enhanced_facebook_extractor_args()
         }
     
@@ -616,7 +615,7 @@ def try_facebook_fallback(url, output_path, title):
     fallback_configs = [
         # Configurația 1: Chrome desktop cu API v19.0 (cea mai recentă)
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format=best[filesize<45M][height<=720]]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -651,7 +650,7 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 2: Firefox desktop cu strategii alternative
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format=best[filesize<45M][height<=720]]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -684,7 +683,7 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 3: iPhone Safari mobile cu API v17.0
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format=best[filesize<45M][height<=720]]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -715,7 +714,7 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 4: Android Chrome mobile cu strategii agresive
         {
-            'format': 'best[filesize<45M][height<=720]/best',
+            'format=best[filesize<45M][height<=720]]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -1075,20 +1074,6 @@ def safe_temp_file(suffix=".mp4", prefix="video_"):
         if not cleanup_success:
             logger.error("❌ Incomplete cleanup of temporary files!")
 
-
-def is_youtube_url(url):
-    """Verifică dacă URL-ul este de la YouTube"""
-    youtube_domains = [
-        'youtube.com', 'www.youtube.com', 'm.youtube.com',
-        'youtu.be', 'www.youtu.be'
-    ]
-    
-    for domain in youtube_domains:
-        if domain in url.lower():
-            return True
-    return False
-
-
 def download_video(url, output_path=None):
     """
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
@@ -1156,7 +1141,7 @@ def download_video(url, output_path=None):
             # Configurație pentru alte platforme
             ydl_opts = {
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),  # Limitează titlul la 100 caractere
-                'format': 'best[filesize<45M][height<=720]/best',
+                'format=best[filesize<45M][height<=720]]/best',
                 'quiet': True,
                 'noplaylist': True,
                 'extractaudio': False,
@@ -1472,6 +1457,11 @@ def download_video(url, output_path=None):
     except Exception as e:
         logger.error(f"=== DOWNLOAD_VIDEO Exception === {str(e)}")
         import traceback
+
+import tempfile
+import shutil
+from contextlib import contextmanager
+from pathlib import Path
         logger.error(f"=== DOWNLOAD_VIDEO Traceback === {traceback.format_exc()}")
         return {
             'success': False,

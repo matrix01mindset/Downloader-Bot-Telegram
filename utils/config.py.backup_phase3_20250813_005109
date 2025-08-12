@@ -1,0 +1,293 @@
+# utils/config.py - Centralized Configuration Management
+# Versiunea: 2.0.0 - Arhitectura Modulară
+
+import yaml
+import os
+import re
+from pathlib import Path
+from typing import Dict, Any, Optional, List
+import logging
+
+# Setup basic logging pentru config loading
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class Config:
+    """
+    Centralized configuration management pentru Telegram Video Downloader Bot
+    
+    Suportă:
+    - YAML configuration files
+    - Environment variable substitution
+    - Default fallback values
+    - Platform-specific configurations
+    """
+    
+    def __init__(self, config_path: Optional[str] = None):
+        self.config_path = config_path or self._find_config_file()
+        self._config = {}
+        self._load_config()
+        
+    def _find_config_file(self) -> str:
+        """Găsește fișierul de configurație în locațiile standard"""
+        base_dir = Path(__file__).parent.parent
+        possible_paths = [
+            'config.yaml',
+            'config/config.yaml',
+            base_dir / 'config.yaml',
+            base_dir / 'config' / 'config.yaml'
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                logger.info(f"Found config file: {path}")
+                return str(path)
+                
+        logger.warning("Config file not found, using default configuration")
+        return None
+        
+    def _load_config(self):
+        """Încarcă configurația din YAML cu environment variable substitution"""
+        if not self.config_path or not os.path.exists(self.config_path):
+            logger.info("Loading default configuration")
+            self._config = self._get_default_config()
+            return
+            
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config_content = f.read()
+                
+            # Replace environment variables in format ${VAR_NAME}
+            def replace_env_vars(match):
+                var_name = match.group(1)
+                env_value = os.getenv(var_name)
+                if env_value is None:
+                    logger.warning(f"Environment variable {var_name} not found, keeping placeholder")
+                    return match.group(0)
+                return env_value
+                
+            config_content = re.sub(r'\$\{([^}]+)\}', replace_env_vars, config_content)
+            
+            self._config = yaml.safe_load(config_content) or {}
+            logger.info(f"Configuration loaded successfully from {self.config_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to load config from {self.config_path}: {e}")
+            logger.info("Falling back to default configuration")
+            self._config = self._get_default_config()
+            
+    def _get_default_config(self) -> Dict[str, Any]:
+        """Configurație default ca fallback pentru când YAML nu poate fi încărcat"""
+        return {
+            'app': {
+                'name': 'Telegram Video Downloader Bot',
+                'version': '2.0.0',
+                'debug': False
+            },
+            'server': {
+                'host': '0.0.0.0',
+                'port': int(os.getenv('PORT', 5000)),
+                'timeout': 15
+            },
+            'telegram': {
+                'token': os.getenv('TELEGRAM_BOT_TOKEN'),
+                'webhook_url': os.getenv('WEBHOOK_URL'),
+                'max_connections': 5
+            },
+            'platforms': {
+                'youtube': {
+                    'enabled': True,
+                    'priority': 1,
+                    'max_file_size_mb': 45,
+                    'max_duration_seconds': 3600,
+                    'rate_limit_per_minute': 10
+                },
+                'instagram': {
+                    'enabled': True,
+                    'priority': 2,
+                    'max_file_size_mb': 45,
+                    'max_duration_seconds': 1800,
+                    'rate_limit_per_minute': 15
+                },
+                'tiktok': {
+                    'enabled': True,
+                    'priority': 3,
+                    'max_file_size_mb': 45,
+                    'max_duration_seconds': 600,
+                    'rate_limit_per_minute': 20
+                },
+                'facebook': {
+                    'enabled': True,
+                    'priority': 4,
+                    'max_file_size_mb': 45,
+                    'max_duration_seconds': 3600,
+                    'rate_limit_per_minute': 8
+                },
+                'twitter': {
+                    'enabled': True,
+                    'priority': 5,
+                    'max_file_size_mb': 45,
+                    'max_duration_seconds': 1200,
+                    'rate_limit_per_minute': 12
+                }
+            },
+            'file_limits': {
+                'telegram_bot_max_mb': 45,  # Limita sigură pentru bot-uri Telegram
+                'download_max_mb': 50,      # Limita pentru descărcare
+                'platform_fallback_mb': 45, # Fallback pentru platforme
+                'max_duration_seconds': 3600 # Limita de durată (1 oră)
+            },
+            'cache': {
+                'enabled': True,
+                'type': 'memory',
+                'max_size_mb': 50,
+                'default_ttl': 3600
+            },
+            'performance': {
+                'cold_start_optimization': True,
+                'max_concurrent_downloads': 2,
+                'memory_limit_mb': 200
+            },
+            'rate_limiting': {
+                'enabled': True,
+                'default_per_minute': 10,
+                'per_user_per_minute': 5
+            },
+            'monitoring': {
+                'enabled': True,
+                'log_level': 'INFO',
+                'metrics_collection': True
+            }
+        }
+        
+    def get(self, key_path: str, default=None) -> Any:
+        """
+        Obține valoarea unei configurații folosind dot notation
+        
+        Exemple:
+        - config.get('app.name') -> 'Telegram Video Downloader Bot'
+        - config.get('platforms.youtube.enabled') -> True
+        - config.get('nonexistent.key', 'default_value') -> 'default_value'
+        """
+        keys = key_path.split('.')
+        value = self._config
+        
+        try:
+            for key in keys:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    return default
+            return value
+        except (KeyError, TypeError, AttributeError):
+            return default
+            
+    def get_platform_config(self, platform_name: str) -> Dict[str, Any]:
+        """Obține configurația completă pentru o platformă specifică"""
+        platform_config = self.get(f'platforms.{platform_name}', {})
+        
+        # Merge cu configurațiile default comune pentru toate platformele
+        default_platform_config = {
+            'enabled': False,
+            'priority': 999,
+            'max_file_size_mb': 256,
+            'max_duration_seconds': 1800,
+            'rate_limit_per_minute': 10,
+            'retry_attempts': 2
+        }
+        
+        # Merge default cu configurația specifică
+        merged_config = {**default_platform_config, **platform_config}
+        return merged_config
+        
+    def is_platform_enabled(self, platform_name: str) -> bool:
+        """Verifică dacă o platformă este activată"""
+        return self.get(f'platforms.{platform_name}.enabled', False)
+        
+    def get_enabled_platforms(self) -> List[str]:
+        """Returnează lista platformelor activate"""
+        platforms = self.get('platforms', {})
+        return [name for name, config in platforms.items() if config.get('enabled', False)]
+        
+    def get_platform_priority(self, platform_name: str) -> int:
+        """Obține prioritatea unei platforme (mai mic = prioritate mai mare)"""
+        return self.get(f'platforms.{platform_name}.priority', 999)
+        
+    def get_telegram_config(self) -> Dict[str, Any]:
+        """Obține configurația Telegram bot"""
+        telegram_config = self.get('telegram', {})
+        
+        # Validează că token-ul este setat
+        if not telegram_config.get('token'):
+            logger.error("TELEGRAM_BOT_TOKEN is not set!")
+            raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
+            
+        return telegram_config
+        
+    def get_server_config(self) -> Dict[str, Any]:
+        """Obține configurația serverului"""
+        return self.get('server', {
+            'host': '0.0.0.0',
+            'port': 5000,
+            'timeout': 15
+        })
+        
+    def is_debug_mode(self) -> bool:
+        """Verifică dacă aplicația rulează în debug mode"""
+        return self.get('app.debug', False) or self.get('debug.enabled', False)
+        
+    def get_cache_config(self) -> Dict[str, Any]:
+        """Obține configurația cache-ului"""
+        return self.get('cache', {
+            'enabled': True,
+            'type': 'memory',
+            'max_size_mb': 50,
+            'default_ttl': 3600
+        })
+        
+    def get_performance_config(self) -> Dict[str, Any]:
+        """Obține configurațiile de performanță"""
+        return self.get('performance', {
+            'cold_start_optimization': True,
+            'max_concurrent_downloads': 2,
+            'memory_limit_mb': 200
+        })
+        
+    def reload(self):
+        """Reîncarcă configurația din fișier"""
+        logger.info("Reloading configuration...")
+        self._load_config()
+        
+    def validate(self) -> bool:
+        """Validează configurația încărcată"""
+        try:
+            # Verifică configurațiile critice
+            telegram_config = self.get_telegram_config()
+            
+            # Verifică că avem cel puțin o platformă activată
+            enabled_platforms = self.get_enabled_platforms()
+            if not enabled_platforms:
+                logger.warning("No platforms are enabled!")
+                return False
+                
+            logger.info(f"Configuration validation passed. Enabled platforms: {enabled_platforms}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Configuration validation failed: {e}")
+            return False
+
+# Singleton instance pentru folosire globală în întreaga aplicație
+# Acesta va fi importat în toate modulele care au nevoie de configurație
+try:
+    config = Config()
+    if not config.validate():
+        logger.error("Configuration validation failed!")
+    else:
+        logger.info("✅ Configuration loaded and validated successfully!")
+except Exception as e:
+    logger.error(f"Failed to initialize configuration: {e}")
+    # Creăm o instanță cu configurație default ca fallback
+    config = Config.__new__(Config)
+    config._config = config._get_default_config()
+    logger.warning("⚠️  Using fallback configuration!")
