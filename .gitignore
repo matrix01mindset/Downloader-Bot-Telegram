@@ -18,6 +18,9 @@ RENDER_SERVICE_SETUP.txt
 RENDER_UPDATE_INSTRUCTIONS.txt
 monitor_bot.py.bak
 setup_webhook.py.bak
+render_config_*.json
+security_report.md
+cleanup_security.py
 
 # 📁 Directoare temporare și cache
 __pycache__/

@@ -962,7 +962,7 @@ def validate_url(url):
         # Twitter/X
         'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com',
         # Threads
-        'threads.net', 'www.threads.net',
+        'threads.net', 'www.threads.net', 'threads.com', 'www.threads.com',
         # Pinterest
         'pinterest.com', 'www.pinterest.com', 'pinterest.co.uk', 'pin.it', 'pinterest.fr', 'pinterest.de', 'pinterest.ca',
         # Reddit
@@ -1311,7 +1311,7 @@ def is_supported_url(url):
         # Twitter/X
         'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com',
         # Threads
-        'threads.net', 'www.threads.net',
+        'threads.net', 'www.threads.net', 'threads.com', 'www.threads.com',
         # Pinterest
         'pinterest.com', 'www.pinterest.com', 'pinterest.co.uk', 'pin.it', 'pinterest.fr', 'pinterest.de', 'pinterest.ca',
         # Reddit

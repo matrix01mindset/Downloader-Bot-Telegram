@@ -941,7 +941,7 @@ def webhook():
                             "• Instagram (instagram.com, reels, stories)\n"
                             "• Facebook (facebook.com, fb.watch, fb.me)\n"
                             "• Twitter/X (twitter.com, x.com)\n"
-                            "• Threads (threads.net)\n"
+                            "• Threads (threads.net, threads.com)\n"
                             "• Pinterest (pinterest.com, pin.it)\n"
                             "• Reddit (reddit.com, redd.it, v.redd.it)\n"
                             "• Vimeo (vimeo.com, player.vimeo.com)\n"
@@ -959,7 +959,7 @@ def webhook():
                         success = send_telegram_message(chat_id, help_text)
                         logger.info(f"Mesaj de ajutor trimis: {success}")
                         
-                    elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
+                    elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'threads.com' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
                         logger.info(f"Link video detectat: {text}")
                         # Procesează link-ul video
                         process_video_link_sync(chat_id, text)
@@ -1053,7 +1053,7 @@ def process_message_sync(update):
                 "• Instagram (instagram.com, reels, stories)\n"
                 "• Facebook (facebook.com, fb.watch, fb.me)\n"
                 "• Twitter/X (twitter.com, x.com)\n"
-                "• Threads (threads.net)\n"
+                "• Threads (threads.net, threads.com)\n"
                 "• Pinterest (pinterest.com, pin.it)\n"
                 "• Reddit (reddit.com, redd.it, v.redd.it)\n"
                 "• Vimeo (vimeo.com, player.vimeo.com)\n"
@@ -1070,7 +1070,7 @@ def process_message_sync(update):
             )
             send_telegram_message(chat_id, help_text)
             
-        elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
+        elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'threads.com' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
             # Procesează link-ul video
             process_video_link_sync(chat_id, text)
             

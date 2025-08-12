@@ -164,7 +164,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch, fb.me)
 - Twitter/X (twitter.com, x.com)
-- Threads (threads.net)
+- Threads (threads.net, threads.com)
 - Pinterest (pinterest.com, pin.it)
 - Reddit (reddit.com, redd.it, v.redd.it)
 - Vimeo (vimeo.com, player.vimeo.com)
@@ -440,7 +440,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Tweet-uri cu video publice
 
 🧵 **Threads**
-- threads.net
+- threads.net, threads.com
 - Postări video publice
 - Platforma Meta
 

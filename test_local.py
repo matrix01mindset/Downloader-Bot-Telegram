@@ -170,7 +170,7 @@ def test_security():
         if Path(file_path).exists():
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                if 'BOT_TOKEN = "' in content and '8253089686:' in content:
+                if 'BOT_TOKEN = "' in content and ':' in content:
                     print(f"❌ Token hardcodat găsit în {file_path}")
                     security_checks.append(False)
                 else:
