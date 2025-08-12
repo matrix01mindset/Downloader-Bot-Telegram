@@ -155,7 +155,7 @@ security:
   max_url_length: 2048
   sanitize_filenames: true
   # Lista ID-urilor de utilizatori admin (pentru comenzi /stats, /health)
-  admin_user_ids: []  # Adaugă ID-urile utilizatorilor admin aici
+  admin_user_ids: [123456789]  # Adaugă ID-urile utilizatorilor admin aici - înlocuiește cu ID-ul tău real
   
 # 🌍 Localization (pregătit pentru viitor)
 localization:

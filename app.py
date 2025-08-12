@@ -302,6 +302,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Log comanda executată
         log_command_executed('/start', user.id, chat_id, True)
         
+        # DEBUG: Afișează ID-ul utilizatorului pentru configurare admin
+        logger.info(f"User {user.first_name} ({user.username}) used /start command with ID: {user.id}")
+        
     except Exception as e:
         logger.error(f"Eroare în comanda /start: {e}")
         # Log eroarea comenzii
@@ -446,6 +449,84 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if message:
         await safe_edit_message(message, f"🏓 <b>Pong!</b>\n\n⏱️ <b>Timp răspuns:</b> {ping_time}ms\n✅ <b>Status:</b> Funcțional", parse_mode='HTML')
+
+async def log_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comandă /log - trimite raportul de activitate (doar pentru admin)
+    """
+    try:
+        user = update.effective_user
+        chat_id = update.effective_chat.id
+        
+        # Simplitate: oricine poate folosi comanda /log
+        logger.info(f"User {user.first_name} ({user.username}) requested activity logs with ID: {user.id}")
+        
+        # Log comanda executată
+        log_command_executed('/log', user.id, chat_id, True)
+        
+        # Trimite mesaj de procesare
+        status_message = await safe_send_message(
+            update,
+            "📊 <b>Generez raportul de activitate...</b>\n\nTe rog așteaptă...",
+            parse_mode='HTML'
+        )
+        
+        # Generează raportul
+        report = activity_logger.generate_report(hours=24)
+        
+        # Creează fișierul temporar
+        import tempfile
+        import os
+        from datetime import datetime
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"bot_activity_log_{timestamp}.txt"
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
+            temp_file.write(report)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Trimite fișierul
+            with open(temp_file_path, 'rb') as doc:
+                await context.bot.send_document(
+                    chat_id=chat_id,
+                    document=doc,
+                    filename=filename,
+                    caption=f"📊 <b>Raport Activitate Bot</b>\n\n"
+                           f"📅 <b>Perioada:</b> Ultimele 24 ore\n"
+                           f"🕐 <b>Generat la:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
+                           f"✅ Activități cu succes\n"
+                           f"❌ Erori și probleme",
+                    parse_mode='HTML'
+                )
+            
+            # Șterge mesajul de status
+            if status_message:
+                await safe_delete_message(status_message)
+                
+        finally:
+            # Șterge fișierul temporar
+            try:
+                os.unlink(temp_file_path)
+            except Exception as cleanup_error:
+                logger.warning(f"Nu s-a putut șterge fișierul temporar {temp_file_path}: {cleanup_error}")
+                
+    except Exception as e:
+        logger.error(f"Eroare în comanda /log: {e}")
+        # Log eroarea comenzii
+        user = update.effective_user if update and update.effective_user else None
+        chat_id = update.effective_chat.id if update and update.effective_chat else 0
+        log_command_executed('/log', user.id if user else 0, chat_id, False)
+        
+        try:
+            await safe_send_message(
+                update,
+                f"❌ Eroare la generarea raportului: {e}",
+                parse_mode='HTML'
+            )
+        except:
+            logger.error("Nu s-a putut trimite mesajul de eroare pentru comanda /log")
 
 async def safe_send_message(update, text, **kwargs):
     """
@@ -862,6 +943,7 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("help", help_command))
 application.add_handler(CommandHandler("menu", menu_command))
 application.add_handler(CommandHandler("ping", ping_command))
+application.add_handler(CommandHandler("log", log_command))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 application.add_handler(CallbackQueryHandler(button_callback))
 
