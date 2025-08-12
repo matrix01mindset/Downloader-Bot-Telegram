@@ -32,7 +32,8 @@ class ThreadsPlatform(BasePlatform):
         
         # Domenii suportate
         self.supported_domains = [
-            'threads.net', 'www.threads.net'
+            'threads.net', 'www.threads.net',
+            'threads.com', 'www.threads.com'
         ]
         
         # User agents reali pentru anti-detection
@@ -64,7 +65,7 @@ class ThreadsPlatform(BasePlatform):
             url = 'https://' + url
             
         # Normalizează formatul URL-ului
-        if 'threads.net' in url and '/post/' in url:
+        if ('threads.net' in url or 'threads.com' in url) and '/post/' in url:
             # URL-ul este deja în formatul corect
             return url
             

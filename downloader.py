@@ -1036,12 +1036,12 @@ def download_video(url, output_path=None):
             # Procesează URL-urile Threads - folosește Instagram extractor
             if 'threads.com' in url.lower() or 'threads.net' in url.lower():
                 # Threads folosește același backend ca Instagram
-                # Încearcă să convertească URL-ul Threads într-un format suportat
-                if '?xmt=' in url or not ('/post/' in url or '/t/' in url):
+                # Verifică dacă URL-ul conține un post specific
+                if not ('/post/' in url or '/t/' in url):
                     logger.warning(f"URL Threads nesuportat (nu este un post specific): {url}")
                     return {
                         'success': False,
-                        'error': '❌ Threads: URL-ul nu pare să fie un post specific cu video.\n\n💡 Încearcă cu un link direct către un post Threads care conține video:\n• https://www.threads.net/@username/post/ABC123\n• https://www.threads.net/t/ABC123\n\n⚠️ Link-urile generale Threads (cu ?xmt=) nu sunt suportate.',
+                        'error': '❌ Threads: URL-ul nu pare să fie un post specific cu video.\n\n💡 Încearcă cu un link direct către un post Threads care conține video:\n• https://www.threads.net/@username/post/ABC123\n• https://www.threads.net/t/ABC123',
                         'title': 'Threads - URL nesuportat'
                     }
                 logger.info(f"URL Threads detectat: {url}")
