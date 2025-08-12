@@ -146,8 +146,14 @@ class ActivityLogger:
             self.logs.append(log_entry)
             self._update_stats(log_entry)
         
-        # Scrie în fișier async
-        asyncio.create_task(self._write_to_file(log_entry))
+        # Scrie în fișier - gestionează contextul async/sincron
+        try:
+            loop = asyncio.get_running_loop()
+            # Dacă există un loop activ, creează task
+            loop.create_task(self._write_to_file(log_entry))
+        except RuntimeError:
+            # Nu există loop activ, scrie sincron
+            self._write_to_file_sync(log_entry)
         
         # Log în sistemul standard de logging
         log_level = getattr(logging, level.value.upper())
@@ -178,7 +184,16 @@ class ActivityLogger:
         self.hourly_stats[hour_key][log_entry.activity_type.value] += 1
     
     async def _write_to_file(self, log_entry: ActivityLog):
-        """Scrie log-ul în fișier"""
+        """Scrie log-ul în fișier (async)"""
+        try:
+            with self.file_lock:
+                with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(log_entry.to_dict(), ensure_ascii=False) + '\n')
+        except Exception as e:
+            logger.error(f"Error writing log to file: {e}")
+    
+    def _write_to_file_sync(self, log_entry: ActivityLog):
+        """Scrie log-ul în fișier (sincron)"""
         try:
             with self.file_lock:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:
