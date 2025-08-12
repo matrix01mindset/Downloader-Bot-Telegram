@@ -119,11 +119,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
 🔗 <b>Platforme suportate:</b>
-• YouTube
 • TikTok  
 • Instagram
 • Facebook
 • Twitter/X
+• Threads
+• Pinterest
+• Reddit
+• Vimeo
+• Dailymotion
 
 ⚠️ <b>Limitări:</b>
 - Videoclipuri max 3 ore
@@ -156,12 +160,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 4. Primești videoclipul descărcat
 
 🔗 <b>Platforme suportate:</b>
-- TikTok (tiktok.com)
+- TikTok (tiktok.com, vm.tiktok.com)
 - Instagram (instagram.com)
-- Facebook (facebook.com, fb.watch)
+- Facebook (facebook.com, fb.watch, fb.me)
 - Twitter/X (twitter.com, x.com)
-
-⚠️ <b>Notă:</b> YouTube nu este suportat momentan din cauza complexității tehnice.
+- Threads (threads.net)
+- Pinterest (pinterest.com, pin.it)
+- Reddit (reddit.com, redd.it, v.redd.it)
+- Vimeo (vimeo.com, player.vimeo.com)
+- Dailymotion (dailymotion.com, dai.ly)
 
 ⚠️ <b>Probleme frecvente:</b>
 - Videoclipul este privat → Nu poate fi descărcat
@@ -221,7 +228,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             "❌ Te rog să trimiți un link valid (care începe cu http:// sau https://)\n\n"
-            "💡 Trimite un link de pe TikTok, Instagram, Facebook sau Twitter/X",
+            "💡 Trimite un link de pe TikTok, Instagram, Facebook, Twitter/X, Threads, Pinterest, Reddit, Vimeo sau Dailymotion",
             reply_markup=reply_markup
         )
         return
@@ -233,7 +240,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             "❌ Această platformă nu este suportată.\n\n"
-            "Platforme suportate: TikTok, Instagram, Facebook, Twitter/X",
+            "Platforme suportate: TikTok, Instagram, Facebook, Twitter/X, Threads, Pinterest, Reddit, Vimeo, Dailymotion",
             reply_markup=reply_markup
         )
         return
@@ -374,7 +381,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'new_download':
         await query.edit_message_text(
             "📥 **Gata pentru o nouă descărcare!**\n\n"
-            "Trimite-mi un link de pe TikTok, Instagram, Facebook sau Twitter/X"
+            "Trimite-mi un link de pe TikTok, Instagram, Facebook, Twitter/X, Threads, Pinterest, Reddit, Vimeo sau Dailymotion"
         )
         return
     
@@ -414,24 +421,47 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔗 **Platforme suportate în detaliu:**
 
 📱 **TikTok**
-- tiktok.com
+- tiktok.com, vm.tiktok.com
 - Videoclipuri publice
 - Fără watermark
 
 📸 **Instagram**
-- instagram.com/p/
+- instagram.com
 - Postări video publice
 - Reels și IGTV
 
 📘 **Facebook**
-- facebook.com, fb.watch
+- facebook.com, fb.watch, fb.me
 - Videoclipuri publice
+- URL normalization
 
 🐦 **Twitter/X**
 - twitter.com, x.com
 - Tweet-uri cu video publice
 
-⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice și a restricțiilor platformei.
+🧵 **Threads**
+- threads.net
+- Postări video publice
+- Platforma Meta
+
+📌 **Pinterest**
+- pinterest.com, pin.it
+- Video pins
+- Conținut multimedia
+
+🔴 **Reddit**
+- reddit.com, redd.it, v.redd.it
+- Videoclipuri publice
+- Subreddit-uri
+
+🎬 **Vimeo**
+- vimeo.com, player.vimeo.com
+- Videoclipuri publice și premium
+
+📺 **Dailymotion**
+- dailymotion.com, dai.ly
+- Videoclipuri publice
+- Suport geo-restricții
         """
         
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]

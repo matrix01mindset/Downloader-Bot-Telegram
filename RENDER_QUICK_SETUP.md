@@ -80,7 +80,7 @@ https://telegram-video-downloader.onrender.com/set_webhook
 ## 📱 Bot-ul tău este gata!
 
 **Token:** `YOUR_TELEGRAM_BOT_TOKEN_HERE`
-**Platforme suportate:** YouTube, TikTok, Instagram, Facebook, Twitter/X
+**Platforme suportate:** TikTok, Instagram, Facebook, Twitter/X, Threads, Pinterest, Reddit, Vimeo, Dailymotion
 **Limite:** 100MB, 15 minute
 **Status:** 24/7 online pe Render.com
 

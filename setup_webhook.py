@@ -46,8 +46,7 @@ def get_webhook_info():
             result = response.json()
             if result.get('ok'):
                 info = result.get('result', {})
-                print(f"
-📊 INFORMAȚII WEBHOOK:")
+                print(f"\n📊 INFORMAȚII WEBHOOK:")
                 print(f"URL: {info.get('url', 'Nu este setat')}")
                 print(f"Pending updates: {info.get('pending_update_count', 0)}")
                 print(f"Ultima eroare: {info.get('last_error_message', 'Nicio eroare')}")
@@ -61,30 +60,24 @@ def get_webhook_info():
 
 def main():
     print("🔗 CONFIGURARE WEBHOOK TELEGRAM")
-    print("================================
-")
+    print("================================")
     
     print(f"Bot Token: {BOT_TOKEN[:15]}...")
-    print(f"Webhook URL: {WEBHOOK_URL}
-")
+    print(f"Webhook URL: {WEBHOOK_URL}")
     
     # Verifică webhook-ul curent
     print("📋 Verificare webhook curent...")
     get_webhook_info()
     
     # Setează noul webhook
-    print("
-📋 Setare webhook nou...")
+    print("\n📋 Setare webhook nou...")
     if set_webhook():
-        print("
-📋 Verificare finală...")
+        print("\n📋 Verificare finală...")
         get_webhook_info()
-        print("
-✅ Webhook configurat cu succes!")
+        print("\n✅ Webhook configurat cu succes!")
         print("🤖 Botul este gata să primească mesaje!")
     else:
-        print("
-❌ Webhook nu a putut fi setat")
+        print("\n❌ Webhook nu a putut fi setat")
         print("🔍 Verifică că serviciul Render este activ")
 
 if __name__ == "__main__":

@@ -299,8 +299,11 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 • Instagram
 • Facebook
 • Twitter/X
-
-⚠️ YouTube nu este suportat momentan.
+• Threads
+• Pinterest
+• Reddit
+• Vimeo
+• Dailymotion
 
 ⚠️ **Limitări:**
 - Videoclipuri max 3 ore
@@ -605,8 +608,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "• TikTok\n"
                 "• Instagram\n"
                 "• Facebook\n"
-                "• Twitter/X\n\n"
-                "⚠️ Notă: YouTube nu este suportat momentan.\n\n"
+                "• Twitter/X\n"
+                "• Threads\n"
+                "• Pinterest\n"
+                "• Reddit\n"
+                "• Vimeo\n"
+                "• Dailymotion\n\n"
                 "💡 Trimite un link valid pentru a descărca videoclipul."
             )
     except Exception as e:
@@ -920,8 +927,13 @@ def webhook():
                             "🔗 <b>Platforme suportate:</b>\n"
                             "• TikTok (tiktok.com, vm.tiktok.com)\n"
                             "• Instagram (instagram.com, reels, stories)\n"
-                            "• Facebook (facebook.com, fb.watch)\n"
-                            "• Twitter/X (twitter.com, x.com)\n\n"
+                            "• Facebook (facebook.com, fb.watch, fb.me)\n"
+                            "• Twitter/X (twitter.com, x.com)\n"
+                            "• Threads (threads.net)\n"
+                            "• Pinterest (pinterest.com, pin.it)\n"
+                            "• Reddit (reddit.com, redd.it, v.redd.it)\n"
+                            "• Vimeo (vimeo.com, player.vimeo.com)\n"
+                            "• Dailymotion (dailymotion.com, dai.ly)\n\n"
                             "⚠️ <b>Limitări importante:</b>\n"
                             "• Mărime max: 45MB (limita Telegram)\n"
                             "• Durată max: 3 ore\n"
@@ -935,7 +947,7 @@ def webhook():
                         success = send_telegram_message(chat_id, help_text)
                         logger.info(f"Mesaj de ajutor trimis: {success}")
                         
-                    elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
+                    elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
                         logger.info(f"Link video detectat: {text}")
                         # Procesează link-ul video
                         process_video_link_sync(chat_id, text)
@@ -1027,8 +1039,13 @@ def process_message_sync(update):
                 "🔗 <b>Platforme suportate:</b>\n"
                 "• TikTok (tiktok.com, vm.tiktok.com)\n"
                 "• Instagram (instagram.com, reels, stories)\n"
-                "• Facebook (facebook.com, fb.watch)\n"
-                "• Twitter/X (twitter.com, x.com)\n\n"
+                "• Facebook (facebook.com, fb.watch, fb.me)\n"
+                "• Twitter/X (twitter.com, x.com)\n"
+                "• Threads (threads.net)\n"
+                "• Pinterest (pinterest.com, pin.it)\n"
+                "• Reddit (reddit.com, redd.it, v.redd.it)\n"
+                "• Vimeo (vimeo.com, player.vimeo.com)\n"
+                "• Dailymotion (dailymotion.com, dai.ly)\n\n"
                 "⚠️ <b>Limitări importante:</b>\n"
                 "• Mărime max: 45MB (limita Telegram)\n"
                 "• Durată max: 3 ore\n"
@@ -1041,7 +1058,7 @@ def process_message_sync(update):
             )
             send_telegram_message(chat_id, help_text)
             
-        elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text):
+        elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
             # Procesează link-ul video
             process_video_link_sync(chat_id, text)
             
@@ -1096,7 +1113,7 @@ def process_video_link_sync(chat_id, url):
     try:
         # Verifică dacă URL-ul este suportat
         if not is_supported_url(url):
-            send_telegram_message(chat_id, "❌ Link-ul nu este suportat. Încearcă cu TikTok, Instagram, Facebook sau Twitter/X.")
+            send_telegram_message(chat_id, "❌ Link-ul nu este suportat. Încearcă cu TikTok, Instagram, Facebook, Twitter/X, Threads, Pinterest, Reddit, Vimeo sau Dailymotion.")
             return
         
         # Trimite mesaj de procesare

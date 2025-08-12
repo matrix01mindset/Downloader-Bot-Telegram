@@ -105,8 +105,56 @@ replit.nix
 # Cache
 .cache/
 *.cache
-# Security files
+
+# Security files - IMPORTANT: Prevent secrets exposure
+.env*
+!.env.example
+!.env.template
+secrets/
+*.key
+*.token
+*.pem
+*.p12
+*.crt
+*.csr
+
+# Configuration files that might contain secrets
+config_local.yaml
+config_production.yaml
+settings_local.py
+settings_production.py
+
+# Logs that might contain sensitive data
+*.log.sensitive
+audit.log
+security.log
+telemetry_data/
+
+# Temporary files that might contain secrets
+.secrets_cache
+.auth_tokens
+.session_data
+
+# CI/CD and deployment files with secrets
+.deploy_secrets
+docker-compose.override.yml
+.kube_config
+
+# Platform-specific secret files
+instagram_session.json
+youtube_auth.json
+tiktok_cookies.txt
+facebook_tokens.json
+
+# Backup files that might contain secrets - CRITICAL SECURITY
+*.env.backup*
+.env.backup*
+config.backup*
+secrets.backup*
+
+# Specific backup file that might exist
+.env.backup.1754951067
+
+# Added by security checker
 .env.local
 .env.production
-secrets/
-# Logs that might contain sensitive data

@@ -1,4 +1,5 @@
-# platforms/tiktok.py - TikTok Platform Implementation
+# platforms/tiktok.py - TikTok Platform cu Anti-Detection Avansată
+# Versiunea: 3.0.0 - Arhitectura Nouă
 # Versiunea: 2.0.0 - Arhitectura Modulară
 
 import re

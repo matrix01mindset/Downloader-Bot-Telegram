@@ -28,17 +28,24 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
 
 ## 🔗 Platforme Suportate
 
-- **🎥 YouTube** (youtube.com, youtu.be)
-  - Videoclipuri publice cu suport pentru diverse formate
-  - Client rotation și anti-detection pentru stabilitate
-- **📱 TikTok** (tiktok.com)
+- **📱 TikTok** (tiktok.com, vm.tiktok.com)
   - Videoclipuri publice, fără watermark
-- **📸 Instagram** (instagram.com/p/)
+- **📸 Instagram** (instagram.com)
   - Postări video publice, Reels și IGTV
-- **📘 Facebook** (facebook.com, fb.watch)
-  - Videoclipuri publice
+- **📘 Facebook** (facebook.com, fb.watch, fb.me)
+  - Videoclipuri publice cu URL normalization
 - **🐦 Twitter/X** (twitter.com, x.com)
   - Tweet-uri cu video publice
+- **🧵 Threads** (threads.net)
+  - Postări video publice de pe platforma Meta
+- **📌 Pinterest** (pinterest.com, pin.it)
+  - Video pins și conținut multimedia
+- **🔴 Reddit** (reddit.com, redd.it, v.redd.it)
+  - Videoclipuri publice de pe subreddit-uri
+- **🎬 Vimeo** (vimeo.com, player.vimeo.com)
+  - Videoclipuri publice și premium
+- **📺 Dailymotion** (dailymotion.com, dai.ly)
+  - Videoclipuri publice cu suport geo-restricții
 
 ### 🛡️ Funcționalități Tehnice
 - **🔄 Auto-retry** cu fallback pentru platforme instabile

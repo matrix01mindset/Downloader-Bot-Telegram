@@ -953,8 +953,24 @@ def validate_url(url):
     
     # Verifică dacă URL-ul conține domenii suportate
     supported_domains = [
-        'tiktok.com', 'instagram.com', 
-        'facebook.com', 'fb.watch', 'twitter.com', 'x.com'
+        # TikTok
+        'tiktok.com', 'vm.tiktok.com',
+        # Instagram
+        'instagram.com', 'www.instagram.com',
+        # Facebook
+        'facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch', 'fb.me',
+        # Twitter/X
+        'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com',
+        # Threads
+        'threads.net', 'www.threads.net',
+        # Pinterest
+        'pinterest.com', 'www.pinterest.com', 'pinterest.co.uk', 'pin.it', 'pinterest.fr', 'pinterest.de', 'pinterest.ca',
+        # Reddit
+        'reddit.com', 'www.reddit.com', 'old.reddit.com', 'redd.it', 'v.redd.it', 'i.redd.it',
+        # Vimeo
+        'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
+        # Dailymotion
+        'dailymotion.com', 'www.dailymotion.com', 'dai.ly', 'geo.dailymotion.com'
     ]
     
     if not any(domain in url.lower() for domain in supported_domains):
@@ -1290,8 +1306,24 @@ def is_supported_url(url):
     Verifică dacă URL-ul este suportat
     """
     supported_domains = [
-        'tiktok.com', 'instagram.com', 
-        'facebook.com', 'fb.watch', 'twitter.com', 'x.com'
+        # TikTok
+        'tiktok.com', 'vm.tiktok.com',
+        # Instagram
+        'instagram.com', 'www.instagram.com',
+        # Facebook
+        'facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch', 'fb.me',
+        # Twitter/X
+        'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com',
+        # Threads
+        'threads.net', 'www.threads.net',
+        # Pinterest
+        'pinterest.com', 'www.pinterest.com', 'pinterest.co.uk', 'pin.it', 'pinterest.fr', 'pinterest.de', 'pinterest.ca',
+        # Reddit
+        'reddit.com', 'www.reddit.com', 'old.reddit.com', 'redd.it', 'v.redd.it', 'i.redd.it',
+        # Vimeo
+        'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
+        # Dailymotion
+        'dailymotion.com', 'www.dailymotion.com', 'dai.ly', 'geo.dailymotion.com'
     ]
     
     return any(domain in url.lower() for domain in supported_domains)
