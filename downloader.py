@@ -1090,6 +1090,12 @@ def is_youtube_url(url):
     return False
 
 
+def extract_post_id_from_url(url):
+    """Extrage ID-ul postului din URL-ul Reddit"""
+    import re
+    match = re.search(r'/comments/([a-zA-Z0-9]+)/', url)
+    return match.group(1) if match else None
+
 def extract_reddit_video_direct(url, temp_dir):
     """
     Extrage video direct din Reddit folosind API-ul JSON public
@@ -1106,34 +1112,84 @@ def extract_reddit_video_direct(url, temp_dir):
         
         logger.info(f"Accesez JSON API: {json_url}")
         
-        # Headers pentru a simula un browser real
+        # Headers pentru a evita detectarea ca bot
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'max-age=0',
             'Connection': 'keep-alive',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin'
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"'
         }
         
-        # Accesează JSON-ul Reddit
-        response = requests.get(json_url, headers=headers, timeout=30)
-        response.raise_for_status()
+        # Strategia 1: Încearcă old.reddit.com (mai puțin restrictiv)
+        old_reddit_url = url.replace('www.reddit.com', 'old.reddit.com')
+        if not old_reddit_url.endswith('.json'):
+            old_reddit_url = old_reddit_url.rstrip('/') + '.json'
+        
+        logger.info(f"Încerc old.reddit.com: {old_reddit_url}")
+        
+        simple_headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; RedditVideoBot/1.0)',
+            'Accept': 'application/json'
+        }
+        
+        response = None
+        try:
+            response = requests.get(old_reddit_url, headers=simple_headers, timeout=20)
+            if response.status_code == 200:
+                logger.info("Succes cu old.reddit.com")
+            else:
+                response.raise_for_status()
+        except Exception as e:
+            logger.warning(f"old.reddit.com a eșuat: {e}")
+            
+            # Strategia 2: Încearcă API-ul Reddit direct
+            post_id = extract_post_id_from_url(url)
+            if post_id:
+                api_url = f"https://www.reddit.com/api/info.json?id=t3_{post_id}"
+                logger.info(f"Încerc API Reddit: {api_url}")
+                
+                try:
+                    response = requests.get(api_url, headers=simple_headers, timeout=20)
+                    if response.status_code == 200:
+                        logger.info("Succes cu API Reddit")
+                    else:
+                        response.raise_for_status()
+                except Exception as e2:
+                    logger.error(f"Toate strategiile Reddit au eșuat: {e}, {e2}")
+                    raise e2
+            else:
+                raise e
         
         data = response.json()
         logger.info("JSON Reddit accesat cu succes")
         
-        # Extrage informațiile despre post
-        if not data or len(data) < 1:
+        # Parsează datele în funcție de sursa API
+        post_data = None
+        if isinstance(data, dict) and 'data' in data:
+            # Format API direct
+            children = data['data'].get('children', [])
+            if children:
+                post_data = children[0]['data']
+        elif isinstance(data, list) and len(data) > 0:
+            # Format old.reddit.com
+            post_data = data[0]['data']['children'][0]['data']
+        
+        if not post_data:
             return {
                 'success': False,
                 'error': '❌ Reddit: Nu s-au găsit date în răspunsul JSON',
                 'title': 'N/A'
             }
-        
-        post_data = data[0]['data']['children'][0]['data']
         title = post_data.get('title', 'Reddit Video')
         
         # Verifică dacă postul conține video
