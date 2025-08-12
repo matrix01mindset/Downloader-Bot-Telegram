@@ -1293,13 +1293,9 @@ def download_video(url, output_path=None):
         }
     
     finally:
-        # Cleanup temp dir - întotdeauna executat
-        try:
-            if 'temp_dir' in locals() and os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
-                logger.info(f"=== DOWNLOAD_VIDEO Temp dir cleaned up: {temp_dir} ===")
-        except Exception as cleanup_error:
-            logger.warning(f"Eroare la cleanup temp dir: {cleanup_error}")
+        # Nu șterge temp_dir aici - va fi șters după trimiterea fișierului
+        # Cleanup-ul se face în send_video_file din app.py
+        pass
 
 def is_supported_url(url):
     """

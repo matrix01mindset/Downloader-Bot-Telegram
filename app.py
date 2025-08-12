@@ -1243,9 +1243,21 @@ def send_video_file(chat_id, file_path, video_info):
             
             send_telegram_message(chat_id, error_message)
             try:
+                # Șterge fișierul
                 os.remove(file_path)
-            except:
-                pass
+                
+                # Dacă fișierul era într-un director temporar, șterge și directorul
+                parent_dir = os.path.dirname(file_path)
+                if 'tmp' in parent_dir.lower() or 'temp' in parent_dir.lower():
+                    try:
+                        import shutil
+                        if os.path.exists(parent_dir) and os.path.isdir(parent_dir):
+                            shutil.rmtree(parent_dir)
+                            logger.info(f"Director temporar șters: {parent_dir}")
+                    except Exception as cleanup_error:
+                        logger.warning(f"Nu s-a putut șterge directorul temporar {parent_dir}: {cleanup_error}")
+            except Exception as file_error:
+                logger.warning(f"Nu s-a putut șterge fișierul {file_path}: {file_error}")
             return
         
         # Folosește funcția centrală pentru caption sigur
@@ -1286,11 +1298,23 @@ def send_video_file(chat_id, file_path, video_info):
                 # Timeout mărit pentru fallback
                 response = requests.post(url, files={'video': video_file}, data=data_fallback, timeout=(30, 600))
             
-        # Șterge fișierul temporar
+        # Șterge fișierul temporar și directorul părinte dacă este temporar
         try:
+            # Șterge fișierul
             os.remove(file_path)
-        except:
-            pass
+            
+            # Dacă fișierul era într-un director temporar, șterge și directorul
+            parent_dir = os.path.dirname(file_path)
+            if 'tmp' in parent_dir.lower() or 'temp' in parent_dir.lower():
+                try:
+                    import shutil
+                    if os.path.exists(parent_dir) and os.path.isdir(parent_dir):
+                        shutil.rmtree(parent_dir)
+                        logger.info(f"Director temporar șters: {parent_dir}")
+                except Exception as cleanup_error:
+                    logger.warning(f"Nu s-a putut șterge directorul temporar {parent_dir}: {cleanup_error}")
+        except Exception as file_error:
+            logger.warning(f"Nu s-a putut șterge fișierul {file_path}: {file_error}")
             
         if response.status_code == 200:
             logger.info(f"Video trimis cu succes pentru chat {chat_id}")
