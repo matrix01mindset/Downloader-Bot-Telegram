@@ -863,10 +863,14 @@ def index():
 # Set pentru a urmări mesajele procesate (previne duplicarea)
 processed_messages = set()
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     """Procesează webhook-urile de la Telegram"""
     try:
+        # Dacă este o cerere GET, returnează status OK
+        if request.method == 'GET':
+            return jsonify({'status': 'webhook_ready', 'method': 'GET'}), 200
+            
         # Obține datele JSON de la Telegram
         json_data = request.get_json()
         
