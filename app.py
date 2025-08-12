@@ -996,6 +996,11 @@ def webhook():
                 
                 logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
                 
+                # Extrage user_id din mesaj
+                user_id = None
+                if 'from' in message and 'id' in message['from']:
+                    user_id = message['from']['id']
+                
                 # Procesează mesajul și trimite răspuns
                 try:
                     if text == '/start':
@@ -1050,7 +1055,7 @@ def webhook():
                     elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'threads.com' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
                         logger.info(f"Link video detectat: {text}")
                         # Procesează link-ul video
-                        process_video_link_sync(chat_id, text)
+                        process_video_link_sync(chat_id, text, user_id)
                         
                     else:
                         success = send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
@@ -1106,6 +1111,17 @@ def process_message_sync(update):
             logger.error(f"Nu se poate obține textul mesajului: {e}")
             return
         
+        # Obține user_id din mesaj
+        user_id = None
+        try:
+            if hasattr(message, 'from_user') and message.from_user:
+                user_id = message.from_user.id
+            elif hasattr(message, 'from') and message.from_:
+                user_id = message.from_.id
+            logger.info(f"User ID: {user_id}")
+        except Exception as e:
+            logger.error(f"Nu se poate obține user_id: {e}")
+        
         # Verifică dacă mesajul are text
         if not text:
             logger.info("No text in message, returning")
@@ -1160,7 +1176,7 @@ def process_message_sync(update):
             
         elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'threads.com' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
             # Procesează link-ul video
-            process_video_link_sync(chat_id, text)
+            process_video_link_sync(chat_id, text, user_id)
             
         else:
             send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
@@ -1208,7 +1224,7 @@ def answer_callback_query(callback_query_id):
     except Exception as e:
         logger.error(f"Eroare la răspunsul callback: {e}")
 
-def process_video_link_sync(chat_id, url):
+def process_video_link_sync(chat_id, url, user_id=None):
     """Procesează link-ul video în mod sincron și descarcă automat în 720p"""
     try:
         # Verifică dacă URL-ul este suportat
@@ -1220,7 +1236,7 @@ def process_video_link_sync(chat_id, url):
         send_telegram_message(chat_id, "✅ Procesez și descarc video-ul în 720p te rog asteapta")
         
         # Descarcă direct în calitate 720p
-        download_video_sync(chat_id, url)
+        download_video_sync(chat_id, url, user_id)
         
     except Exception as e:
         logger.error(f"Eroare la procesarea link-ului: {e}")
@@ -1229,7 +1245,7 @@ def process_video_link_sync(chat_id, url):
 # Set pentru a preveni mesajele repetate de eroare
 error_messages_sent = set()
 
-def download_video_sync(chat_id, url):
+def download_video_sync(chat_id, url, user_id=None):
     """Descarcă video-ul în mod sincron în 720p"""
     global error_messages_sent
     
@@ -1239,7 +1255,7 @@ def download_video_sync(chat_id, url):
         
         if result['success']:
             # Log succesul descărcării
-            log_download_success(result.get('platform', 'unknown'), url, 0, user_id, chat_id)
+            log_download_success(result.get('platform', 'unknown'), url, 0, user_id or chat_id, chat_id)
             # Trimite fișierul cu toate informațiile
             send_video_file(chat_id, result['file_path'], result)
             # Șterge din cache-ul de erori dacă descărcarea a reușit
@@ -1248,7 +1264,7 @@ def download_video_sync(chat_id, url):
         else:
             # Log eroarea descărcării
             error_msg = result.get('error', 'Eroare necunoscută')
-            log_download_error(result.get('platform', 'unknown'), url, error_msg, user_id, chat_id)
+            log_download_error(result.get('platform', 'unknown'), url, error_msg, user_id or chat_id, chat_id)
             # Previne trimiterea de mesaje repetate de eroare pentru același URL
             error_key = f"{chat_id}_{url}"
             if error_key not in error_messages_sent:
@@ -1263,7 +1279,7 @@ def download_video_sync(chat_id, url):
     except Exception as e:
         logger.error(f"Eroare la descărcarea video-ului: {e}")
         # Log eroarea generală
-        log_download_error('unknown', url, f"Exception: {str(e)}", user_id, chat_id)
+        log_download_error('unknown', url, f"Exception: {str(e)}", user_id or chat_id, chat_id)
         # Previne trimiterea de mesaje repetate de eroare pentru excepții
         error_key = f"{chat_id}_{url}_exception"
         if error_key not in error_messages_sent:
