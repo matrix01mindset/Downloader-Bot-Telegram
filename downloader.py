@@ -1033,6 +1033,19 @@ def download_video(url, output_path=None):
                 url = normalize_facebook_url(url)
                 logger.info(f"URL procesat pentru Facebook: {url}")
             
+            # Procesează URL-urile Threads - folosește Instagram extractor
+            if 'threads.com' in url.lower() or 'threads.net' in url.lower():
+                # Threads folosește același backend ca Instagram
+                # Încearcă să convertească URL-ul Threads într-un format suportat
+                if '?xmt=' in url or not ('/post/' in url or '/t/' in url):
+                    logger.warning(f"URL Threads nesuportat (nu este un post specific): {url}")
+                    return {
+                        'success': False,
+                        'error': '❌ Threads: URL-ul nu pare să fie un post specific cu video.\n\n💡 Încearcă cu un link direct către un post Threads care conține video:\n• https://www.threads.net/@username/post/ABC123\n• https://www.threads.net/t/ABC123\n\n⚠️ Link-urile generale Threads (cu ?xmt=) nu sunt suportate.',
+                        'title': 'Threads - URL nesuportat'
+                    }
+                logger.info(f"URL Threads detectat: {url}")
+            
             # Configurație pentru alte platforme
             ydl_opts = {
                 'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),  # Limitează titlul la 100 caractere
@@ -1062,6 +1075,35 @@ def download_video(url, output_path=None):
                 'socket_timeout': 30,
                 'retries': 3,
             }
+            
+            # Configurații specifice pentru Threads
+            if 'threads.com' in url.lower() or 'threads.net' in url.lower():
+                # Threads folosește Instagram extractor - adaugă configurații specifice
+                ydl_opts.update({
+                    'extractor_args': {
+                        'instagram': {
+                            'api_version': 'v19.0',
+                            'legacy_ssl': True,
+                            'ignore_parse_errors': True
+                        }
+                    },
+                    # Headers specifice pentru Threads/Instagram
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Connection': 'keep-alive',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none',
+                        'Sec-Fetch-User': '?1',
+                        'Upgrade-Insecure-Requests': '1'
+                    },
+                    'retries': 5,
+                    'extractor_retries': 8
+                })
+                logger.info("Configurații Threads/Instagram aplicate")
     
         logger.info("=== DOWNLOAD_VIDEO Creating YoutubeDL instance ===")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1098,6 +1140,18 @@ def download_video(url, output_path=None):
                         title += '...'
                 elif uploader:
                     title = f"TikTok de la {uploader}"
+            
+            elif 'threads.com' in url.lower() or 'threads.net' in url.lower():
+                # Pentru Threads, îmbunătățește titlul
+                if description and len(description) > len(title):
+                    # Ia primele 100 de caractere din descriere ca titlu
+                    title = description[:100].strip()
+                    if len(description) > 100:
+                        title += '...'
+                elif uploader:
+                    title = f"Threads de la {uploader}"
+                else:
+                    title = "Video Threads"
             
             # Curăță titlul de caractere speciale problematice și emoticoane
             title = clean_title(title)
@@ -1221,6 +1275,32 @@ def download_video(url, output_path=None):
                 'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
                 'title': 'N/A'
             }
+        # Gestionare specifică pentru Threads
+        elif 'threads.com' in url.lower() or 'threads.net' in url.lower():
+            if 'unsupported url' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Threads: URL nesuportat.\n\n🔧 Cauze posibile:\n• URL-ul nu conține un video\n• Post privat sau restricționat\n• Format URL nerecunoscut\n\n💡 Încearcă:\n• Un link direct către un post cu video\n• Format: https://www.threads.net/@username/post/ABC123\n• Verifică că postul este public',
+                    'title': 'N/A'
+                }
+            elif 'login' in error_msg or 'authentication' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Threads: Conținut privat sau necesită autentificare.\n\n🔒 Acest post poate fi:\n• Privat sau restricționat\n• Disponibil doar pentru utilizatori autentificați\n\n💡 Încearcă cu un post public Threads.',
+                    'title': 'N/A'
+                }
+            elif 'not available' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Threads: Conținutul nu este disponibil sau a fost șters.\n\n🔧 Verifică că:\n• Link-ul este corect\n• Postul nu a fost șters\n• Postul este public',
+                    'title': 'N/A'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f'❌ Threads: Eroare la descărcare.\n\n🔧 Detalii: {str(e)[:100]}...\n\n💡 Threads folosește tehnologia Instagram și poate avea restricții similare.',
+                    'title': 'N/A'
+                }
         elif 'rate' in error_msg and 'limit' in error_msg:
             return {
                 'success': False,

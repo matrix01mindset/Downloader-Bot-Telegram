@@ -154,6 +154,8 @@ security:
   url_whitelist_enabled: false  # Pentru flexibilitate
   max_url_length: 2048
   sanitize_filenames: true
+  # Lista ID-urilor de utilizatori admin (pentru comenzi /stats, /health)
+  admin_user_ids: []  # Adaugă ID-urile utilizatorilor admin aici
   
 # 🌍 Localization (pregătit pentru viitor)
 localization:

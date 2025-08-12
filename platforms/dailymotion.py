@@ -10,7 +10,7 @@ import os
 from typing import Dict, Any, List
 import yt_dlp
 
-from .base import BasePlatform, DownloadResult
+from .base import BasePlatform, DownloadResult, VideoInfo, ExtractionError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,8 @@ class DailymotionPlatform(BasePlatform):
     """
     
     def __init__(self):
-        super().__init__('dailymotion')
+        super().__init__()
+        self.platform_name = 'dailymotion'
         
         # Domenii suportate
         self.supported_domains = [
@@ -260,6 +261,43 @@ class DailymotionPlatform(BasePlatform):
             error="❌ Dailymotion download failed with all strategies",
             platform=self.name
         )
+    
+    def supports_url(self, url: str) -> bool:
+        """Verifică dacă URL-ul este suportat de Dailymotion"""
+        return any(domain in url.lower() for domain in self.supported_domains)
+    
+    async def get_video_info(self, url: str) -> VideoInfo:
+        """Extrage informațiile video de pe Dailymotion"""
+        try:
+            # Folosim yt-dlp pentru a extrage informațiile
+            import yt_dlp
+            
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                
+                return VideoInfo(
+                    id=info.get('id', ''),
+                    title=info.get('title', 'Dailymotion Video'),
+                    description=info.get('description', ''),
+                    duration=info.get('duration', 0),
+                    uploader=info.get('uploader', ''),
+                    thumbnail=info.get('thumbnail', ''),
+                    view_count=info.get('view_count', 0),
+                    like_count=info.get('like_count', 0),
+                    upload_date=info.get('upload_date', ''),
+                    webpage_url=url,
+                    platform='dailymotion'
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error extracting Dailymotion video info: {e}")
+            raise ExtractionError(f"Failed to extract video info: {str(e)}")
 
 # Singleton instance pentru Dailymotion platform
 dailymotion_platform = DailymotionPlatform()

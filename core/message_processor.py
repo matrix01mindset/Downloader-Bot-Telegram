@@ -569,7 +569,8 @@ class MessageProcessor:
                    
     def _is_admin(self, user_id: int) -> bool:
         """Verifică dacă utilizatorul este admin"""
-        admin_ids = self.config.get('admin_user_ids', [])
+        security_config = self.config.get('security', {})
+        admin_ids = security_config.get('admin_user_ids', [])
         return user_id in admin_ids
         
     async def _send_error_message(self, chat_id: int, error_text: str):
@@ -664,29 +665,117 @@ class MessageProcessor:
         )
         
     async def _send_stats_message(self, chat_id: int):
-        """Trimite statistici (doar pentru admini)"""
+        """Trimite mesajul cu statisticile sistemului"""
         try:
-            # Obține statistici de la componentele sistemului
-            stats = {
-                'platform_manager': {},
-                'webhook_handler': {},
-                'cache': {},
-                'system': {}
-            }
+            # Obține statistici de la platform manager
+            platform_stats = self.platform_manager.get_manager_stats()
             
-            if hasattr(self.platform_manager, 'get_stats'):
-                stats['platform_manager'] = self.platform_manager.get_stats()
+            # Obține statistici de la bot manager (dacă este disponibil)
+            bot_stats = {}
+            try:
+                # Încearcă să obțină statistici de la bot manager prin import global
+                import sys
+                if 'app_new' in sys.modules:
+                    app_module = sys.modules['app_new']
+                    if hasattr(app_module, 'bot_manager') and app_module.bot_manager:
+                        bot_stats = app_module.bot_manager.get_health_status()
+            except Exception as e:
+                logger.warning(f"Could not get bot manager stats: {e}")
+            
+            # Calculează statistici generale
+            total_requests = platform_stats.get('total_requests', 0)
+            successful_extractions = platform_stats.get('successful_extractions', 0)
+            successful_downloads = platform_stats.get('successful_downloads', 0)
+            failed_requests = platform_stats.get('failed_requests', 0)
+            
+            # Calculează total downloads și success rate
+            total_downloads = successful_downloads
+            if total_requests > 0:
+                success_rate = (successful_downloads / total_requests) * 100
+            else:
+                success_rate = 0
                 
-            # Formatează statisticile
+            # Pentru compatibilitate cu bot_manager stats
+            if bot_stats:
+                total_requests = max(total_requests, bot_stats.get('total_requests', 0))
+                successful_requests = bot_stats.get('successful_requests', successful_downloads)
+                if total_requests > 0:
+                    success_rate = (successful_requests / total_requests) * 100
+            
+            # Formatează uptime
+            uptime_seconds = bot_stats.get('uptime_seconds', 0)
+            uptime_formatted = self._format_uptime(uptime_seconds)
+            
+            # Formatează memoria
+            memory_mb = bot_stats.get('memory_usage_mb', 0)
+            
+            # Construiește mesajul principal
             message = (
-                "📊 <b>Statistici Bot</b>\n\n"
-                
-                f"🌐 <b>Platforme:</b> {len(self.platform_manager.platforms) if self.platform_manager else 0}\n"
-                f"💾 <b>Cache:</b> {'Activ' if hasattr(cache, 'is_enabled') and cache.is_enabled else 'Inactiv'}\n"
-                f"📈 <b>Uptime:</b> {'Activ' if monitoring else 'Necunoscut'}\n\n"
-                
-                f"💡 Pentru statistici detaliate, verifică log-urile sistemului."
+                "📊 <b>System Statistics:</b>\n\n"
+                f"• <b>Uptime:</b> {uptime_formatted}\n"
+                f"• <b>Downloads:</b> {total_downloads:,}\n"
+                f"• <b>Success Rate:</b> {success_rate:.1f}%\n"
+                f"• <b>Memory Usage:</b> {memory_mb:.0f}MB\n\n"
             )
+            
+            # Adaugă statistici per platformă
+            platform_data = platform_stats.get('platform_stats', {})
+            if platform_data:
+                message += "🌐 <b>Platforms:</b>\n"
+                
+                # Sortează platformele după numărul de cereri
+                sorted_platforms = sorted(
+                    platform_data.items(), 
+                    key=lambda x: x[1].get('requests', 0), 
+                    reverse=True
+                )
+                
+                for platform_name, stats in sorted_platforms[:5]:  # Top 5 platforme
+                    requests = stats.get('requests', 0)
+                    if requests > 0:
+                        percentage = (requests / total_requests * 100) if total_requests > 0 else 0
+                        successes = stats.get('successes', 0)
+                        platform_success_rate = (successes / requests * 100) if requests > 0 else 0
+                        
+                        message += f"  • <b>{platform_name.title()}:</b> {requests:,} ({percentage:.1f}%) - {platform_success_rate:.1f}% success\n"
+            
+            # Adaugă metrici de performanță
+            message += "\n⚡ <b>Performance:</b>\n"
+            
+            # Telegram API stats
+            telegram_stats = getattr(self.telegram_api, 'stats', {})
+            if telegram_stats:
+                avg_response_time = telegram_stats.get('average_response_time', 0)
+                message += f"  • <b>Avg API Response:</b> {avg_response_time:.2f}s\n"
+            
+            # Platform average response time
+            total_response_time = 0
+            total_platform_requests = 0
+            for platform_name, stats in platform_data.items():
+                platform_requests = stats.get('requests', 0)
+                avg_time = stats.get('average_response_time', 0)
+                if platform_requests > 0 and avg_time > 0:
+                    total_response_time += avg_time * platform_requests
+                    total_platform_requests += platform_requests
+            
+            if total_platform_requests > 0:
+                overall_avg_time = total_response_time / total_platform_requests
+                message += f"  • <b>Avg Download Time:</b> {overall_avg_time:.2f}s\n"
+            
+            # Active downloads
+            active_downloads = bot_stats.get('active_downloads', 0)
+            message += f"  • <b>Active Downloads:</b> {active_downloads}\n"
+            
+            # Adaugă informații despre sistem
+            message += "\n🔧 <b>System Info:</b>\n"
+            platforms_loaded = platform_stats.get('platforms_loaded', 0)
+            message += f"  • <b>Platforms Loaded:</b> {platforms_loaded}\n"
+            
+            cache_enabled = bot_stats.get('cache_enabled', False)
+            message += f"  • <b>Cache:</b> {'✅ Enabled' if cache_enabled else '❌ Disabled'}\n"
+            
+            monitoring_enabled = bot_stats.get('monitoring_enabled', False)
+            message += f"  • <b>Monitoring:</b> {'✅ Enabled' if monitoring_enabled else '❌ Disabled'}\n"
             
             await self.telegram_api.send_message(
                 chat_id=chat_id,
@@ -697,6 +786,24 @@ class MessageProcessor:
         except Exception as e:
             logger.error(f"Error sending stats message: {e}")
             await self._send_error_message(chat_id, f"Eroare la obținerea statisticilor: {e}")
+    
+    def _format_uptime(self, seconds: int) -> str:
+        """Formatează uptime-ul în format lizibil"""
+        if seconds < 60:
+            return f"{seconds}s"
+        elif seconds < 3600:
+            minutes = seconds // 60
+            secs = seconds % 60
+            return f"{minutes}m {secs}s"
+        elif seconds < 86400:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+        else:
+            days = seconds // 86400
+            hours = (seconds % 86400) // 3600
+            minutes = ((seconds % 86400) % 3600) // 60
+            return f"{days}d {hours}h {minutes}m"
             
     async def cleanup(self):
         """Curăță resursele"""

@@ -27,7 +27,8 @@ class FacebookPlatform(BasePlatform):
     """
     
     def __init__(self):
-        super().__init__('facebook')
+        super().__init__()
+        self.platform_name = 'facebook'
         
         # Domenii suportate
         self.supported_domains = [
@@ -48,6 +49,72 @@ class FacebookPlatform(BasePlatform):
         ]
         
         logger.info(f"🔵 Facebook platform initialized with {len(self.api_versions)} API versions")
+    
+    def supports_url(self, url: str) -> bool:
+        """Verifică dacă URL-ul este suportat de Facebook platform"""
+        if not url:
+            return False
+            
+        url_lower = url.lower()
+        return any(domain in url_lower for domain in self.supported_domains)
+    
+    async def get_video_info(self, url: str) -> 'VideoInfo':
+        """Obține informații despre video de pe Facebook"""
+        from .base import VideoInfo
+        
+        try:
+            # Normalizează URL-ul
+            normalized_url = self._normalize_facebook_url(url)
+            
+            # Configurează yt-dlp pentru Facebook
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'user_agent': random.choice(self.user_agents),
+                'http_headers': {
+                    'User-Agent': random.choice(self.user_agents),
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                }
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(normalized_url, download=False)
+                
+                if not info:
+                    raise Exception("Could not extract video information")
+                
+                # Extrage informațiile necesare
+                title = info.get('title', 'Facebook Video')
+                duration = info.get('duration', 0)
+                thumbnail = info.get('thumbnail', '')
+                
+                # Găsește cel mai bun format
+                formats = info.get('formats', [])
+                best_format = None
+                
+                for fmt in formats:
+                    if fmt.get('vcodec') != 'none' and fmt.get('acodec') != 'none':
+                        if not best_format or (fmt.get('height', 0) > best_format.get('height', 0)):
+                            best_format = fmt
+                
+                if not best_format:
+                    raise Exception("No suitable video format found")
+                
+                return VideoInfo(
+                    title=title,
+                    duration=duration,
+                    thumbnail=thumbnail,
+                    url=normalized_url,
+                    platform='facebook',
+                    quality=f"{best_format.get('height', 'unknown')}p",
+                    file_size=best_format.get('filesize', 0) or 0
+                )
+                
+        except Exception as e:
+            logger.error(f"Error getting Facebook video info: {e}")
+            raise Exception(f"Failed to get video info: {str(e)}")
         
     async def is_supported_url(self, url: str) -> bool:
         """Verifică dacă URL-ul este de Facebook"""

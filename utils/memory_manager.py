@@ -264,7 +264,7 @@ class MemoryManager:
             logger.warning(f"⚠️ Memory limit would be exceeded: {current_memory:.1f} + {estimated_size_mb:.1f} > {self.max_memory_mb}")
             
             # Încearcă cleanup urgent
-            freed_mb = await self.cleanup_memory(force=True, target_mb=estimated_size_mb)
+            freed_mb = self._cleanup_memory_sync(force=True, target_mb=estimated_size_mb)
             
             # Verifică din nou după cleanup
             current_memory = self.monitor.record_measurement()
@@ -360,7 +360,46 @@ class MemoryManager:
         logger.info(f"✅ Memory cleanup completed - Freed: {actual_freed:.1f}MB (estimated: {freed_mb:.1f}MB)")
         
         return actual_freed
+
+    def _cleanup_memory_sync(self, 
+                           force: bool = False, 
+                           target_mb: Optional[float] = None,
+                           priority_threshold: MemoryPriority = MemoryPriority.MEDIUM) -> float:
+        """
+        Versiune sincronă a cleanup_memory pentru situații urgente
+        """
+        start_memory = self.monitor.record_measurement()
         
+        if not force and start_memory < self.warning_threshold:
+            return 0.0
+            
+        logger.info(f"🧹 Starting sync memory cleanup - Current: {start_memory:.1f}MB")
+        
+        freed_mb = 0.0
+        
+        # 1. Cleanup allocations by priority
+        freed_mb += self._cleanup_allocations_by_priority(priority_threshold, target_mb)
+        
+        # 2. Cleanup old files
+        freed_mb += self._cleanup_files()
+        
+        # 3. Force garbage collection
+        freed_mb += self._force_garbage_collection()
+        
+        # 4. Cleanup dead weak references
+        self._cleanup_dead_references()
+        
+        end_memory = self.monitor.record_measurement()
+        actual_freed = start_memory - end_memory
+        
+        self.stats['cleanups_performed'] += 1
+        self.stats['memory_freed_mb'] += max(actual_freed, 0)
+        self.last_cleanup = time.time()
+        
+        logger.info(f"✅ Sync memory cleanup completed - Freed: {actual_freed:.1f}MB")
+        
+        return actual_freed
+
     def _cleanup_allocations_by_priority(self, 
                                        priority_threshold: MemoryPriority,
                                        target_mb: Optional[float] = None) -> float:
