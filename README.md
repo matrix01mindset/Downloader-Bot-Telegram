@@ -1979,16 +1979,7 @@ This project uses several open-source libraries:
 
 This project was inspired by the need for a reliable, user-friendly video downloading solution that respects user privacy and provides a great experience across multiple platforms.
 
-### 💝 Donations
 
-If you find this project useful, consider supporting its development:
-
-- **GitHub Sponsors** - [Sponsor on GitHub](https://github.com/sponsors/matrix01mindset)
-- **PayPal** - [Donate via PayPal](https://paypal.me/matrix01mindset)
-- **Bitcoin** - `bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh`
-- **Ethereum** - `0x742d35Cc6634C0532925a3b8D4C9db3C4b4b4b4b`
-
----
 
 <div align="center">
 
