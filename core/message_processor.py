@@ -186,10 +186,10 @@ class MessageProcessor:
                     
                     # Log rezultatul descărcării
                     if result and result.get('status') == 'success':
-                        log_download_success(url, user_id, chat_id, result.get('platform', 'unknown'))
+                        log_download_success(result.get('platform', 'unknown'), url, 0, user_id, chat_id)
                     else:
                         error_msg = result.get('error', 'Unknown error') if result else 'No result'
-                        log_download_error(url, user_id, chat_id, error_msg)
+                        log_download_error(result.get('platform', 'unknown') if result else 'unknown', url, error_msg, user_id, chat_id)
                     
                     results.append({
                         'url': url,

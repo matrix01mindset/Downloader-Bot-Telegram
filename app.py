@@ -1239,7 +1239,7 @@ def download_video_sync(chat_id, url):
         
         if result['success']:
             # Log succesul descărcării
-            log_download_success(url, 0, chat_id, result.get('platform', 'unknown'))
+            log_download_success(result.get('platform', 'unknown'), url, 0, user_id, chat_id)
             # Trimite fișierul cu toate informațiile
             send_video_file(chat_id, result['file_path'], result)
             # Șterge din cache-ul de erori dacă descărcarea a reușit
@@ -1248,7 +1248,7 @@ def download_video_sync(chat_id, url):
         else:
             # Log eroarea descărcării
             error_msg = result.get('error', 'Eroare necunoscută')
-            log_download_error(url, 0, chat_id, error_msg)
+            log_download_error(result.get('platform', 'unknown'), url, error_msg, user_id, chat_id)
             # Previne trimiterea de mesaje repetate de eroare pentru același URL
             error_key = f"{chat_id}_{url}"
             if error_key not in error_messages_sent:
@@ -1263,7 +1263,7 @@ def download_video_sync(chat_id, url):
     except Exception as e:
         logger.error(f"Eroare la descărcarea video-ului: {e}")
         # Log eroarea generală
-        log_download_error(url, 0, chat_id, f"Exception: {str(e)}")
+        log_download_error('unknown', url, f"Exception: {str(e)}", user_id, chat_id)
         # Previne trimiterea de mesaje repetate de eroare pentru excepții
         error_key = f"{chat_id}_{url}_exception"
         if error_key not in error_messages_sent:
