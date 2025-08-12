@@ -1387,8 +1387,18 @@ def download_video(url, output_path=None):
                     os.environ.get('DYNO') or 
                     os.environ.get('PORT') or
                     '/app' in os.getcwd() or
-                    'RENDER' in str(os.environ)
+                    'RENDER' in str(os.environ) or
+                    os.path.exists('/home/app') or  # Render specific
+                    not os.path.exists('/home') or  # Nu este Linux desktop
+                    os.name != 'nt'  # Nu este Windows
                 )
+                
+                logger.info(f"Detectare mediu server: {is_server_environment}")
+                logger.info(f"RENDER env: {os.environ.get('RENDER')}")
+                logger.info(f"PORT env: {os.environ.get('PORT')}")
+                logger.info(f"CWD: {os.getcwd()}")
+                logger.info(f"OS name: {os.name}")
+                logger.info(f"/home/app exists: {os.path.exists('/home/app')}")
                 
                 if is_server_environment:
                     logger.info("Mediu server detectat - folosesc extracția directă Reddit")
