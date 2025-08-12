@@ -8,7 +8,7 @@ import requests
 import json
 from datetime import datetime
 
-RENDER_URL = "https://telegram-video-downloader-bot-t3d9.onrender.com"
+RENDER_URL = "https://downloader-bot-telegram-nbix.onrender.com"
 
 def check_endpoint(endpoint, description):
     """Verifică un endpoint specific"""
