@@ -1,0 +1,15 @@
+# 🚀 Render Deployment Configuration
+services:
+  - type: web
+    name: telegram-video-downloader-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: PORT
+        value: "10000"
+    healthCheckPath: /health
+    region: frankfurt

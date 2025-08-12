@@ -243,11 +243,16 @@ if not TOKEN:
     for key in os.environ.keys():
         if 'TOKEN' in key.upper() or 'TELEGRAM' in key.upper():
             print(f"  - {key}")
-    raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
+    print("⚠️ AVERTISMENT: TELEGRAM_BOT_TOKEN nu este setat!")
+    TOKEN = "PLACEHOLDER_TOKEN"
 
 # Inițializare bot și application cu configurații optimizate pentru producție
 # Configurare bot cu connection pool și timeout-uri reduse pentru Render
-bot = Bot(TOKEN)
+try:
+    bot = Bot(TOKEN) if TOKEN and TOKEN != "PLACEHOLDER_TOKEN" else None
+except Exception as e:
+    print(f"⚠️ Eroare la inițializarea bot-ului: {e}")
+    bot = None
 application = (
     Application.builder()
     .token(TOKEN)
@@ -1445,7 +1450,7 @@ def initialize_on_startup():
 logger.info("Aplicația Telegram este configurată pentru webhook-uri")
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 10000))
     logger.info(f"Pornesc serverul Flask pe portul {port}")
     
     # Nu mai inițializez la startup pentru a evita problemele
