@@ -21,7 +21,7 @@ RUN useradd --create-home --shell /bin/bash app \
 # Copy requirements first for better Docker layer caching
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install Python dependencies - Force rebuild 2025-08-12
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
