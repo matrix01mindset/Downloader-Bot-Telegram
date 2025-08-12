@@ -1290,12 +1290,64 @@ def send_video_file(chat_id, file_path, video_info):
         send_telegram_message(chat_id, "❌ Eroare la trimiterea video-ului.")
 
 
+@app.route('/get_webhook_info', methods=['GET'])
+def get_webhook_info():
+    """Endpoint pentru verificarea informațiilor despre webhook"""
+    try:
+        import requests
+        
+        if TOKEN == "PLACEHOLDER_TOKEN":
+            return jsonify({
+                'status': 'error',
+                'message': 'TOKEN nu este setat corect',
+                'token_status': 'PLACEHOLDER_TOKEN'
+            }), 400
+        
+        telegram_api_url = f"https://api.telegram.org/bot{TOKEN}/getWebhookInfo"
+        response = requests.get(telegram_api_url, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return jsonify({
+                'status': 'success',
+                'webhook_info': result,
+                'token_status': 'VALID' if result.get('ok') else 'INVALID'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'HTTP error {response.status_code}',
+                'response': response.text
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Error: {type(e).__name__}: {str(e)}'
+        }), 500
+
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
     try:
-        # Folosește URL-ul curent al aplicației în loc de WEBHOOK_URL din variabilele de mediu
+        # Verifică dacă TOKEN-ul este valid
+        if TOKEN == "PLACEHOLDER_TOKEN":
+            logger.error("TOKEN nu este setat corect - încă este PLACEHOLDER_TOKEN")
+            return jsonify({
+                'status': 'error',
+                'message': 'TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu Render',
+                'token_status': 'PLACEHOLDER_TOKEN',
+                'instructions': 'Verifică Render Dashboard -> Environment Variables'
+            }), 400
+        
+        # Forțează HTTPS pentru webhook-ul Telegram (necesar pentru Render)
         current_url = request.url_root.rstrip('/')
+        # Înlocuiește HTTP cu HTTPS dacă este necesar
+        if current_url.startswith('http://'):
+            current_url = current_url.replace('http://', 'https://', 1)
         webhook_url = f"{current_url}/webhook"
+        
+        logger.info(f"Încercare setare webhook la: {webhook_url}")
+        logger.info(f"TOKEN status: {'VALID' if TOKEN != 'PLACEHOLDER_TOKEN' else 'PLACEHOLDER'}")
         
         # Folosește requests direct pentru a evita problemele cu event loop-ul
         import requests

@@ -26,7 +26,7 @@ class RenderUpdater:
             if os.path.exists(self.env_file):
                 with open(self.env_file, 'r') as f:
                     for line in f:
-                        if line.startswith('BOT_TOKEN='):
+                        if line.startswith('TELEGRAM_BOT_TOKEN='):
                             self.new_token = line.split('=', 1)[1].strip()
                             print(f"✅ Token nou găsit: {self.new_token[:15]}...")
                             return True

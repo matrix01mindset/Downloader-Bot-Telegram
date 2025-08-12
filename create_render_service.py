@@ -27,15 +27,22 @@ class RenderServiceCreator:
             if os.path.exists(self.env_file):
                 with open(self.env_file, 'r') as f:
                     for line in f:
-                        if line.startswith('BOT_TOKEN='):
-                            self.bot_token = line.split('=', 1)[1].strip()
-                            print(f"✅ Token găsit: {self.bot_token[:15]}...")
-                            return True
-            print("❌ Nu s-a găsit tokenul în .env")
-            return False
+                        if line.startswith('TELEGRAM_BOT_TOKEN='):
+                            self.bot_token = line.split('=', 1)[1].strip().strip('"')
+                            break
+            
+            if not self.bot_token:
+                print("❌ TELEGRAM_BOT_TOKEN nu a fost găsit în .env")
+                self.bot_token = input("Introdu TELEGRAM_BOT_TOKEN manual: ").strip()
+                
         except Exception as e:
-            print(f"❌ Eroare la citirea .env: {e}")
-            return False
+            print(f"❌ Eroare la încărcarea token-ului: {e}")
+            self.bot_token = input("Introdu TELEGRAM_BOT_TOKEN manual: ").strip()
+        
+        if self.bot_token:
+            print(f"✅ Token găsit: {self.bot_token[:15]}...")
+            return True
+        return False
     
     def test_bot_token(self):
         """Testează dacă tokenul funcționează"""
@@ -103,7 +110,7 @@ class RenderServiceCreator:
    ⚙️  Click "Advanced" → "Add Environment Variable"
    
    Variabila 1:
-   🔑 Key: BOT_TOKEN
+   🔑 Key: TELEGRAM_BOT_TOKEN
    🔒 Value: {self.bot_token}
    
    Variabila 2:
@@ -134,7 +141,7 @@ class RenderServiceCreator:
 ❌ Probleme comune:
    - Build failed: verifică requirements.txt
    - Start failed: verifică app.py și PORT
-   - Bot nu răspunde: verifică BOT_TOKEN
+   - Bot nu răspunde: verifică TELEGRAM_BOT_TOKEN
    - Timeout: verifică că app.py rulează pe PORT 10000
 
 🆘 SUPORT:
@@ -163,13 +170,13 @@ class RenderServiceCreator:
 import requests
 import sys
 
-BOT_TOKEN = "{self.bot_token}"
+TELEGRAM_BOT_TOKEN = "{self.bot_token}"
 WEBHOOK_URL = "https://{self.service_name}.onrender.com/webhook"
 
 def set_webhook():
     \"\"\"Setează webhook-ul Telegram\"\"\"
     try:
-        url = f"https://api.telegram.org/bot{{BOT_TOKEN}}/setWebhook"
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
         data = {{
             'url': WEBHOOK_URL,
             'max_connections': 40,

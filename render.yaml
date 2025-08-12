@@ -1,15 +1,60 @@
-# 🚀 Render Deployment Configuration
+# Render.com Deployment Configuration
+# Telegram Video Downloader Bot - Secure Version
 services:
   - type: web
     name: telegram-video-downloader-bot
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: python app.py
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.9"
       - key: PORT
         value: "10000"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      # MANDATORY - Set these in Render Dashboard
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # NEVER commit real token
+      - key: WEBHOOK_URL
+        sync: false  # Set to your Render service URL
+      # OPTIONAL CONFIGURATION
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MAX_FILE_SIZE_MB
+        value: 50
+      - key: DOWNLOAD_TIMEOUT
+        value: 300
+      - key: RATE_LIMIT_PER_MINUTE
+        value: 30
+      - key: DEBUG_MODE
+        value: false
+      - key: ENABLE_DETAILED_LOGS
+        value: true
+      # PLATFORM TOGGLES
+      - key: FACEBOOK
+        value: true
+      - key: INSTAGRAM
+        value: true
+      - key: TIKTOK
+        value: true
+      - key: TWITTER
+        value: true
+      - key: YOUTUBE
+        value: false
     healthCheckPath: /health
     region: frankfurt
+    # Configurații de securitate
+    disk:
+      name: temp-storage
+      mountPath: /tmp
+      sizeGB: 1
+    # Resurse optimizate pentru plan free
+    scaling:
+      minInstances: 1
+      maxInstances: 1

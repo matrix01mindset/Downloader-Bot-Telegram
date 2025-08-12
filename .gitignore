@@ -1,12 +1,25 @@
-# Fișiere de mediu și configurare
+# 🔐 SECURITATE - Fișiere sensibile
 .env
 *.env
+.env.local
+.env.production
+.env.staging
 
 # Token-uri și chei secrete
 config.py
 secrets.json
+*.key
+*.pem
+*.p12
+*.pfx
 
-# Fișiere Python
+# Fișiere cu credențiale expuse (ELIMINATE DIN REPOSITORY)
+RENDER_SERVICE_SETUP.txt
+RENDER_UPDATE_INSTRUCTIONS.txt
+monitor_bot.py.bak
+setup_webhook.py.bak
+
+# 📁 Directoare temporare și cache
 __pycache__/
 *.py[cod]
 *$py.class
@@ -24,42 +37,63 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-PIPFILE.lock
+MANIFEST
 
-# Medii virtuale
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE și editoare
+# 🔧 Instrumente dezvoltare
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Fișiere temporare de video
-*.mp4
-*.avi
-*.mov
-*.mkv
-*.webm
-*.flv
-*.wmv
-*.m4v
-*.3gp
-*.mp3
-*.wav
-*.aac
-*.ogg
-*.flac
+# 📊 Loguri și rapoarte
+*.log
+logs/
+*.out
+*.err
+test_report_*.json
+security_report_*.txt
+deployment_report_*.json
+pre_deploy_test_report.json
 
-# Fișiere temporare de sistem
+# 🌐 Fișiere temporare web
+*.tmp
+*.temp
+temp/
+tmp/
+
+# 📱 Fișiere media descărcate
+downloads/
+media/
+videos/
+audios/
+images/
+
+# 🐳 Docker
+.dockerignore
+docker-compose.override.yml
+
+# 📦 Node.js (dacă se folosește)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 🔄 Git
+.git/
+*.orig
+*.rej
+
+# 💾 Backup-uri
+*.bak
+*.backup
+*.old
+
+# 🔍 Fișiere sistem
 .DS_Store
 .DS_Store?
 ._*
@@ -68,93 +102,317 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Logs
-*.log
-logs/
+# 🚫 Fișiere specifice proiect
+test_local.py.bak
+app.py.bak
+downloader.py.bak
 
-# Fișiere de backup
-*.bak
-*.backup
-*.old
+# 📋 Fișiere configurare locale
+local_config.py
+dev_config.py
+test_config.py
 
-# Fișiere de test și script-uri locale
-test_*.py
-test_output/
-test_downloads/
-temp_videos/
-start.bat
-prepare_for_github.bat
-RENDER_DEPLOYMENT.md
-INSTALL.md
-DEPLOY_GUIDE.md
-
-# Certificat SSL (dacă este folosit)
-*.pem
-*.key
+# 🔐 Certificate SSL
 *.crt
+*.cert
+*.ca-bundle
 
-# Fișiere de deployment
-.vercel
-.netlify
+# 📊 Fișiere analiză
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# Fișiere specifice platformelor de hosting
-.replit
-replit.nix
-.upm/
+# 🎯 Fișiere IDE
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
 
-# Cache
-.cache/
-*.cache
+# 🔧 Fișiere build
+build/
+dist/
+*.egg-info/
 
-# Security files - IMPORTANT: Prevent secrets exposure
-.env*
-!.env.example
-!.env.template
-secrets/
-*.key
-*.token
-*.pem
-*.p12
-*.crt
-*.csr
+# 📝 Documentație temporară
+DOCS_TEMP/
+README_TEMP.md
 
-# Configuration files that might contain secrets
-config_local.yaml
-config_production.yaml
+# 🚀 Deployment
+render_config.json
+heroku_config.json
+vercel_config.json
+
+# 🔄 Fișiere sincronizare
+.sync/
+*.sync
+
+# 📱 Mobile development
+*.apk
+*.ipa
+*.aab
+
+# 🎮 Game files
+*.unity
+*.unitypackage
+
+# 🔊 Audio/Video processing
+*.wav
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4a
+*.aac
+*.ogg
+
+# 📸 Image processing
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+*.ico
+*.webp
+
+# 📄 Document files
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# 🗜️ Archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+*.xz
+
+# 🔐 Security scan results
+security_scan_*.json
+vulnerability_report_*.txt
+
+# 🧪 Test results
+test_results/
+coverage_reports/
+
+# 🔄 Version control
+.svn/
+.hg/
+.bzr/
+
+# 🌍 Localization
+*.mo
+*.pot
+
+# 📊 Performance profiling
+*.prof
+*.pstats
+
+# 🔧 Configuration overrides
+config_override.py
 settings_local.py
-settings_production.py
 
-# Logs that might contain sensitive data
-*.log.sensitive
-audit.log
-security.log
-telemetry_data/
+# 🚫 Fișiere interzise pentru securitate
+*.sql
+*.db
+*.sqlite
+*.sqlite3
 
-# Temporary files that might contain secrets
-.secrets_cache
-.auth_tokens
-.session_data
+# 📱 Mobile app builds
+platforms/
+plugins/
+www/
 
-# CI/CD and deployment files with secrets
-.deploy_secrets
-docker-compose.override.yml
-.kube_config
+# 🎯 IDE specific
+.idea/
+*.iml
+*.ipr
+*.iws
 
-# Platform-specific secret files
-instagram_session.json
-youtube_auth.json
-tiktok_cookies.txt
-facebook_tokens.json
+# 🔄 Temporary editor files
+*~
+*.swp
+*.swo
+.#*
+#*#
 
-# Backup files that might contain secrets - CRITICAL SECURITY
-*.env.backup*
-.env.backup*
-config.backup*
-secrets.backup*
+# 🚀 Deployment artifacts
+deployment_artifacts/
+build_artifacts/
 
-# Specific backup file that might exist
-.env.backup.1754951067
+# 📊 Monitoring and logs
+monitoring/
+metrics/
+*.metrics
 
-# Added by security checker
-.env.local
-.env.production
+# 🔐 Secrets management
+vault/
+secrets/
+keystore/
+
+# 🧹 Cleanup scripts results
+cleanup_results/
+temp_cleanup/
+
+# 📋 Project management
+.project
+.classpath
+.settings/
+
+# 🔍 Search indexes
+.index/
+search_index/
+
+# 🎯 Target directories
+target/
+out/
+bin/
+obj/
+
+# 🔧 Build tools
+.gradle/
+.maven/
+build.gradle.kts
+
+# 📦 Package managers
+Packages/
+packages/
+.nuget/
+
+# 🌐 Web assets
+assets/
+static/
+public/
+
+# 🔄 Synchronization
+.sync-conflict-*
+
+# 📱 React Native
+.expo/
+.expo-shared/
+
+# 🎮 Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# 🔐 Encryption keys
+*.gpg
+*.asc
+*.sig
+
+# 📊 Analytics
+analytics/
+stats/
+*.analytics
+
+# 🚫 Blacklisted extensions
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# 🔄 Backup systems
+.backup/
+backups/
+*.backup
+
+# 📝 Documentation builds
+docs/_build/
+docs/build/
+site/
+
+# 🎯 Specific to this project
+TELEGRAM_BOT_TOKEN.txt
+WEBHOOK_URL.txt
+RENDER_API_KEY.txt
+
+# 🔐 Additional security
+*.secret
+*.private
+*.confidential
+
+# 📊 Performance monitoring
+performance/
+benchmarks/
+*.benchmark
+
+# 🧪 Testing artifacts
+test_artifacts/
+test_data/
+fixtures/
+
+# 🔄 Version control artifacts
+*.patch
+*.diff
+
+# 🌍 Internationalization
+locale/
+i18n/
+l10n/
+
+# 🔧 Development tools
+.devcontainer/
+.github/
+.gitlab/
+
+# 📱 Mobile development
+ios/
+android/
+
+# 🎯 Build outputs
+output/
+release/
+debug/
+
+# 🔐 Certificate stores
+certstore/
+keychain/
+
+# 📊 Metrics and telemetry
+telemetry/
+metrics/
+*.telemetry
+
+# 🚫 System files
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# 🔄 Synchronization conflicts
+*_BACKUP_*
+*_BASE_*
+*_LOCAL_*
+*_REMOTE_*
+*.orig
+
+# 📝 Editor backups
+*.bak
+*.gho
+*.ori
+*.orig
+*.tmp
+
+# 🎯 Project specific exclusions
+render_deployment_config.json
+local_test_config.json
+development_secrets.json

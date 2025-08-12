@@ -1,0 +1,170 @@
+{
+  "timestamp": "2025-08-12T06:07:55.164699",
+  "ready_for_deployment": true,
+  "statistics": {
+    "total_checks": 22,
+    "passed_checks": 21,
+    "critical_errors": 0,
+    "warnings": 1
+  },
+  "checks": [
+    {
+      "name": "Fi\u0219ier: app.py",
+      "status": true,
+      "message": "Aplica\u021bia principal\u0103",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:54.926372"
+    },
+    {
+      "name": "Fi\u0219ier: requirements.txt",
+      "status": true,
+      "message": "Dependen\u021be Python",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:54.927577"
+    },
+    {
+      "name": "Fi\u0219ier: Procfile",
+      "status": true,
+      "message": "Comand\u0103 start pentru Render",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:54.927577"
+    },
+    {
+      "name": "Fi\u0219ier: render.yaml",
+      "status": true,
+      "message": "Configurare Render (op\u021bional)",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:54.927577"
+    },
+    {
+      "name": "Fi\u0219ier: Dockerfile",
+      "status": true,
+      "message": "Configurare Docker (op\u021bional)",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:54.927577"
+    },
+    {
+      "name": "Fi\u0219ier: .gitignore",
+      "status": true,
+      "message": "Excluderi Git",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:54.927577"
+    },
+    {
+      "name": "Fi\u0219ier: .env.example",
+      "status": true,
+      "message": "Template variabile de mediu",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:54.928654"
+    },
+    {
+      "name": "Git Repository",
+      "status": true,
+      "message": "Repository Git ini\u021bializat",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:54.928654"
+    },
+    {
+      "name": "Git Status",
+      "status": false,
+      "message": "55 fi\u0219iere necommitate",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:55.009360"
+    },
+    {
+      "name": "Git Remote",
+      "status": true,
+      "message": "Remote origin configurat",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.089055"
+    },
+    {
+      "name": ".env \u00een .gitignore",
+      "status": true,
+      "message": "Fi\u0219ierul .env este exclus din Git",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.090081"
+    },
+    {
+      "name": ".env nu este \u00een Git",
+      "status": true,
+      "message": "Fi\u0219ierul .env nu este tracked \u00een Git",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.157370"
+    },
+    {
+      "name": "Secrete \u00een app.py",
+      "status": true,
+      "message": "F\u0103r\u0103 secrete hardcodate",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.158874"
+    },
+    {
+      "name": "Secrete \u00een downloader.py",
+      "status": true,
+      "message": "F\u0103r\u0103 secrete hardcodate",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.161521"
+    },
+    {
+      "name": "Procfile Valid",
+      "status": true,
+      "message": "Procfile con\u021bine comand\u0103 web valid\u0103",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.162026"
+    },
+    {
+      "name": "render.yaml Valid",
+      "status": true,
+      "message": "render.yaml con\u021bine configura\u021bie valid\u0103",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:55.162026"
+    },
+    {
+      "name": "Requirements.txt Complete",
+      "status": true,
+      "message": "Toate pachetele esen\u021biale sunt prezente",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.163597"
+    },
+    {
+      "name": "Variabil\u0103: TELEGRAM_BOT_TOKEN",
+      "status": true,
+      "message": "Prezent\u0103 \u00een template",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.164699"
+    },
+    {
+      "name": "Variabil\u0103: WEBHOOK_URL",
+      "status": true,
+      "message": "Prezent\u0103 \u00een template",
+      "critical": true,
+      "timestamp": "2025-08-12T06:07:55.164699"
+    },
+    {
+      "name": "Variabil\u0103 op\u021bional\u0103: LOG_LEVEL",
+      "status": true,
+      "message": "Prezent\u0103 \u00een template",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:55.164699"
+    },
+    {
+      "name": "Variabil\u0103 op\u021bional\u0103: MAX_FILE_SIZE_MB",
+      "status": true,
+      "message": "Prezent\u0103 \u00een template",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:55.164699"
+    },
+    {
+      "name": "Variabil\u0103 op\u021bional\u0103: DOWNLOAD_TIMEOUT",
+      "status": true,
+      "message": "Prezent\u0103 \u00een template",
+      "critical": false,
+      "timestamp": "2025-08-12T06:07:55.164699"
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    "Git Status: 55 fi\u0219iere necommitate"
+  ]
+}

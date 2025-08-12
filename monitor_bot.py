@@ -7,7 +7,13 @@ import time
 import json
 from datetime import datetime
 
-BOT_TOKEN = "8253089686:AAGbSnyOKFYt36_cjZdG5AaecRPCytvBDmI"
+# SECURITATE: Token-ul este acum încărcat din variabile de mediu
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+
+if not BOT_TOKEN:
+    print("❌ EROARE: TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu!")
+    print("Setează variabila de mediu sau creează un fișier .env")
+    exit(1)
 CHECK_INTERVAL = 30  # secunde
 
 def check_bot_status():
