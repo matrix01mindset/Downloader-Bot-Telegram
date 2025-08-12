@@ -903,13 +903,8 @@ def webhook():
                 if len(processed_messages) > 1000:
                     processed_messages.clear()
                 
-                # Verifică dacă este un link Facebook și dacă există deja o procesare în curs
-                if 'facebook.com' in text.lower() or 'fb.watch' in text.lower():
-                    processing_key = f"processing_{chat_id}_{text}"
-                    if processing_key in processed_messages:
-                        logger.info(f"Link Facebook deja în procesare, ignorat: {processing_key}")
-                        return jsonify({'status': 'ok'}), 200
-                    processed_messages.add(processing_key)
+                # Pentru link-urile Facebook, nu bloca procesarea, doar previne mesajele duplicate
+                # Mecanismul de debouncing pentru erori este gestionat în download_video_sync
                 
                 logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
                 
