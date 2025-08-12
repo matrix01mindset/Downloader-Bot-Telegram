@@ -504,7 +504,7 @@ def try_facebook_fallback(url, output_path, title):
         url = normalized_url
     
     # STEP 1: Încearcă cu sistemul de rotare URL înainte de fallback-uri
-    logger.info("🔄 STEP 1: Încercare cu sistemul de rotare URL...")
+    logger.info("🔄 STEP 1: Încercare cu sistemul de rotare URL (silențios)...")
     try:
         robust_opts = create_robust_facebook_opts()
         robust_opts.update({

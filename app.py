@@ -903,6 +903,14 @@ def webhook():
                 if len(processed_messages) > 1000:
                     processed_messages.clear()
                 
+                # Verifică dacă este un link Facebook și dacă există deja o procesare în curs
+                if 'facebook.com' in text.lower() or 'fb.watch' in text.lower():
+                    processing_key = f"processing_{chat_id}_{text}"
+                    if processing_key in processed_messages:
+                        logger.info(f"Link Facebook deja în procesare, ignorat: {processing_key}")
+                        return jsonify({'status': 'ok'}), 200
+                    processed_messages.add(processing_key)
+                
                 logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
                 
                 # Procesează mesajul și trimite răspuns
@@ -1135,8 +1143,13 @@ def process_video_link_sync(chat_id, url):
         logger.error(f"Eroare la procesarea link-ului: {e}")
         send_telegram_message(chat_id, "❌ Eroare la procesarea video-ului. Încearcă din nou.")
 
+# Set pentru a preveni mesajele repetate de eroare
+error_messages_sent = set()
+
 def download_video_sync(chat_id, url):
     """Descarcă video-ul în mod sincron în 720p"""
+    global error_messages_sent
+    
     try:
         # Descarcă video-ul (funcția download_video folosește deja format 720p)
         result = download_video(url)
@@ -1144,12 +1157,33 @@ def download_video_sync(chat_id, url):
         if result['success']:
             # Trimite fișierul cu toate informațiile
             send_video_file(chat_id, result['file_path'], result)
+            # Șterge din cache-ul de erori dacă descărcarea a reușit
+            error_key = f"{chat_id}_{url}"
+            error_messages_sent.discard(error_key)
         else:
-            send_telegram_message(chat_id, f"❌ Eroare la descărcare: {result.get('error', 'Eroare necunoscută')}")
+            # Previne trimiterea de mesaje repetate de eroare pentru același URL
+            error_key = f"{chat_id}_{url}"
+            if error_key not in error_messages_sent:
+                send_telegram_message(chat_id, f"❌ Eroare la descărcare: {result.get('error', 'Eroare necunoscută')}")
+                error_messages_sent.add(error_key)
+                # Limitează cache-ul de erori
+                if len(error_messages_sent) > 100:
+                    error_messages_sent.clear()
+            else:
+                logger.info(f"Mesaj de eroare deja trimis pentru {error_key}, ignorat")
             
     except Exception as e:
         logger.error(f"Eroare la descărcarea video-ului: {e}")
-        send_telegram_message(chat_id, "❌ Eroare la descărcarea video-ului. Încearcă din nou.")
+        # Previne trimiterea de mesaje repetate de eroare pentru excepții
+        error_key = f"{chat_id}_{url}_exception"
+        if error_key not in error_messages_sent:
+            send_telegram_message(chat_id, "❌ Eroare la descărcarea video-ului. Încearcă din nou.")
+            error_messages_sent.add(error_key)
+            # Limitează cache-ul de erori
+            if len(error_messages_sent) > 100:
+                error_messages_sent.clear()
+        else:
+            logger.info(f"Mesaj de eroare pentru excepție deja trimis pentru {error_key}, ignorat")
 
 def send_video_file(chat_id, file_path, video_info):
     """Trimite fișierul video prin Telegram"""

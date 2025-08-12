@@ -135,7 +135,7 @@ def try_facebook_with_rotation(url, ydl_opts, max_attempts=4):
             format_type = "unknown format"
             
         attempted_formats.append(f"{format_type} ({strategy['name']})")
-        logger.info(f"🔄 Încercare {attempt}/{max_attempts}: {format_type} cu strategia {strategy['name']} - {variant_url[:60]}...")
+        logger.debug(f"🔄 Încercare {attempt}/{max_attempts}: {format_type} cu strategia {strategy['name']} - {variant_url[:60]}...")
         
         # Adaptează opțiunile pentru strategia curentă
         current_opts = ydl_opts.copy()
@@ -171,7 +171,7 @@ def try_facebook_with_rotation(url, ydl_opts, max_attempts=4):
             last_error = str(e)
             
             if 'cannot parse data' in error_msg:
-                logger.warning(f"❌ {format_type} cu strategia {strategy['name']} - Cannot parse data")
+                logger.debug(f"❌ {format_type} cu strategia {strategy['name']} - Cannot parse data")
             elif 'private' in error_msg or 'login' in error_msg:
                 logger.warning(f"❌ {format_type} cu strategia {strategy['name']} - Private content detected")
                 # Pentru conținut privat, nu mai încercăm alte variante
@@ -183,7 +183,7 @@ def try_facebook_with_rotation(url, ydl_opts, max_attempts=4):
                     'stopped_at_attempt': attempt
                 }
             else:
-                logger.warning(f"❌ {format_type} cu strategia {strategy['name']} eșuat: {error_msg[:80]}...")
+                logger.debug(f"❌ {format_type} cu strategia {strategy['name']} eșuat: {error_msg[:80]}...")
             
             continue
     
