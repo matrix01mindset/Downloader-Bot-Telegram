@@ -1186,20 +1186,56 @@ def download_video(url, output_path=None):
             # Configurații specifice pentru Reddit - adaugă suport pentru cookies din browser
             if 'reddit.com' in url.lower():
                 logger.info("Reddit URL detectat - configurez autentificare prin cookies")
-                try:
-                    # Încearcă să folosească cookies din browser pentru Reddit
-                    ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
-                    logger.info("Configurare cookies din Firefox pentru Reddit")
-                except Exception as cookie_error:
-                    logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
+                
+                # Detectează dacă rulează pe server (Render/Linux) sau local
+                is_server_environment = (
+                    os.environ.get('RENDER') or 
+                    os.environ.get('DYNO') or 
+                    not os.path.exists('/home') or
+                    'linux' in os.name.lower() or
+                    '/app' in os.getcwd()
+                )
+                
+                if is_server_environment:
+                    logger.info("Mediu server detectat - configurez Reddit fără cookies browser")
+                    # Pe server, configurează Reddit cu headers optimizate pentru conținut public
+                    ydl_opts.update({
+                        'http_headers': {
+                            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Connection': 'keep-alive',
+                            'Sec-Fetch-Dest': 'document',
+                            'Sec-Fetch-Mode': 'navigate',
+                            'Sec-Fetch-Site': 'none',
+                            'Sec-Fetch-User': '?1',
+                            'Upgrade-Insecure-Requests': '1'
+                        },
+                        'extractor_args': {
+                            'reddit': {
+                                'sort': 'best',
+                                'api_version': 'v1'
+                            }
+                        }
+                    })
+                    logger.info("Reddit configurat pentru conținut public pe server")
+                else:
+                    # Pe mediul local, încearcă să folosească cookies din browser
                     try:
-                        # Fallback la Chrome
-                        ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
-                        logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
-                    except Exception as chrome_error:
-                        logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
-                        # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
-                        logger.info("Continuă fără cookies - Reddit va necesita autentificare")
+                        # Încearcă să folosească cookies din browser pentru Reddit
+                        ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
+                        logger.info("Configurare cookies din Firefox pentru Reddit")
+                    except Exception as cookie_error:
+                        logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
+                        try:
+                            # Fallback la Chrome
+                            ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
+                            logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
+                        except Exception as chrome_error:
+                            logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
+                            # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
+                            logger.info("Continuă fără cookies - Reddit va necesita autentificare")
             
             # Configurații specifice pentru Threads
             if 'threads.com' in url.lower() or 'threads.net' in url.lower():
