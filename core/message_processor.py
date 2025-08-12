@@ -12,6 +12,7 @@ from utils.monitoring import monitoring, trace_operation
 from utils.cache import cache, generate_cache_key
 from utils.file_manager import FileManager
 from core.retry_manager import RetryManager, RetryStrategy
+from utils.activity_logger import activity_logger, log_command_executed, log_download_success, log_download_error
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,9 @@ class MessageProcessor:
             command_parts = command.lower().split()
             main_command = command_parts[0]
             
+            # Log comanda executată
+            log_command_executed(main_command, user_id, chat_id, True)
+            
             if main_command in ['/start', '/menu']:
                 await self._send_welcome_message(chat_id)
                 return {'status': 'welcome_sent'}
@@ -114,12 +118,18 @@ class MessageProcessor:
                 await self._send_quality_info(chat_id)
                 return {'status': 'quality_info_sent'}
                 
+            elif main_command == '/log' and self._is_admin(user_id):
+                await self._handle_log_command(chat_id)
+                return {'status': 'log_sent'}
+                
             else:
                 await self._send_unknown_command_message(chat_id, command)
                 return {'status': 'unknown_command'}
                 
         except Exception as e:
             logger.error(f"Error processing command {command}: {e}")
+            # Log eroarea comenzii
+            log_command_executed(command, user_id, chat_id, False)
             await self._send_error_message(chat_id, f"Eroare la procesarea comenzii: {e}")
             return {'status': 'error', 'error': str(e)}
             
@@ -173,6 +183,13 @@ class MessageProcessor:
                         chat_id, user_id, url, status_message_id,
                         error_type='network_error'
                     )
+                    
+                    # Log rezultatul descărcării
+                    if result and result.get('status') == 'success':
+                        log_download_success(url, user_id, chat_id, result.get('platform', 'unknown'))
+                    else:
+                        error_msg = result.get('error', 'Unknown error') if result else 'No result'
+                        log_download_error(url, user_id, chat_id, error_msg)
                     
                     results.append({
                         'url': url,
@@ -537,6 +554,63 @@ class MessageProcessor:
                      f"✅ <b>Status:</b> Funcțional",
                 parse_mode='HTML'
             )
+    
+    async def _handle_log_command(self, chat_id: int):
+        """Gestionează comanda /log - trimite raportul de activitate"""
+        try:
+            # Trimite mesaj de procesare
+            status_message = await self.telegram_api.send_message(
+                chat_id=chat_id,
+                text="📊 <b>Generez raportul de activitate...</b>\n\nTe rog așteaptă...",
+                parse_mode='HTML'
+            )
+            
+            # Generează raportul
+            report = activity_logger.generate_report(hours=24)
+            
+            # Creează fișierul temporar
+            import tempfile
+            import os
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"bot_activity_log_{timestamp}.txt"
+            
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
+                temp_file.write(report)
+                temp_file_path = temp_file.name
+            
+            try:
+                # Trimite fișierul
+                await self.telegram_api.send_document(
+                    chat_id=chat_id,
+                    document=temp_file_path,
+                    filename=filename,
+                    caption=f"📊 <b>Raport Activitate Bot</b>\n\n"
+                           f"📅 <b>Perioada:</b> Ultimele 24 ore\n"
+                           f"🕐 <b>Generat la:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
+                           f"✅ Activități cu succes\n"
+                           f"❌ Erori și probleme",
+                    parse_mode='HTML'
+                )
+                
+                # Șterge mesajul de status
+                if status_message and status_message.get('ok'):
+                    await self.telegram_api.delete_message(
+                        chat_id=chat_id,
+                        message_id=status_message['result']['message_id']
+                    )
+                    
+            finally:
+                # Șterge fișierul temporar
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Could not delete temp file {temp_file_path}: {cleanup_error}")
+                    
+        except Exception as e:
+            logger.error(f"Error handling log command: {e}")
+            await self._send_error_message(chat_id, f"Eroare la generarea raportului: {e}")
             
     def _format_duration(self, duration_seconds: Optional[float]) -> str:
         """Formatează durata în format human-readable"""

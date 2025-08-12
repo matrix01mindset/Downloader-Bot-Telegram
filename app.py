@@ -11,6 +11,7 @@ import time
 import threading
 # Force redeploy - 2025-08-09 - Facebook fixes deployed
 import re
+from utils.activity_logger import activity_logger, log_command_executed, log_download_success, log_download_error
 
 # Încarcă variabilele de mediu din .env pentru testare locală
 try:
@@ -294,6 +295,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /start - mesaj de bun venit cu meniu interactiv
     """
+    try:
+        user = update.effective_user
+        chat_id = update.effective_chat.id
+        
+        # Log comanda executată
+        log_command_executed('/start', user.id, chat_id, True)
+        
+    except Exception as e:
+        logger.error(f"Eroare în comanda /start: {e}")
+        # Log eroarea comenzii
+        user = update.effective_user if update and update.effective_user else None
+        chat_id = update.effective_chat.id if update and update.effective_chat else 0
+        log_command_executed('/start', user.id if user else 0, chat_id, False)
+        
     welcome_message = """
 🎬 **Bot Descărcare Video**
 
@@ -1151,16 +1166,21 @@ def download_video_sync(chat_id, url):
         result = download_video(url)
         
         if result['success']:
+            # Log succesul descărcării
+            log_download_success(url, 0, chat_id, result.get('platform', 'unknown'))
             # Trimite fișierul cu toate informațiile
             send_video_file(chat_id, result['file_path'], result)
             # Șterge din cache-ul de erori dacă descărcarea a reușit
             error_key = f"{chat_id}_{url}"
             error_messages_sent.discard(error_key)
         else:
+            # Log eroarea descărcării
+            error_msg = result.get('error', 'Eroare necunoscută')
+            log_download_error(url, 0, chat_id, error_msg)
             # Previne trimiterea de mesaje repetate de eroare pentru același URL
             error_key = f"{chat_id}_{url}"
             if error_key not in error_messages_sent:
-                send_telegram_message(chat_id, f"❌ Eroare la descărcare: {result.get('error', 'Eroare necunoscută')}")
+                send_telegram_message(chat_id, f"❌ Eroare la descărcare: {error_msg}")
                 error_messages_sent.add(error_key)
                 # Limitează cache-ul de erori
                 if len(error_messages_sent) > 100:
@@ -1170,6 +1190,8 @@ def download_video_sync(chat_id, url):
             
     except Exception as e:
         logger.error(f"Eroare la descărcarea video-ului: {e}")
+        # Log eroarea generală
+        log_download_error(url, 0, chat_id, f"Exception: {str(e)}")
         # Previne trimiterea de mesaje repetate de eroare pentru excepții
         error_key = f"{chat_id}_{url}_exception"
         if error_key not in error_messages_sent:
