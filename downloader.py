@@ -11,6 +11,7 @@ import logging
 import subprocess
 import sys
 import shutil
+import requests
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 
@@ -1089,6 +1090,143 @@ def is_youtube_url(url):
     return False
 
 
+def extract_reddit_video_direct(url, temp_dir):
+    """
+    Extrage video direct din Reddit folosind API-ul JSON public
+    Evită problemele de autentificare de pe server
+    """
+    logger.info(f"Încep extracția directă Reddit pentru: {url}")
+    
+    try:
+        # Transformă URL-ul în format JSON
+        if url.endswith('/'):
+            json_url = url.rstrip('/') + '.json'
+        else:
+            json_url = url + '.json'
+        
+        logger.info(f"Accesez JSON API: {json_url}")
+        
+        # Headers pentru a simula un browser real
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin'
+        }
+        
+        # Accesează JSON-ul Reddit
+        response = requests.get(json_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        logger.info("JSON Reddit accesat cu succes")
+        
+        # Extrage informațiile despre post
+        if not data or len(data) < 1:
+            return {
+                'success': False,
+                'error': '❌ Reddit: Nu s-au găsit date în răspunsul JSON',
+                'title': 'N/A'
+            }
+        
+        post_data = data[0]['data']['children'][0]['data']
+        title = post_data.get('title', 'Reddit Video')
+        
+        # Verifică dacă postul conține video
+        video_url = None
+        
+        # Caută în media (pentru v.redd.it)
+        if 'media' in post_data and post_data['media']:
+            reddit_video = post_data['media'].get('reddit_video')
+            if reddit_video:
+                video_url = reddit_video.get('fallback_url')
+                logger.info(f"Găsit video reddit_video: {video_url}")
+        
+        # Caută în secure_media (backup)
+        if not video_url and 'secure_media' in post_data and post_data['secure_media']:
+            reddit_video = post_data['secure_media'].get('reddit_video')
+            if reddit_video:
+                video_url = reddit_video.get('fallback_url')
+                logger.info(f"Găsit video secure_media: {video_url}")
+        
+        # Caută în preview (pentru alte tipuri de media)
+        if not video_url and 'preview' in post_data:
+            preview = post_data['preview']
+            if 'reddit_video_preview' in preview:
+                video_url = preview['reddit_video_preview'].get('fallback_url')
+                logger.info(f"Găsit video preview: {video_url}")
+        
+        if not video_url:
+            return {
+                'success': False,
+                'error': '❌ Reddit: Acest post nu conține video sau videoul nu este accesibil public.\n\n💡 Încearcă cu un post Reddit care conține video v.redd.it',
+                'title': title
+            }
+        
+        logger.info(f"URL video găsit: {video_url}")
+        
+        # Descarcă videoul
+        video_response = requests.get(video_url, headers=headers, stream=True, timeout=60)
+        video_response.raise_for_status()
+        
+        # Creează numele fișierului
+        safe_title = re.sub(r'[^\w\s-]', '', title)[:50]
+        safe_title = re.sub(r'[-\s]+', '-', safe_title)
+        filename = f"{safe_title}.mp4"
+        file_path = os.path.join(temp_dir, filename)
+        
+        # Salvează videoul
+        with open(file_path, 'wb') as f:
+            for chunk in video_response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        file_size = os.path.getsize(file_path)
+        logger.info(f"Video Reddit descărcat cu succes: {file_path} ({file_size} bytes)")
+        
+        return {
+            'success': True,
+            'file_path': file_path,
+            'title': title,
+            'description': post_data.get('selftext', ''),
+            'uploader': f"u/{post_data.get('author', 'unknown')}",
+            'duration': 0,  # Reddit nu oferă durată în JSON
+            'file_size': file_size
+        }
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Eroare de rețea la accesarea Reddit: {e}")
+        return {
+            'success': False,
+            'error': f'❌ Reddit: Eroare de rețea - {str(e)[:100]}',
+            'title': 'N/A'
+        }
+    except json.JSONDecodeError as e:
+        logger.error(f"Eroare la parsarea JSON Reddit: {e}")
+        return {
+            'success': False,
+            'error': '❌ Reddit: Răspuns JSON invalid',
+            'title': 'N/A'
+        }
+    except KeyError as e:
+        logger.error(f"Structură JSON neașteptată Reddit: {e}")
+        return {
+            'success': False,
+            'error': '❌ Reddit: Structură de date neașteptată',
+            'title': 'N/A'
+        }
+    except Exception as e:
+        logger.error(f"Eroare generală la extracția Reddit: {e}")
+        return {
+            'success': False,
+            'error': f'❌ Reddit: Eroare neașteptată - {str(e)[:100]}',
+            'title': 'N/A'
+        }
+
 def download_video(url, output_path=None):
     """
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
@@ -1183,59 +1321,49 @@ def download_video(url, output_path=None):
                 'retries': 3,
             }
             
-            # Configurații specifice pentru Reddit - adaugă suport pentru cookies din browser
+            # Configurații specifice pentru Reddit - folosește API-ul public JSON
             if 'reddit.com' in url.lower():
-                logger.info("Reddit URL detectat - configurez autentificare prin cookies")
+                logger.info("Reddit URL detectat - folosesc API-ul public JSON")
                 
-                # Detectează dacă rulează pe server (Render/Linux) sau local
+                # Detectează dacă rulează pe server (Render/Heroku) sau local
                 is_server_environment = (
                     os.environ.get('RENDER') or 
                     os.environ.get('DYNO') or 
-                    not os.path.exists('/home') or
-                    'linux' in os.name.lower() or
-                    '/app' in os.getcwd()
+                    os.environ.get('PORT') or
+                    '/app' in os.getcwd() or
+                    'RENDER' in str(os.environ)
                 )
                 
                 if is_server_environment:
-                    logger.info("Mediu server detectat - configurez Reddit fără cookies browser")
-                    # Pe server, configurează Reddit cu headers optimizate pentru conținut public
-                    ydl_opts.update({
-                        'http_headers': {
-                            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Accept-Encoding': 'gzip, deflate, br',
-                            'Connection': 'keep-alive',
-                            'Sec-Fetch-Dest': 'document',
-                            'Sec-Fetch-Mode': 'navigate',
-                            'Sec-Fetch-Site': 'none',
-                            'Sec-Fetch-User': '?1',
-                            'Upgrade-Insecure-Requests': '1'
-                        },
-                        'extractor_args': {
-                            'reddit': {
-                                'sort': 'best',
-                                'api_version': 'v1'
-                            }
-                        }
-                    })
-                    logger.info("Reddit configurat pentru conținut public pe server")
-                else:
-                    # Pe mediul local, încearcă să folosească cookies din browser
+                    logger.info("Mediu server detectat - folosesc extracția directă Reddit")
+                    # Pe server, folosește extracția directă prin JSON API
                     try:
-                        # Încearcă să folosească cookies din browser pentru Reddit
-                        ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
-                        logger.info("Configurare cookies din Firefox pentru Reddit")
-                    except Exception as cookie_error:
-                        logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
-                        try:
-                            # Fallback la Chrome
-                            ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
-                            logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
-                        except Exception as chrome_error:
-                            logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
-                            # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
-                            logger.info("Continuă fără cookies - Reddit va necesita autentificare")
+                        reddit_result = extract_reddit_video_direct(url, temp_dir)
+                        if reddit_result['success']:
+                            logger.info(f"Reddit video extras cu succes: {reddit_result['file_path']}")
+                            return reddit_result
+                        else:
+                            logger.warning(f"Extracția directă Reddit a eșuat: {reddit_result['error']}")
+                            # Continuă cu yt-dlp ca fallback
+                    except Exception as reddit_error:
+                        logger.warning(f"Eroare la extracția directă Reddit: {reddit_error}")
+                        # Continuă cu yt-dlp ca fallback
+                
+                # Configurare yt-dlp pentru Reddit (fallback sau mediu local)
+                try:
+                    # Încearcă să folosească cookies din browser pentru Reddit
+                    ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
+                    logger.info("Configurare cookies din Firefox pentru Reddit")
+                except Exception as cookie_error:
+                    logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
+                    try:
+                        # Fallback la Chrome
+                        ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
+                        logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
+                    except Exception as chrome_error:
+                        logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
+                        # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
+                        logger.info("Continuă fără cookies - Reddit va necesita autentificare")
             
             # Configurații specifice pentru Threads
             if 'threads.com' in url.lower() or 'threads.net' in url.lower():
