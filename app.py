@@ -474,43 +474,25 @@ async def log_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Generează raportul
         report = activity_logger.generate_report(hours=24)
         
-        # Creează fișierul temporar
-        import tempfile
-        import os
+        # Trimite raportul ca text (pentru debugging)
         from datetime import datetime
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"bot_activity_log_{timestamp}.txt"
+        # Limitează lungimea raportului pentru Telegram (max 4096 caractere)
+        if len(report) > 4000:
+            report = report[:4000] + "\n\n... (raport trunchiat)"
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as temp_file:
-            temp_file.write(report)
-            temp_file_path = temp_file.name
+        await safe_send_message(
+            update,
+            f"📊 <b>Raport Activitate Bot</b>\n\n"
+            f"📅 <b>Perioada:</b> Ultimele 24 ore\n"
+            f"🕐 <b>Generat la:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
+            f"<pre>{report}</pre>",
+            parse_mode='HTML'
+        )
         
-        try:
-            # Trimite fișierul
-            with open(temp_file_path, 'rb') as doc:
-                await context.bot.send_document(
-                    chat_id=chat_id,
-                    document=doc,
-                    filename=filename,
-                    caption=f"📊 <b>Raport Activitate Bot</b>\n\n"
-                           f"📅 <b>Perioada:</b> Ultimele 24 ore\n"
-                           f"🕐 <b>Generat la:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
-                           f"✅ Activități cu succes\n"
-                           f"❌ Erori și probleme",
-                    parse_mode='HTML'
-                )
-            
-            # Șterge mesajul de status
-            if status_message:
-                await safe_delete_message(status_message)
-                
-        finally:
-            # Șterge fișierul temporar
-            try:
-                os.unlink(temp_file_path)
-            except Exception as cleanup_error:
-                logger.warning(f"Nu s-a putut șterge fișierul temporar {temp_file_path}: {cleanup_error}")
+        # Șterge mesajul de status
+        if status_message:
+            await safe_delete_message(status_message)
                 
     except Exception as e:
         logger.error(f"Eroare în comanda /log: {e}")
