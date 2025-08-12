@@ -1415,21 +1415,31 @@ def download_video(url, output_path=None):
                         logger.warning(f"Eroare la extracția directă Reddit: {reddit_error}")
                         # Continuă cu yt-dlp ca fallback
                 
-                # Configurare yt-dlp pentru Reddit (fallback sau mediu local)
-                try:
-                    # Încearcă să folosească cookies din browser pentru Reddit
-                    ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
-                    logger.info("Configurare cookies din Firefox pentru Reddit")
-                except Exception as cookie_error:
-                    logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
+                # Configurare yt-dlp pentru Reddit (doar pe mediu local)
+                if not is_server_environment:
                     try:
-                        # Fallback la Chrome
-                        ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
-                        logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
-                    except Exception as chrome_error:
-                        logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
-                        # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
-                        logger.info("Continuă fără cookies - Reddit va necesita autentificare")
+                        # Încearcă să folosească cookies din browser pentru Reddit (doar local)
+                        ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
+                        logger.info("Configurare cookies din Firefox pentru Reddit (mediu local)")
+                    except Exception as cookie_error:
+                        logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
+                        try:
+                            # Fallback la Chrome
+                            ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
+                            logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
+                        except Exception as chrome_error:
+                            logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
+                            # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
+                            logger.info("Continuă fără cookies - Reddit va necesita autentificare")
+                else:
+                    logger.info("Mediu server detectat - nu folosesc cookies pentru Reddit (folosesc doar extracția directă)")
+                    # Pe server, dacă extracția directă a eșuat, returnează eroare
+                    if 'reddit.com' in url.lower():
+                        return {
+                            'success': False,
+                            'error': 'Reddit: Extracția directă a eșuat și nu sunt disponibile cookies pe server. Încearcă cu un post Reddit public care conține video.',
+                            'file_path': None
+                        }
             
             # Configurații specifice pentru Threads
             if 'threads.com' in url.lower() or 'threads.net' in url.lower():
