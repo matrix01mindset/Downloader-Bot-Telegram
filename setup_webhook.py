@@ -4,6 +4,11 @@
 
 import requests
 import sys
+import os
+from dotenv import load_dotenv
+
+# Încarcă variabilele de mediu din .env
+load_dotenv()
 
 # SECURITATE: Token-ul este acum încărcat din variabile de mediu
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -12,7 +17,7 @@ if not BOT_TOKEN:
     print("❌ EROARE: TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu!")
     print("Setează variabila de mediu sau creează un fișier .env")
     exit(1)
-WEBHOOK_URL = "https://telegram-video-downloader-bot.onrender.com/webhook"
+WEBHOOK_URL = "https://downloader-bot-telegram-nbix.onrender.com/webhook"
 
 def set_webhook():
     """Setează webhook-ul Telegram"""
