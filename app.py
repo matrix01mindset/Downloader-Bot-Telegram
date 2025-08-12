@@ -226,6 +226,14 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
 # Configurare Flask
 app = Flask(__name__)
 
+# 🛡️ SECURITATE: Forțează dezactivarea debug mode în producție
+if os.getenv('FLASK_ENV') == 'production' or os.getenv('RENDER'):
+    app.config['DEBUG'] = False
+    app.config['TESTING'] = False
+    logger.info("🔒 Debug mode forțat dezactivat pentru producție")
+else:
+    logger.info("🔧 Rulare în modul development")
+
 # Debug: Afișează toate variabilele de mediu relevante
 print("=== DEBUG: VARIABILE DE MEDIU ===")
 print(f"TELEGRAM_BOT_TOKEN: {'SET' if os.getenv('TELEGRAM_BOT_TOKEN') else 'NOT SET'}")

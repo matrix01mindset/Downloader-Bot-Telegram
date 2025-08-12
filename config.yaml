@@ -29,7 +29,7 @@ telegram:
 # IMPORTANT: Telegram Bot API are limită de 50MB pentru fișiere
 platforms:
   youtube:
-    enabled: true
+    enabled: false  # YouTube support disabled due to API limitations
     priority: 1
     max_file_size_mb: 45  # Limită Telegram: 50MB (45MB pentru siguranță)
     max_duration_seconds: 3600

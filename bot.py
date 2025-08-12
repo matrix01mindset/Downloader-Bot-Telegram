@@ -1,4 +1,6 @@
 import os
+from utils.rate_limiter import rate_limiter
+import sys
 import logging
 import re
 import html
@@ -107,7 +109,12 @@ def create_safe_caption_bot(title, uploader=None, description=None, max_length=1
         return f"✅ <b>{title_safe}</b>\n\n🎬 Descărcare completă!"
 
 # Token-ul botului (va fi setat prin variabilă de mediu)
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+if not TOKEN:
+    logger.error("❌ TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu!")
+    print("❌ EROARE: TELEGRAM_BOT_TOKEN nu este setat!")
+    print("💡 Setează token-ul în fișierul .env sau ca variabilă de mediu")
+    sys.exit(1)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -151,7 +158,35 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /help - informații de ajutor
     """
-    help_text = """
+    help_text = """🤖 **Telegram Video Downloader Bot**
+
+📱 **Platforme Suportate:**
+• TikTok
+• Instagram (Reels, IGTV, Stories)
+• Facebook (Videos)
+• Twitter/X (Videos)
+• Threads (Videos)
+• Pinterest (Videos)
+• Reddit (Videos)
+• Vimeo
+• Dailymotion
+
+❌ **Nu este suportat:** YouTube (din cauza limitărilor API)
+
+📋 **Cum să folosești:**
+1. Trimite-mi un link de la una din platformele suportate
+2. Așteptă să procesez videoclipul
+3. Descarcă videoclipul direct în Telegram
+
+⚠️ **Limite:**
+• Mărimea maximă: 45MB
+• Durată maximă: 10 minute
+• Rate limit: 5 cereri per minut
+
+🔧 **Comenzi:**
+/start - Pornește botul
+/help - Afișează acest mesaj
+/menu - Meniul principal""""
 🆘 <b>Cum să folosești botul:</b>
 
 1. Copiază link-ul videoclipului
@@ -216,7 +251,17 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     await update.message.reply_text(welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
+        # Verifică rate limiting
+    user_id = str(update.effective_user.id)
+    if not rate_limiter.is_allowed(user_id):
+        remaining_time = rate_limiter.get_reset_time(user_id)
+        await update.message.reply_text(
+            f"⏳ Prea multe cereri! Încearcă din nou în {int(remaining_time)} secunde.",
+            reply_markup=get_main_menu_keyboard()
+        )
+        return
+
+"""
     Gestionează mesajele cu link-uri video
     """
     url = update.message.text.strip()
@@ -397,7 +442,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     elif query.data == 'help':
-        help_text = """
+        help_text = """🤖 **Telegram Video Downloader Bot**
+
+📱 **Platforme Suportate:**
+• TikTok
+• Instagram (Reels, IGTV, Stories)
+• Facebook (Videos)
+• Twitter/X (Videos)
+• Threads (Videos)
+• Pinterest (Videos)
+• Reddit (Videos)
+• Vimeo
+• Dailymotion
+
+❌ **Nu este suportat:** YouTube (din cauza limitărilor API)
+
+📋 **Cum să folosești:**
+1. Trimite-mi un link de la una din platformele suportate
+2. Așteptă să procesez videoclipul
+3. Descarcă videoclipul direct în Telegram
+
+⚠️ **Limite:**
+• Mărimea maximă: 45MB
+• Durată maximă: 10 minute
+• Rate limit: 5 cereri per minut
+
+🔧 **Comenzi:**
+/start - Pornește botul
+/help - Afișează acest mesaj
+/menu - Meniul principal""""
 🆘 **Cum să folosești botul:**
 
 1. 📋 Copiază link-ul videoclipului
@@ -566,9 +639,8 @@ async def main():
     """
     Funcția principală care pornește botul
     """
-    if TOKEN == 'YOUR_BOT_TOKEN_HERE':
-        print("❌ Eroare: Te rog să setezi TELEGRAM_BOT_TOKEN în variabilele de mediu")
-        return
+    # TOKEN-ul este deja verificat la începutul fișierului
+    # Dacă ajungem aici, token-ul este valid
     
     # Creează aplicația
     app = Application.builder().token(TOKEN).build()
