@@ -425,12 +425,12 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Comandă /ping - verifică dacă botul funcționează
     """
     start_time = time.time()
-    message = await safe_send_message(update, "🏓 Pinging...")
+    message = await safe_send_message(update, "🏓 <b>Ping...</b>", parse_mode='HTML')
     end_time = time.time()
-    ping_time = round((end_time - start_time) * 1000, 2)
+    ping_time = round((end_time - start_time) * 1000, 1)
     
     if message:
-        await safe_edit_message(message, f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms")
+        await safe_edit_message(message, f"🏓 <b>Pong!</b>\n\n⏱️ <b>Timp răspuns:</b> {ping_time}ms\n✅ <b>Status:</b> Funcțional", parse_mode='HTML')
 
 async def safe_send_message(update, text, **kwargs):
     """
@@ -774,17 +774,18 @@ A: Nu, doar videoclipuri individuale.
             
         elif query.data == 'ping_again':
             start_time = time.time()
-            await safe_edit_callback_message(query, "🏓 Pinging...")
+            await safe_edit_callback_message(query, "🏓 <b>Ping...</b>", parse_mode='HTML')
             end_time = time.time()
-            ping_time = round((end_time - start_time) * 1000, 2)
+            ping_time = round((end_time - start_time) * 1000, 1)
             
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await safe_edit_callback_message(
                 query,
-                f"🏓 Pong!\n⏱️ Timp răspuns: {ping_time}ms",
-                reply_markup=reply_markup
+                f"🏓 <b>Pong!</b>\n\n⏱️ <b>Timp răspuns:</b> {ping_time}ms\n✅ <b>Status:</b> Funcțional",
+                reply_markup=reply_markup,
+                parse_mode='HTML'
             )
             
         elif query.data == 'wakeup_server':
