@@ -37,9 +37,9 @@ RENDER_OPTIMIZED_CONFIG = {
         'Cache-Control': 'max-age=0'
     },
     
-    # Configurações yt-dlp otimizadas para Render
+    # Configurații yt-dlp otimizate pentru Render
     'ytdl_opts': {
-        'format': 'best[height<=720]/best',  # Qualidade moderada para velocidade
+        'format': 'best[height<=720]/best',  # Qualitate moderată pentru velocidade
         'outtmpl': '/tmp/%(title)s.%(ext)s',  # Usar /tmp no Render
         'writesubtitles': False,
         'writeautomaticsub': False,
@@ -48,6 +48,21 @@ RENDER_OPTIMIZED_CONFIG = {
         'extractaudio': False,
         'audioformat': 'mp3',
         'audioquality': '192',
+    },
+    
+    # Configurații Flask pentru Render
+    'flask_config': {
+        'DEBUG': False,
+        'TESTING': False,
+        'SECRET_KEY': os.environ.get('SECRET_KEY', 'render-production-key'),
+        'MAX_CONTENT_LENGTH': 16 * 1024 * 1024,  # 16MB
+        'SEND_FILE_MAX_AGE_DEFAULT': 31536000,  # 1 an cache
+        'JSONIFY_PRETTYPRINT_REGULAR': False,
+        'JSON_SORT_KEYS': False
+    },
+    
+    # Configurații de socket pentru yt-dlp
+    'socket_config': {
         'socket_timeout': 45,
         'retries': 5,
         'fragment_retries': 5,
