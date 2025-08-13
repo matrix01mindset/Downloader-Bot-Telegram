@@ -12,6 +12,7 @@ import threading
 # Force redeploy - 2025-08-09 - Facebook fixes deployed
 import re
 from utils.activity_logger import activity_logger, log_command_executed, log_download_success, log_download_error
+from urllib.parse import urlparse
 
 # Încarcă variabilele de mediu din .env pentru testare locală
 try:
@@ -62,6 +63,47 @@ def validate_chat_id(chat_id):
         return True
     except (ValueError, TypeError):
         return False
+
+def extract_urls_from_text(text):
+    """
+    Extrage toate URL-urile dintr-un text și le returnează ca listă.
+    Detectează URL-uri cu http/https și fără protocol.
+    """
+    if not text:
+        return []
+    
+    # Pattern pentru URL-uri cu protocol
+    url_pattern_with_protocol = r'https?://[^\s]+'
+    
+    # Pattern pentru URL-uri fără protocol (domenii cunoscute)
+    url_pattern_without_protocol = r'(?:^|\s)((?:www\.|m\.|mobile\.)?(?:tiktok\.com|instagram\.com|facebook\.com|twitter\.com|x\.com|threads\.net|pinterest\.com|reddit\.com|vimeo\.com|dailymotion\.com)/[^\s]+)'
+    
+    urls = []
+    
+    # Găsește URL-uri cu protocol
+    urls_with_protocol = re.findall(url_pattern_with_protocol, text, re.IGNORECASE)
+    urls.extend(urls_with_protocol)
+    
+    # Găsește URL-uri fără protocol
+    urls_without_protocol = re.findall(url_pattern_without_protocol, text, re.IGNORECASE)
+    for url in urls_without_protocol:
+        if not url.startswith('http'):
+            urls.append('https://' + url)
+        else:
+            urls.append(url)
+    
+    # Elimină duplicatele și returnează lista
+    return list(set(urls))
+
+def filter_supported_urls(urls):
+    """
+    Filtrează doar URL-urile suportate din lista dată.
+    """
+    supported_urls = []
+    for url in urls:
+        if is_supported_url(url):
+            supported_urls.append(url)
+    return supported_urls
 
 def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None):
     """
@@ -579,9 +621,130 @@ async def safe_edit_callback_message(query, text, **kwargs):
             logger.error(f"Eroare la editarea mesajului callback: {e}")
             return None
 
+async def process_single_video(update, url, video_index=None, total_videos=None, delay_seconds=3):
+    """
+    Procesează un singur video cu mesaje de status actualizate.
+    """
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    # Creează mesajul de status
+    if video_index and total_videos:
+        status_text = f"📥 Procesez video {video_index}/{total_videos}...\n🔗 {url[:50]}{'...' if len(url) > 50 else ''}\n⏳ Te rog așteaptă..."
+    else:
+        status_text = f"📥 Procesez video-ul...\n🔗 {url[:50]}{'...' if len(url) > 50 else ''}\n⏳ Te rog așteaptă..."
+    
+    status_message = await safe_send_message(update, status_text)
+    
+    if not status_message:
+        logger.warning(f"Nu s-a putut trimite mesajul de status pentru user {user_id}")
+        return False
+    
+    try:
+        # Execută descărcarea în thread separat
+        import concurrent.futures
+        
+        loop = asyncio.get_event_loop()
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            result = await loop.run_in_executor(executor, download_video, url)
+        
+        if result['success']:
+            # Actualizează mesajul de status
+            if video_index and total_videos:
+                success_text = f"✅ Video {video_index}/{total_videos} descărcat cu succes!\n📤 Trimit videoclipul..."
+            else:
+                success_text = "✅ Video descărcat cu succes!\n📤 Trimit videoclipul..."
+            
+            await safe_edit_message(status_message, success_text)
+            
+            # Trimite videoclipul
+            try:
+                with open(result['file_path'], 'rb') as video_file:
+                    caption = create_safe_caption(
+                        title=result.get('title', 'Video'),
+                        uploader=result.get('uploader'),
+                        description=result.get('description'),
+                        duration=result.get('duration'),
+                        file_size=result.get('file_size')
+                    )
+                    
+                    try:
+                        if hasattr(update.message, 'reply_video'):
+                            await update.message.reply_video(
+                                video=video_file,
+                                caption=caption,
+                                supports_streaming=True,
+                                parse_mode='Markdown'
+                            )
+                        else:
+                            await update.effective_chat.send_video(
+                                video=video_file,
+                                caption=caption,
+                                supports_streaming=True,
+                                parse_mode='Markdown'
+                            )
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+                            logger.warning(f"Nu se poate trimite videoclipul - chat inaccesibil pentru user {user_id}: {e}")
+                            return False
+                        else:
+                            raise
+            except Exception as e:
+                logger.error(f"Eroare la trimiterea videoclipului: {e}")
+                await safe_edit_message(
+                    status_message,
+                    f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
+                )
+                return False
+            
+            # Șterge fișierul temporar
+            try:
+                os.remove(result['file_path'])
+            except:
+                pass
+            
+            # Șterge mesajul de status
+            await safe_delete_message(status_message)
+            
+            # Adaugă pauză între videoclipuri (doar dacă nu este ultimul)
+            if video_index and total_videos and video_index < total_videos:
+                await asyncio.sleep(delay_seconds)
+            
+            return True
+            
+        else:
+            # Eroare la descărcare
+            if video_index and total_videos:
+                error_text = f"❌ Eroare la video {video_index}/{total_videos}:\n{result['error']}"
+            else:
+                error_text = f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
+            
+            await safe_edit_message(status_message, error_text)
+            
+            # Șterge mesajul de eroare după 5 secunde
+            await asyncio.sleep(5)
+            await safe_delete_message(status_message)
+            
+            return False
+            
+    except Exception as e:
+        logger.error(f"Eroare la procesarea videoclipului: {e}")
+        if status_message:
+            await safe_edit_message(
+                status_message,
+                f"❌ Eroare neașteptată:\n{str(e)}"
+            )
+            # Șterge mesajul de eroare după 5 secunde
+            await asyncio.sleep(5)
+            await safe_delete_message(status_message)
+        return False
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Procesează mesajele text (link-uri pentru descărcare)
+    Suportă multiple link-uri într-un singur mesaj
     """
     try:
         # Verifică dacă update-ul și mesajul sunt valide
@@ -595,118 +758,88 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"Mesaj primit de la {user_id} în chat {chat_id}: {message_text}")
         
-        # Verifică dacă mesajul conține un URL suportat
-        if is_supported_url(message_text):
-            # Trimite mesaj de confirmare
-            status_message = await safe_send_message(
-                update,
-                "✅ Procesez și descarc video-ul în 720p te rog asteapta"
-            )
-            
-            if not status_message:
-                logger.warning(f"Nu s-a putut trimite mesajul de status pentru user {user_id}")
-                return
-            
-            try:
-                # Execută descărcarea în thread separat pentru a nu bloca event loop-ul
-                import concurrent.futures
-                import asyncio
+        # Extrage toate URL-urile din mesaj
+        all_urls = extract_urls_from_text(message_text)
+        
+        # Filtrează doar URL-urile suportate
+        supported_urls = filter_supported_urls(all_urls)
+        
+        if supported_urls:
+            # Verifică dacă sunt multiple URL-uri
+            if len(supported_urls) > 1:
+                # Trimite mesaj de confirmare pentru multiple videoclipuri
+                confirmation_message = await safe_send_message(
+                    update,
+                    f"🎯 Am găsit {len(supported_urls)} videoclipuri de descărcat!\n"
+                    f"📥 Voi procesa fiecare videoclip cu o pauză de 3 secunde între ele.\n"
+                    f"⏳ Procesarea va dura aproximativ {len(supported_urls) * 10} secunde..."
+                )
                 
-                loop = asyncio.get_event_loop()
+                # Procesează fiecare URL cu pauză
+                successful_downloads = 0
+                failed_downloads = 0
                 
-                # Rulează descărcarea în thread pool
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    result = await loop.run_in_executor(executor, download_video, message_text)
-                
-                if result['success']:
-                    # Afișează mesaj de succes cu informații despre rotație (dacă există)
-                    if 'success_message' in result:
-                        await safe_edit_message(
-                            status_message,
-                            result['success_message']
-                        )
-                        # Așteaptă puțin pentru ca utilizatorul să vadă mesajul
-                        await asyncio.sleep(1)
+                for index, url in enumerate(supported_urls, 1):
+                    logger.info(f"Procesez video {index}/{len(supported_urls)}: {url}")
                     
-                    # Trimite videoclipul
-                    try:
-                        with open(result['file_path'], 'rb') as video_file:
-                            # Folosește funcția centrală pentru caption sigur
-                            caption = create_safe_caption(
-                                title=result.get('title', 'Video'),
-                                uploader=result.get('uploader'),
-                                description=result.get('description'),
-                                duration=result.get('duration'),
-                                file_size=result.get('file_size')
-                            )
-                            
-                            try:
-                                if hasattr(update.message, 'reply_video'):
-                                    await update.message.reply_video(
-                                        video=video_file,
-                                        caption=caption,
-                                        supports_streaming=True,
-                                        parse_mode='Markdown'
-                                    )
-                                else:
-                                    await update.effective_chat.send_video(
-                                        video=video_file,
-                                        caption=caption,
-                                        supports_streaming=True,
-                                        parse_mode='Markdown'
-                                    )
-                            except Exception as e:
-                                error_msg = str(e).lower()
-                                if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
-                                    logger.warning(f"Nu se poate trimite videoclipul - chat inaccesibil pentru user {user_id}: {e}")
-                                    return
-                                else:
-                                    raise
-                    except Exception as e:
-                        logger.error(f"Eroare la trimiterea videoclipului: {e}")
-                        await safe_edit_message(
-                            status_message,
-                            f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
-                        )
-                    
-                    # Șterge fișierul temporar
-                    try:
-                        os.remove(result['file_path'])
-                    except:
-                        pass
-                        
-                    await safe_delete_message(status_message)
-                    
-                else:
-                    await safe_edit_message(
-                        status_message,
-                        f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
+                    success = await process_single_video(
+                        update, 
+                        url, 
+                        video_index=index, 
+                        total_videos=len(supported_urls),
+                        delay_seconds=3
                     )
                     
-            except Exception as e:
-                logger.error(f"Eroare la procesarea videoclipului: {e}")
-                if status_message:
-                    await safe_edit_message(
-                        status_message,
-                        f"❌ Eroare neașteptată:\n{str(e)}"
-                    )
+                    if success:
+                        successful_downloads += 1
+                    else:
+                        failed_downloads += 1
+                
+                # Trimite raportul final
+                if confirmation_message:
+                    final_report = f"📊 Procesare completă!\n\n"
+                    final_report += f"✅ Videoclipuri descărcate cu succes: {successful_downloads}\n"
+                    if failed_downloads > 0:
+                        final_report += f"❌ Videoclipuri cu erori: {failed_downloads}\n"
+                    final_report += f"\n🎉 Toate videoclipurile au fost procesate!"
+                    
+                    await safe_edit_message(confirmation_message, final_report)
+                    
+                    # Șterge raportul final după 10 secunde
+                    await asyncio.sleep(10)
+                    await safe_delete_message(confirmation_message)
+            
+            else:
+                # Un singur URL - procesează normal
+                await process_single_video(update, supported_urls[0])
+        
         else:
-            # Mesaj pentru URL-uri nesuportate
-            await safe_send_message(
-                update,
-                "❌ Link-ul nu este suportat sau nu este valid.\n\n"
-                "🔗 Platforme suportate:\n"
-                "• TikTok\n"
-                "• Instagram\n"
-                "• Facebook\n"
-                "• Twitter/X\n"
-                "• Threads\n"
-                "• Pinterest\n"
-                "• Reddit\n"
-                "• Vimeo\n"
-                "• Dailymotion\n\n"
-                "💡 Trimite un link valid pentru a descărca videoclipul."
-            )
+            # Verifică dacă mesajul conține URL-uri nesuportate
+            if all_urls:
+                unsupported_message = "❌ Link-urile găsite nu sunt suportate.\n\n"
+                unsupported_message += "🔗 URL-uri detectate:\n"
+                for url in all_urls[:3]:  # Afișează doar primele 3
+                    unsupported_message += f"• {url[:50]}{'...' if len(url) > 50 else ''}\n"
+                if len(all_urls) > 3:
+                    unsupported_message += f"• ... și încă {len(all_urls) - 3} URL-uri\n"
+                unsupported_message += "\n"
+            else:
+                unsupported_message = "❌ Nu am găsit link-uri valide în mesaj.\n\n"
+            
+            unsupported_message += "🔗 Platforme suportate:\n"
+            unsupported_message += "• TikTok\n"
+            unsupported_message += "• Instagram\n"
+            unsupported_message += "• Facebook\n"
+            unsupported_message += "• Twitter/X\n"
+            unsupported_message += "• Threads\n"
+            unsupported_message += "• Pinterest\n"
+            unsupported_message += "• Reddit\n"
+            unsupported_message += "• Vimeo\n"
+            unsupported_message += "• Dailymotion\n\n"
+            unsupported_message += "💡 Trimite link-uri valide pentru a descărca videoclipurile."
+            
+            await safe_send_message(update, unsupported_message)
+            
     except Exception as e:
         logger.error(f"Eroare generală în handle_message: {e}")
         # Încearcă să trimită un mesaj de eroare generică dacă este posibil
