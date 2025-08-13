@@ -229,343 +229,6 @@ YOUTUBE_CLIENT_CONFIGS = {
     }
 }
 
-
-def validate_and_create_temp_dir():
-    """Creează director temporar sigur cu validare împotriva path traversal"""
-    try:
-        # Creează directorul temporar
-        temp_dir = tempfile.mkdtemp(prefix="video_download_")
-        
-        # Validare strictă împotriva path traversal
-        real_path = os.path.realpath(temp_dir)
-        temp_base = os.path.realpath(tempfile.gettempdir())
-        
-        # Verifică că directorul este într-o locație sigură
-        if not real_path.startswith(temp_base):
-            # Curăță directorul creat
-            try:
-                import shutil
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise Exception(f"Invalid temp directory path: {real_path}")
-        
-        # Verifică permisiunile
-        if not os.access(temp_dir, os.W_OK):
-            try:
-                import shutil
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise Exception(f"No write access to temp directory: {temp_dir}")
-        
-        logger.info(f"🔒 Secure temp directory created: {temp_dir}")
-        return temp_dir
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to create secure temp directory: {e}")
-        # Fallback la directorul curent
-        fallback_dir = os.path.join(os.getcwd(), 'temp_downloads')
-        os.makedirs(fallback_dir, exist_ok=True)
-        logger.warning(f"Using fallback temp directory: {fallback_dir}")
-        return fallback_dir
-
-# Configurații îmbunătățite pentru toate platformele
-ENHANCED_PLATFORM_CONFIGS = {
-    'tiktok': {
-        'user_agents': [
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0',
-            'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 5,
-            'fragment_retries': 5,
-            'extractor_retries': 3,
-            'socket_timeout': 30,
-            'sleep_interval': 2,
-            'max_sleep_interval': 10,
-            'geo_bypass': True,
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'tiktok': {
-                    'webpage_download_timeout': 30,
-                    'api_hostname': 'api.tiktokv.com'
-                }
-            }
-        }
-    },
-    'instagram': {
-        'user_agents': [
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'instagram': {
-                    'api_version': 'v19.0',
-                    'include_stories': False
-                }
-            }
-        }
-    },
-    'reddit': {
-        'user_agents': [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 5,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True
-        }
-    },
-    'facebook': {
-        'user_agents': [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 5,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'facebook': {
-                    'api_version': 'v19.0',
-                    'legacy_ssl': True,
-                    'tab': 'videos'
-                }
-            }
-        }
-    },
-    'twitter': {
-        'user_agents': [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True
-        }
-    },
-    'vimeo': {
-        'user_agents': [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True
-        }
-    },
-    'dailymotion': {
-        'user_agents': [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True
-        }
-    },
-    'pinterest': {
-        'user_agents': [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True
-        }
-    },
-    'threads': {
-        'user_agents': [
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ],
-        'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
-            'geo_bypass': True,
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'instagram': {  # Threads folosește Instagram extractor
-                    'api_version': 'v19.0'
-                }
-            }
-        }
-    }
-}
-
-def get_platform_from_url(url):
-    """Determină platforma din URL"""
-    url_lower = url.lower()
-    
-    if any(domain in url_lower for domain in ['tiktok.com', 'vm.tiktok.com']):
-        return 'tiktok'
-    elif 'instagram.com' in url_lower:
-        return 'instagram'
-    elif any(domain in url_lower for domain in ['reddit.com', 'redd.it', 'v.redd.it']):
-        return 'reddit'
-    elif any(domain in url_lower for domain in ['facebook.com', 'fb.watch', 'fb.me']):
-        return 'facebook'
-    elif any(domain in url_lower for domain in ['twitter.com', 'x.com']):
-        return 'twitter'
-    elif 'vimeo.com' in url_lower:
-        return 'vimeo'
-    elif any(domain in url_lower for domain in ['dailymotion.com', 'dai.ly']):
-        return 'dailymotion'
-    elif any(domain in url_lower for domain in ['pinterest.com', 'pin.it']):
-        return 'pinterest'
-    elif 'threads.net' in url_lower:
-        return 'threads'
-    
-    return 'generic'
-
-def create_enhanced_ydl_opts(url, temp_dir):
-    """Creează opțiuni yt-dlp îmbunătățite bazate pe platformă"""
-    platform = get_platform_from_url(url)
-    config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
-    
-    # Opțiuni de bază
-    ydl_opts = {
-        'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
-        'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
-        'restrictfilenames': True,
-        'noplaylist': True,
-        'extract_flat': False,
-        'writethumbnail': False,
-        'writeinfojson': False,
-        'no_warnings': False,
-        'ignoreerrors': False,
-        'prefer_free_formats': False,
-        'max_filesize': 50 * 1024 * 1024,  # 50MB
-        'max_duration': 600,  # 10 minutes
-        'http_headers': get_random_headers()
-    }
-    
-    # Adaugă configurații specifice platformei
-    if config.get('ydl_opts_extra'):
-        ydl_opts.update(config['ydl_opts_extra'])
-    
-    # Setează user agent aleatoriu din lista platformei
-    if config.get('user_agents'):
-        import random
-        user_agent = random.choice(config['user_agents'])
-        ydl_opts['http_headers']['User-Agent'] = user_agent
-    
-    return ydl_opts
-
-def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
-    """Descarcă cu strategii îmbunătățite de retry"""
-    platform = get_platform_from_url(url)
-    config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
-    
-    last_error = None
-    
-    for attempt in range(max_attempts):
-        try:
-            logger.info(f"🔄 Încercare {attempt + 1}/{max_attempts} pentru {platform}...")
-            
-            # Creează opțiuni îmbunătățite
-            ydl_opts = create_enhanced_ydl_opts(url, temp_dir)
-            
-            # Adaugă delay între încercări
-            if attempt > 0:
-                import time
-                delay = 2 ** attempt  # Exponential backoff
-                logger.info(f"⏱️ Așteptare {delay}s înainte de încercarea {attempt + 1}...")
-                time.sleep(delay)
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Extrage informații
-                info = ydl.extract_info(url, download=False)
-                if not info:
-                    raise Exception("Nu s-au putut extrage informațiile video")
-                
-                # Verifică dacă este live stream
-                if info.get('is_live'):
-                    raise Exception("Live stream-urile nu sunt suportate")
-                
-                # Descarcă videoclipul
-                ydl.download([url])
-                
-                # Găsește fișierul descărcat
-                downloaded_files = []
-                for file in os.listdir(temp_dir):
-                    if file.endswith(('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.3gp')):
-                        downloaded_files.append(os.path.join(temp_dir, file))
-                
-                if not downloaded_files:
-                    raise Exception("Nu s-a găsit fișierul video descărcat")
-                
-                video_file = downloaded_files[0]
-                file_size = os.path.getsize(video_file)
-                
-                logger.info(f"✅ Descărcare reușită pentru {platform} la încercarea {attempt + 1}")
-                
-                return {
-                    'success': True,
-                    'file_path': video_file,
-                    'title': info.get('title', 'Video'),
-                    'description': info.get('description', ''),
-                    'uploader': info.get('uploader', ''),
-                    'duration': info.get('duration', 0),
-                    'file_size': file_size,
-                    'platform': platform,
-                    'attempt_number': attempt + 1
-                }
-                
-        except Exception as e:
-            error_msg = str(e)
-            last_error = error_msg
-            logger.warning(f"❌ Încercarea {attempt + 1} eșuată pentru {platform}: {error_msg[:100]}...")
-            
-            # Verifică dacă este o eroare critică care nu merită retry
-            critical_errors = [
-                'private video', 'video unavailable', 'video not found',
-                'this video is private', 'content not available',
-                'video has been removed', 'account suspended'
-            ]
-            
-            if any(critical in error_msg.lower() for critical in critical_errors):
-                logger.info(f"🛑 Eroare critică detectată, oprire retry pentru {platform}")
-                break
-    
-    return {
-        'success': False,
-        'error': f'❌ {platform.title()}: Toate încercările au eșuat. Ultima eroare: {last_error}',
-        'file_path': None,
-        'file_size': 0,
-        'duration': 0,
-        'title': f'{platform.title()} - Eșec descărcare',
-        'platform': platform,
-        'total_attempts': max_attempts
-    }
-
-
-
 # Lista de User Agents reali pentru a evita detecția
 REAL_USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -1322,48 +985,414 @@ def validate_url(url):
 
 def download_video(url, output_path=None):
     """
-    Descarcă un video cu strategii îmbunătățite pentru toate platformele
+    Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
     Returnează un dicționar cu rezultatul
     """
-    logger.info(f"=== ENHANCED DOWNLOAD_VIDEO START === URL: {url}")
+    logger.info(f"=== DOWNLOAD_VIDEO START === URL: {url}")
     
     try:
         # Validează URL-ul înainte de procesare
-        logger.info(f"=== ENHANCED DOWNLOAD_VIDEO Validating URL ===")
+        logger.info(f"=== DOWNLOAD_VIDEO Validating URL ===")
         is_valid, validation_msg = validate_url(url)
         if not is_valid:
-            logger.error(f"=== ENHANCED DOWNLOAD_VIDEO URL Invalid === {validation_msg}")
+            logger.error(f"=== DOWNLOAD_VIDEO URL Invalid === {validation_msg}")
             return {
                 'success': False,
                 'error': f'❌ URL invalid: {validation_msg}',
                 'title': 'N/A'
             }
+        
+        logger.info(f"=== DOWNLOAD_VIDEO URL Valid, creating temp dir ===")
+        # Creează directorul temporar cu fallback pentru Render
+        try:
+            # Încearcă să folosească /tmp pe Render sau directorul temporar implicit
+            temp_base = os.environ.get('TMPDIR', os.environ.get('TEMP', '/tmp'))
+            if not os.path.exists(temp_base):
+                temp_base = tempfile.gettempdir()
+            temp_dir = tempfile.mkdtemp(dir=temp_base)
+            logger.info(f"=== DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
+        except Exception as temp_error:
+            logger.warning(f"Eroare la crearea directorului temporar: {temp_error}")
+            # Fallback la directorul curent
+            temp_dir = os.path.join(os.getcwd(), 'temp_downloads')
+            os.makedirs(temp_dir, exist_ok=True)
+            logger.info(f"=== DOWNLOAD_VIDEO Fallback temp dir: {temp_dir} ===")
     
-        # Creează directorul temporar
-        temp_dir = validate_and_create_temp_dir()
-        if not temp_dir:
+        if output_path is None:
+            output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
+        
+        # YouTube este dezactivat - returnează eroare
+        if 'youtube.com' in url.lower() or 'youtu.be' in url.lower():
             return {
                 'success': False,
-                'error': '❌ Nu s-a putut crea directorul temporar',
+                'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
+                'title': 'YouTube - Nu este suportat'
+            }
+        else:
+            # Procesează URL-urile Reddit cu strategia anti-blocking
+            if 'reddit.com' in url.lower() or 'redd.it' in url.lower():
+                logger.info(f"🔴 REDDIT URL DETECTED: {url}")
+                print(f"[DEBUG] REDDIT URL PROCESSING: {url}")
+                logger.info(f"📁 Using temp_dir: {temp_dir}")
+                
+                reddit_result = extract_reddit_video_direct(url, temp_dir)
+                logger.info(f"🔴 REDDIT RESULT: {reddit_result}")
+                print(f"[DEBUG] REDDIT RESULT: {reddit_result}")
+                
+                if reddit_result['success']:
+                    logger.info(f"✅ REDDIT SUCCESS: {reddit_result['file_path']}")
+                    return {
+                        'success': True,
+                        'file_path': reddit_result['file_path'],
+                        'title': 'Reddit Video',
+                        'error': None
+                    }
+                else:
+                    logger.error(f"❌ REDDIT FAILED: {reddit_result['error']}")
+                    return {
+                        'success': False,
+                        'error': reddit_result['error'],
+                        'title': 'Reddit - Eroare'
+                    }
+            
+            # Normalizează URL-urile Facebook înainte de descărcare
+            if 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
+                url = normalize_facebook_url(url)
+                logger.info(f"URL procesat pentru Facebook: {url}")
+            
+            # Procesează URL-urile Threads - folosește Instagram extractor
+            if 'threads.com' in url.lower() or 'threads.net' in url.lower():
+                # Threads folosește același backend ca Instagram
+                # Verifică dacă URL-ul conține un post specific
+                if not ('/post/' in url or '/t/' in url):
+                    logger.warning(f"URL Threads nesuportat (nu este un post specific): {url}")
+                    return {
+                        'success': False,
+                        'error': '❌ Threads: URL-ul nu pare să fie un post specific cu video.\n\n💡 Încearcă cu un link direct către un post Threads care conține video:\n• https://www.threads.net/@username/post/ABC123\n• https://www.threads.net/t/ABC123',
+                        'title': 'Threads - URL nesuportat'
+                    }
+                logger.info(f"URL Threads detectat: {url}")
+            
+            # Configurație pentru alte platforme
+            ydl_opts = {
+                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),  # Limitează titlul la 100 caractere
+                'format': 'best[filesize<45M][height<=720]/best',
+                'quiet': True,
+                'noplaylist': True,
+                'extractaudio': False,
+                'audioformat': 'mp3',
+                'embed_subs': False,
+                'writesubtitles': False,
+                'writeautomaticsub': False,
+                'restrictfilenames': True,  # Restricționează caracterele în nume
+                'windowsfilenames': True,   # Compatibilitate Windows
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                },
+                'extractor_retries': 5,
+                'fragment_retries': 5,
+                'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
+                'ignoreerrors': False,
+                'extract_flat': False,
+                'skip_download': False,
+                'socket_timeout': 30,
+                'retries': 3,
+            }
+            
+            # Configurații specifice pentru Threads
+            if 'threads.com' in url.lower() or 'threads.net' in url.lower():
+                # Threads folosește Instagram extractor - adaugă configurații specifice
+                ydl_opts.update({
+                    'extractor_args': {
+                        'instagram': {
+                            'api_version': 'v19.0',
+                            'legacy_ssl': True,
+                            'ignore_parse_errors': True
+                        }
+                    },
+                    # Headers specifice pentru Threads/Instagram
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Connection': 'keep-alive',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none',
+                        'Sec-Fetch-User': '?1',
+                        'Upgrade-Insecure-Requests': '1'
+                    },
+                    'retries': 5,
+                    'extractor_retries': 8
+                })
+                logger.info("Configurații Threads/Instagram aplicate")
+    
+        logger.info("=== DOWNLOAD_VIDEO Creating YoutubeDL instance ===")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Extrage informații despre video
+            logger.info("=== DOWNLOAD_VIDEO Extracting video info ===")
+            info = ydl.extract_info(url, download=False)
+            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Title: {info.get('title', 'N/A')}")
+            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Duration: {info.get('duration', 0)}")
+            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Uploader: {info.get('uploader', 'N/A')}")
+            
+            # Extrage titlul și alte informații
+            title = info.get('title', 'video')
+            description = info.get('description', '')
+            uploader = info.get('uploader', '')
+            duration = info.get('duration', 0)
+            
+            # Îmbunătățește titlul pentru diferite platforme
+            if 'instagram.com' in url.lower():
+                # Pentru Instagram, încearcă să găsești un titlu mai bun
+                if description and len(description) > len(title):
+                    # Ia primele 100 de caractere din descriere ca titlu
+                    title = description[:100].strip()
+                    if len(description) > 100:
+                        title += '...'
+                elif uploader:
+                    title = f"Video de la {uploader}"
+            
+            elif 'tiktok.com' in url.lower():
+                # Pentru TikTok, încearcă să găsești un titlu mai bun
+                if description and len(description) > len(title):
+                    # Ia primele 100 de caractere din descriere ca titlu
+                    title = description[:100].strip()
+                    if len(description) > 100:
+                        title += '...'
+                elif uploader:
+                    title = f"TikTok de la {uploader}"
+            
+            elif 'threads.com' in url.lower() or 'threads.net' in url.lower():
+                # Pentru Threads, îmbunătățește titlul
+                if description and len(description) > len(title):
+                    # Ia primele 100 de caractere din descriere ca titlu
+                    title = description[:100].strip()
+                    if len(description) > 100:
+                        title += '...'
+                elif uploader:
+                    title = f"Threads de la {uploader}"
+                else:
+                    title = "Video Threads"
+            
+            # Curăță titlul de caractere speciale problematice și emoticoane
+            title = clean_title(title)
+            if not title or title == 'video':
+                title = f"Video de pe {url.split('/')[2] if '/' in url else 'platformă necunoscută'}"
+            
+            # Verifică dacă videoul nu este prea lung (max 3 ore pentru fișiere mai mari)
+            if duration and duration > 10800:  # 3 ore = 10800 secunde
+                return {
+                    'success': False,
+                    'error': 'Videoul este prea lung (max 3 ore)',
+                    'title': title
+                }
+            
+            # Descarcă videoul
+            try:
+                logger.info("Încep descărcarea video-ului...")
+                ydl.download([url])
+                logger.info("Descărcare completă!")
+            except Exception as download_error:
+                logger.error(f"Eroare la descărcare: {download_error}")
+                error_str = str(download_error).lower()
+                # YouTube este dezactivat - returnează eroare
+                if ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
+                    return {
+                        'success': False,
+                        'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
+                        'title': title
+                    }
+                # Încearcă cu opțiuni alternative pentru Facebook - UPDATED cu patch
+                elif 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
+                    error_str = str(download_error).lower()
+                    logger.warning(f"Facebook error în download_video: {error_str[:100]}...")
+                    
+                    if 'cannot parse data' in error_str:
+                        logger.warning(f"Facebook parsing error detectat pentru URL: {url}")
+                        # Încearcă fallback cu patch înainte de a returna eroare
+                        fallback_result = try_facebook_fallback(url, output_path, title)
+                        if fallback_result['success']:
+                            # Adaugă informații despre rotație dacă sunt disponibile
+                            if 'rotation_info' in fallback_result:
+                                fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                            return fallback_result
+                        else:
+                            # Mesajul de eroare va fi deja detaliat din try_facebook_fallback
+                            return fallback_result
+                    elif 'unsupported url' in error_str:
+                        logger.warning(f"Facebook URL nesuportat în download_video: {url}")
+                        # Încearcă normalizarea URL-ului și fallback
+                        normalized_url = normalize_facebook_url(url)
+                        if normalized_url != url:
+                            logger.info(f"Încercare cu URL normalizat: {normalized_url}")
+                            fallback_result = try_facebook_fallback(normalized_url, output_path, title)
+                            if fallback_result['success'] and 'rotation_info' in fallback_result:
+                                fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                            return fallback_result
+                        else:
+                            # Încearcă fallback chiar și pentru URL-uri nesuportate
+                            fallback_result = try_facebook_fallback(url, output_path, title)
+                            if fallback_result['success'] and 'rotation_info' in fallback_result:
+                                fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                            return fallback_result
+                    else:
+                        # Pentru orice altă eroare Facebook, încearcă fallback cu patch
+                        fallback_result = try_facebook_fallback(url, output_path, title)
+                        if fallback_result['success'] and 'rotation_info' in fallback_result:
+                            fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                        return fallback_result
+                else:
+                    raise download_error
+            
+            # Pentru YouTube, fișierele au fost deja găsite în bucla de încercări
+            # Pentru alte platforme, găsește fișierul descărcat în directorul temporar
+            downloaded_files = []
+            if not ('youtube.com' in url.lower() or 'youtu.be' in url.lower()):
+                downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+                downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
+            
+            if not downloaded_files:
+                return {
+                    'success': False,
+                    'error': 'Fișierul nu a fost găsit după descărcare',
+                    'title': title
+                }
+            
+            # Ia primul fișier găsit (ar trebui să fie singurul)
+            downloaded_file = downloaded_files[0]
+            
+            # Verifică dimensiunea fișierului (Telegram Bot API are limită strictă de 50MB)
+            file_size = os.path.getsize(downloaded_file)
+            max_size = 45 * 1024 * 1024  # 45MB în bytes (buffer pentru limita Telegram de 50MB)
+            size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
+
+            if file_size > max_size:
+                os.remove(downloaded_file)
+                return {
+                    'success': False,
+                    'error': f'❌ Fișierul este prea mare ({size_mb:.1f}MB).\n\n📊 Dimensiune: {size_mb:.1f}MB\n⚠️ Limita Telegram: 50MB (pentru bot-uri)\n\n💡 Încearcă un clip mai scurt sau o calitate mai mică.',
+                    'title': title
+                }
+            
+            logger.info(f"=== DOWNLOAD_VIDEO SUCCESS === File: {downloaded_file}")
+            return {
+                 'success': True,
+                 'file_path': downloaded_file,
+                 'title': title,
+                 'description': description,
+                 'uploader': uploader,
+                 'duration': duration,
+                 'file_size': file_size
+             }
+            
+    except yt_dlp.DownloadError as e:
+        logger.error(f"=== DOWNLOAD_VIDEO DownloadError === {str(e)}")
+        error_msg = str(e).lower()
+        
+        # Gestionare specifică pentru YouTube - dezactivat
+        if ('youtube' in url.lower() or 'youtu.be' in url.lower()):
+            return {
+                'success': False,
+                'error': '❌ YouTube nu este suportat momentan. Te rog să folosești alte platforme: Facebook, Instagram, TikTok, Twitter, etc.',
                 'title': 'N/A'
             }
-    
-        logger.info(f"=== ENHANCED DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
-    
-        # Folosește strategia îmbunătățită de descărcare
-        result = download_with_enhanced_retry(url, temp_dir, max_attempts=3)
-        
-        if result['success']:
-            logger.info(f"✅ ENHANCED DOWNLOAD SUCCESS: {result['title']}")
+        # Gestionare specifică pentru Threads
+        elif 'threads.com' in url.lower() or 'threads.net' in url.lower():
+            if 'unsupported url' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Threads: URL nesuportat.\n\n🔧 Cauze posibile:\n• URL-ul nu conține un video\n• Post privat sau restricționat\n• Format URL nerecunoscut\n\n💡 Încearcă:\n• Un link direct către un post cu video\n• Format: https://www.threads.net/@username/post/ABC123\n• Verifică că postul este public',
+                    'title': 'N/A'
+                }
+            elif 'login' in error_msg or 'authentication' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Threads: Conținut privat sau necesită autentificare.\n\n🔒 Acest post poate fi:\n• Privat sau restricționat\n• Disponibil doar pentru utilizatori autentificați\n\n💡 Încearcă cu un post public Threads.',
+                    'title': 'N/A'
+                }
+            elif 'not available' in error_msg:
+                return {
+                    'success': False,
+                    'error': '❌ Threads: Conținutul nu este disponibil sau a fost șters.\n\n🔧 Verifică că:\n• Link-ul este corect\n• Postul nu a fost șters\n• Postul este public',
+                    'title': 'N/A'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f'❌ Threads: Eroare la descărcare.\n\n🔧 Detalii: {str(e)[:100]}...\n\n💡 Threads folosește tehnologia Instagram și poate avea restricții similare.',
+                    'title': 'N/A'
+                }
+        elif 'rate' in error_msg and 'limit' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Instagram/TikTok: Limită de rată atinsă. Încearcă din nou în câteva minute.',
+                'title': 'N/A'
+            }
+        elif 'login' in error_msg or 'authentication' in error_msg or 'cookies' in error_msg:
+            help_msg = '\n\nPentru Instagram: Folosește --cookies-from-browser sau --cookies pentru autentificare.'
+            help_msg += '\nVezi: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp'
+            return {
+                'success': False,
+                'error': f'❌ Instagram/TikTok: Conținut privat sau necesită autentificare.{help_msg}',
+                'title': 'N/A'
+            }
+        elif 'not available' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Conținutul nu este disponibil sau a fost șters.',
+                'title': 'N/A'
+            }
+        elif 'cannot parse data' in error_msg or 'parse' in error_msg:
+            # Pentru erori de parsare Facebook, încearcă patch-ul cu rotație
+            if 'facebook' in error_msg and ('facebook.com' in url.lower() or 'fb.watch' in url.lower()):
+                logger.info("Încercare patch Facebook cu rotație pentru eroare de parsare...")
+                try:
+                    # Încearcă fallback cu patch și rotație pentru DownloadError
+                    temp_output = os.path.join(temp_dir, "%(title)s.%(ext)s")
+                    fallback_result = try_facebook_fallback(url, temp_output, 'Facebook Video')
+                    if fallback_result['success']:
+                        # Adaugă informații despre rotație dacă sunt disponibile
+                        if 'rotation_info' in fallback_result:
+                            fallback_result['success_message'] = f"✅ Facebook: {fallback_result['rotation_info']}"
+                        return fallback_result
+                    else:
+                        # Mesajul de eroare va fi deja detaliat din try_facebook_fallback
+                        return fallback_result
+                except Exception as fallback_error:
+                    logger.warning(f"Fallback Facebook eșuat în DownloadError: {fallback_error}")
+                    return {
+                        'success': False,
+                        'error': '❌ Facebook: Eroare de parsare a datelor (DownloadError). Patch-ul Facebook a fost aplicat dar problema persistă.\n\n🔧 Cauze posibile:\n• URL Facebook în format nou nesuportat\n• Conținut privat sau restricționat\n• Probleme temporare cu API Facebook\n\n💡 Încearcă:\n• Un alt link Facebook\n• Link în format facebook.com/watch?v=\n• Contactează adminul pentru suport',
+                        'title': 'N/A'
+                    }
+            
+            return {
+                'success': False,
+                'error': '❌ Facebook: Eroare de parsare a datelor. Acest lucru poate fi cauzat de:\n• Emoticoane sau caractere speciale în titlu\n• Conținut privat sau restricționat\n• Probleme temporare cu platforma\n\n💡 Încearcă din nou în câteva minute.',
+                'title': 'N/A'
+            }
+        elif 'facebook' in error_msg and ('error' in error_msg or 'failed' in error_msg):
+            return {
+                'success': False,
+                'error': '❌ Facebook: Eroare la accesarea conținutului. Patch-ul Facebook aplicat.\n\n🔧 Verifică:\n• Link-ul este public și valid\n• Nu este conținut restricționat\n• Formatul URL este corect\n\n💡 Încearcă un alt link Facebook.',
+                'title': 'N/A'
+            }
         else:
-            logger.error(f"❌ ENHANCED DOWNLOAD FAILED: {result['error']}")
-        
-        return result
-    
+            return {
+                'success': False,
+                'error': f'❌ Eroare la descărcare: {str(e)}',
+                'title': 'N/A'
+            }
     except Exception as e:
-        logger.error(f"=== ENHANCED DOWNLOAD_VIDEO Exception === {str(e)}")
+        logger.error(f"=== DOWNLOAD_VIDEO Exception === {str(e)}")
         import traceback
-        logger.error(f"=== ENHANCED DOWNLOAD_VIDEO Traceback === {traceback.format_exc()}")
+        logger.error(f"=== DOWNLOAD_VIDEO Traceback === {traceback.format_exc()}")
         return {
             'success': False,
             'error': f'❌ Eroare neașteptată: {str(e)}',
@@ -1372,8 +1401,8 @@ def download_video(url, output_path=None):
     
     finally:
         # Nu șterge temp_dir aici - va fi șters după trimiterea fișierului
+        # Cleanup-ul se face în send_video_file din app.py
         pass
-
 
 def extract_post_id_from_url(url):
     """Extrage ID-ul postului din URL-ul Reddit"""
@@ -1757,78 +1786,3 @@ def is_supported_url(url):
     ]
     
     return any(domain in url.lower() for domain in supported_domains)
-
-
-def get_url_variants(url):
-    """Generează variante de URL pentru încercări multiple"""
-    platform = get_platform_from_url(url)
-    variants = [url]  # URL original
-    
-    if platform == 'facebook':
-        # Variante Facebook
-        if '/watch?v=' in url:
-            video_id = url.split('/watch?v=')[1].split('&')[0]
-            variants.extend([
-                f"https://www.facebook.com/share/v/{video_id}/",
-                f"https://m.facebook.com/watch?v={video_id}",
-                f"https://fb.watch/{video_id}"
-            ])
-        elif '/share/v/' in url:
-            video_id = url.split('/share/v/')[1].split('/')[0]
-            variants.extend([
-                f"https://www.facebook.com/watch?v={video_id}",
-                f"https://m.facebook.com/watch?v={video_id}"
-            ])
-    
-    elif platform == 'twitter':
-        # Variante Twitter/X
-        variants.extend([
-            url.replace('twitter.com', 'x.com'),
-            url.replace('x.com', 'twitter.com'),
-            url.replace('mobile.twitter.com', 'twitter.com')
-        ])
-    
-    elif platform == 'dailymotion':
-        # Variante Dailymotion
-        if 'dai.ly/' in url:
-            video_id = url.split('dai.ly/')[1]
-            variants.append(f"https://www.dailymotion.com/video/{video_id}")
-        elif 'dailymotion.com/video/' in url:
-            video_id = url.split('/video/')[1].split('?')[0]
-            variants.append(f"https://dai.ly/{video_id}")
-    
-    elif platform == 'pinterest':
-        # Variante Pinterest
-        if 'pin.it/' in url:
-            # Pentru pin.it, încercăm să găsim ID-ul real
-            variants.append(url.replace('pin.it/', 'pinterest.com/pin/'))
-    
-    # Elimină duplicatele și returnează
-    return list(dict.fromkeys(variants))
-
-def normalize_url_for_platform(url):
-    """Normalizează URL-ul pentru platformă"""
-    platform = get_platform_from_url(url)
-    
-    if platform == 'reddit':
-        # Elimină parametrii de query pentru Reddit
-        url = url.split('?')[0].rstrip('/')
-        # Asigură-te că nu se termină cu .json
-        if url.endswith('.json'):
-            url = url[:-5]
-    
-    elif platform == 'tiktok':
-        # Normalizează TikTok URLs
-        if 'vm.tiktok.com' in url:
-            # Pentru link-uri scurte, le lăsăm așa cum sunt
-            pass
-        else:
-            # Elimină parametrii extra
-            url = url.split('?')[0]
-    
-    elif platform == 'instagram':
-        # Normalizează Instagram URLs
-        url = url.split('?')[0].rstrip('/')
-    
-    return url
-
