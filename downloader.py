@@ -29,6 +29,14 @@ from production_config import (
     get_production_ydl_opts_enhancement,
     log_production_metrics
 )
+from render_optimized_config import (
+    get_render_ytdl_opts,
+    get_render_headers,
+    is_render_environment,
+    get_render_temp_dir,
+    cleanup_render_temp_files,
+    RENDER_OPTIMIZED_CONFIG
+)
 
 # Configurare logging centralizat
 logging.basicConfig(
@@ -1396,40 +1404,51 @@ def validate_url(url):
 def download_video(url, output_path=None):
     """
     Descarcă un video cu strategii îmbunătățite pentru toate platformele
+    Optimizat special pentru mediul Render
     Returnează un dicționar cu rezultatul
     """
-    logger.info(f"=== ENHANCED DOWNLOAD_VIDEO START === URL: {url}")
+    logger.info(f"=== RENDER OPTIMIZED DOWNLOAD START === URL: {url}")
     
     try:
+        # Verifică dacă rulează în mediul Render și aplică configurații specifice
+        if is_render_environment():
+            logger.info("🚀 Mediu Render detectat - aplicând configurații optimizate")
+            cleanup_render_temp_files()  # Curăță fișierele vechi
+        
         # Validează URL-ul înainte de procesare
-        logger.info(f"=== ENHANCED DOWNLOAD_VIDEO Validating URL ===")
+        logger.info(f"=== RENDER OPTIMIZED Validating URL ===")
         is_valid, validation_msg = validate_url(url)
         if not is_valid:
-            logger.error(f"=== ENHANCED DOWNLOAD_VIDEO URL Invalid === {validation_msg}")
+            logger.error(f"=== RENDER OPTIMIZED URL Invalid === {validation_msg}")
             return {
                 'success': False,
                 'error': f'❌ URL invalid: {validation_msg}',
                 'title': 'N/A'
             }
     
-        # Creează directorul temporar
-        temp_dir = validate_and_create_temp_dir()
-        if not temp_dir:
-            return {
-                'success': False,
-                'error': '❌ Nu s-a putut crea directorul temporar',
-                'title': 'N/A'
-            }
+        # Creează directorul temporar optimizat pentru Render
+        if is_render_environment():
+            temp_dir = get_render_temp_dir()
+            os.makedirs(temp_dir, exist_ok=True)
+            logger.info(f"🏭 Folosind directorul Render: {temp_dir}")
+        else:
+            temp_dir = validate_and_create_temp_dir()
+            if not temp_dir:
+                return {
+                    'success': False,
+                    'error': '❌ Nu s-a putut crea directorul temporar',
+                    'title': 'N/A'
+                }
     
-        logger.info(f"=== ENHANCED DOWNLOAD_VIDEO Temp dir created: {temp_dir} ===")
+        logger.info(f"=== RENDER OPTIMIZED Temp dir ready: {temp_dir} ===")
     
-        # Folosește strategia îmbunătățită de descărcare
-        result = download_with_enhanced_retry(url, temp_dir, max_attempts=3)
+        # Folosește strategia îmbunătățită de descărcare cu configurații Render
+        result = download_with_render_optimization(url, temp_dir, max_attempts=3)
         
         if result['success']:
-            logger.info(f"✅ ENHANCED DOWNLOAD SUCCESS: {result['title']}")
+            logger.info(f"✅ RENDER OPTIMIZED SUCCESS: {result['title']}")
         else:
-            logger.error(f"❌ ENHANCED DOWNLOAD FAILED: {result['error']}")
+            logger.error(f"❌ RENDER OPTIMIZED FAILED: {result['error']}")
         
         return result
     
@@ -1446,6 +1465,126 @@ def download_video(url, output_path=None):
     finally:
         # Nu șterge temp_dir aici - va fi șters după trimiterea fișierului
         pass
+
+
+def download_with_render_optimization(url, temp_dir, max_attempts=3):
+    """Descarcă cu optimizări specifice pentru mediul Render"""
+    platform = get_platform_from_url(url)
+    logger.info(f"🚀 RENDER OPTIMIZED DOWNLOAD pentru {platform}: {url}")
+    
+    last_error = None
+    
+    for attempt in range(max_attempts):
+        try:
+            logger.info(f"🔄 Render încercare {attempt + 1}/{max_attempts} pentru {platform}...")
+            
+            # Implementează rate limiting pentru evitarea detecției
+            if is_render_environment():
+                rate_config = RENDER_OPTIMIZED_CONFIG['rate_limiting']
+                if rate_config['enabled']:
+                    platform_limit = rate_config['requests_per_minute'].get(platform, 10)
+                    cooldown = rate_config['cooldown_seconds']
+                    logger.info(f"⏱️ Rate limiting Render: {platform_limit}/min, cooldown: {cooldown}s")
+                    time.sleep(cooldown)
+            
+            # Creează opțiuni yt-dlp optimizate pentru Render
+            if is_render_environment():
+                ydl_opts = get_render_ytdl_opts(platform)
+                ydl_opts['outtmpl'] = os.path.join(temp_dir, '%(title)s.%(ext)s')
+                logger.info(f"🏭 Folosind configurații Render pentru {platform}")
+            else:
+                ydl_opts = create_enhanced_ydl_opts(url, temp_dir)
+            
+            # Adaugă delay între încercări (exponential backoff)
+            if attempt > 0:
+                delay = min(2 ** attempt, 10)  # Max 10 secunde pentru Render
+                logger.info(f"⏱️ Render backoff: {delay}s înainte de încercarea {attempt + 1}...")
+                time.sleep(delay)
+            
+            # Înregistrează timpul de început
+            start_time = time.time()
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Extrage informații
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    raise Exception("Nu s-au putut extrage informațiile video")
+                
+                # Verifică dacă este live stream
+                if info.get('is_live'):
+                    raise Exception("Live stream-urile nu sunt suportate")
+                
+                # Verifică dimensiunea fișierului pentru Render
+                filesize = info.get('filesize') or info.get('filesize_approx')
+                if filesize and filesize > RENDER_OPTIMIZED_CONFIG['security']['max_file_size']:
+                    raise Exception(f"Fișier prea mare pentru Render: {filesize / (1024*1024):.1f}MB")
+                
+                # Descarcă videoclipul
+                ydl.download([url])
+                
+                # Găsește fișierul descărcat
+                downloaded_files = []
+                for file in os.listdir(temp_dir):
+                    if file.endswith(tuple(RENDER_OPTIMIZED_CONFIG['security']['allowed_extensions'])):
+                        downloaded_files.append(os.path.join(temp_dir, file))
+                
+                if not downloaded_files:
+                    raise Exception("Nu s-a găsit fișierul video descărcat")
+                
+                video_file = downloaded_files[0]
+                file_size = os.path.getsize(video_file)
+                download_duration = time.time() - start_time
+                
+                logger.info(f"✅ Render download reușit pentru {platform} la încercarea {attempt + 1}")
+                logger.info(f"📊 Render stats: {file_size / (1024*1024):.1f}MB în {download_duration:.1f}s")
+                
+                # Log pentru anti-bot și producție
+                log_anti_bot_status(platform, True, f"Render încercarea {attempt + 1}: {download_duration:.1f}s")
+                if 'log_production_metrics' in globals():
+                    log_production_metrics(platform, True, download_duration, file_size)
+                
+                return {
+                    'success': True,
+                    'file_path': video_file,
+                    'title': info.get('title', 'Video'),
+                    'description': info.get('description', ''),
+                    'uploader': info.get('uploader', ''),
+                    'duration': info.get('duration', 0),
+                    'file_size': file_size,
+                    'download_time': download_duration,
+                    'render_optimized': True,
+                    'attempt': attempt + 1
+                }
+                
+        except Exception as e:
+            last_error = str(e)
+            error_msg = f"Render încercare {attempt + 1} eșuată pentru {platform}: {last_error[:100]}"
+            logger.warning(error_msg)
+            
+            # Log pentru anti-bot
+            log_anti_bot_status(platform, False, f"Render încercarea {attempt + 1}: {last_error[:100]}")
+            
+            # Cleanup parțial în caz de eroare
+            if is_render_environment():
+                try:
+                    for file in os.listdir(temp_dir):
+                        if file.endswith('.part') or file.endswith('.tmp'):
+                            os.remove(os.path.join(temp_dir, file))
+                except:
+                    pass
+            
+            if attempt == max_attempts - 1:
+                break
+    
+    # Toate încercările au eșuat
+    logger.error(f"❌ Render download complet eșuat pentru {platform} după {max_attempts} încercări")
+    return {
+        'success': False,
+        'error': f'❌ {platform}: Toate încercările Render au eșuat. Ultima eroare: {last_error}',
+        'title': f'{platform} - Eroare Render',
+        'render_optimized': True,
+        'attempts': max_attempts
+    }
 
 
 def extract_post_id_from_url(url):

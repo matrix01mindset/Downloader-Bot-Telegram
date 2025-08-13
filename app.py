@@ -13,6 +13,12 @@ import threading
 import re
 from utils.activity_logger import activity_logger, log_command_executed, log_download_success, log_download_error
 from urllib.parse import urlparse
+from render_optimized_config import (
+    is_render_environment,
+    setup_render_logging,
+    cleanup_render_temp_files,
+    RENDER_OPTIMIZED_CONFIG
+)
 
 # Încarcă variabilele de mediu din .env pentru testare locală
 try:
@@ -265,13 +271,23 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
         title_safe = escape_html(title[:100]) if title else 'Video'
         return f"✅ <b>{title_safe}</b>\n\n🎬 Descărcare completă!"
 
-# Configurare Flask
+# Configurare Flask cu optimizări pentru Render
 app = Flask(__name__)
 
 # 🛡️ SECURITATE: Forțează dezactivarea debug mode în producție
-if os.getenv('FLASK_ENV') == 'production' or os.getenv('RENDER'):
+if os.getenv('FLASK_ENV') == 'production' or os.getenv('RENDER') or is_render_environment():
     app.config['DEBUG'] = False
     app.config['TESTING'] = False
+    
+    # Configurare optimizată pentru Render
+    if is_render_environment():
+        setup_render_logging()
+        cleanup_render_temp_files()
+        logger.info("🚀 Configurație optimizată pentru Render activată")
+        
+        # Configurări specifice pentru Render
+        app.config.update(RENDER_OPTIMIZED_CONFIG['flask_config'])
+        
     logger.info("🔒 Debug mode forțat dezactivat pentru producție")
 else:
     logger.info("🔧 Rulare în modul development")
@@ -624,9 +640,14 @@ async def safe_edit_callback_message(query, text, **kwargs):
 async def process_single_video(update, url, video_index=None, total_videos=None, delay_seconds=3):
     """
     Procesează un singur video cu mesaje de status actualizate.
+    Optimizat pentru mediul Render.
     """
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
+    
+    # Cleanup fișiere temporare pentru Render
+    if is_render_environment():
+        cleanup_render_temp_files()
     
     # Creează mesajul de status
     if video_index and total_videos:
@@ -699,10 +720,14 @@ async def process_single_video(update, url, video_index=None, total_videos=None,
                 )
                 return False
             
-            # Șterge fișierul temporar
+            # Șterge fișierul temporar cu cleanup optimizat pentru Render
             try:
                 os.remove(result['file_path'])
-            except:
+                if is_render_environment():
+                    logger.info(f"[RENDER] Fișier temporar șters: {result['file_path']}")
+            except Exception as e:
+                if is_render_environment():
+                    logger.warning(f"[RENDER] Nu s-a putut șterge fișierul temporar: {e}")
                 pass
             
             # Șterge mesajul de status
@@ -745,8 +770,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Procesează mesajele text (link-uri pentru descărcare)
     Suportă multiple link-uri într-un singur mesaj
+    Optimizat pentru mediul Render
     """
     try:
+        # Cleanup fișiere temporare pentru Render
+        if is_render_environment():
+            cleanup_render_temp_files()
+        
         # Verifică dacă update-ul și mesajul sunt valide
         if not update or not update.message or not update.effective_user:
             logger.warning("Update invalid primit")
@@ -756,7 +786,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         
-        logger.info(f"Mesaj primit de la {user_id} în chat {chat_id}: {message_text}")
+        # Logging îmbunătățit pentru Render
+        if is_render_environment():
+            logger.info(f"[RENDER] Mesaj primit de la {user_id} în chat {chat_id}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}")
+        else:
+            logger.info(f"Mesaj primit de la {user_id} în chat {chat_id}: {message_text}")
         
         # Extrage toate URL-urile din mesaj
         all_urls = extract_urls_from_text(message_text)
@@ -1086,20 +1120,31 @@ processed_messages = set()
 
 @app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
-    """Procesează webhook-urile de la Telegram"""
+    """Procesează webhook-urile de la Telegram - Optimizat pentru Render"""
     try:
+        # Cleanup fișiere temporare pentru Render
+        if is_render_environment():
+            cleanup_render_temp_files()
+        
         # Dacă este o cerere GET, returnează status OK
         if request.method == 'GET':
-            return jsonify({'status': 'webhook_ready', 'method': 'GET'}), 200
+            return jsonify({'status': 'webhook_ready', 'method': 'GET', 'environment': 'render' if is_render_environment() else 'local'}), 200
             
         # Obține datele JSON de la Telegram
         json_data = request.get_json()
         
         if not json_data:
-            logger.error("Nu s-au primit date JSON")
+            if is_render_environment():
+                logger.error("[RENDER] Nu s-au primit date JSON")
+            else:
+                logger.error("Nu s-au primit date JSON")
             return jsonify({'status': 'error', 'message': 'No JSON data'}), 400
         
-        logger.info(f"Webhook primit: {json_data}")
+        # Logging optimizat pentru Render
+        if is_render_environment():
+            logger.info(f"[RENDER] Webhook primit: update_id={json_data.get('update_id', 'N/A')}")
+        else:
+            logger.info(f"Webhook primit: {json_data}")
         
         # Procesare simplificată fără crearea obiectului Update
         if 'message' in json_data:
@@ -1797,7 +1842,18 @@ logger.info("Aplicația Telegram este configurată pentru webhook-uri")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    logger.info(f"Pornesc serverul Flask pe portul {port}")
+    
+    # Configurare optimizată pentru Render
+    if is_render_environment():
+        logger.info(f"[RENDER] Pornesc serverul Flask pe portul {port} cu configurație optimizată")
+        setup_render_logging()
+        cleanup_render_temp_files()
+        
+        # Configurări specifice pentru Render
+        render_config = RENDER_OPTIMIZED_CONFIG.get('flask_config', {})
+        logger.info(f"[RENDER] Aplicând configurații: {list(render_config.keys())}")
+    else:
+        logger.info(f"Pornesc serverul Flask pe portul {port}")
     
     # Nu mai inițializez la startup pentru a evita problemele
     logger.info("Serverul pornește fără inițializare complexă")
