@@ -550,7 +550,7 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
             logger.info(f"🔄 Încercare {attempt + 1}/{max_attempts} pentru {platform}...")
             
             # Implementează rate limiting pentru evitarea detecției
-            implement_rate_limiting(platform, last_request_time)
+            implement_rate_limiting(platform)
             last_request_time = time.time()
             
             # Creează opțiuni îmbunătățite cu anti-bot detection
@@ -612,7 +612,7 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
             error_msg = str(e)
             last_error = error_msg
             logger.warning(f"❌ Încercarea {attempt + 1} eșuată pentru {platform}: {error_msg[:100]}...")
-            log_anti_bot_status(platform, False, attempt + 1, error_msg[:100])
+            log_anti_bot_status(platform, False, f"Încercarea {attempt + 1}: {error_msg[:100]}")
             
             # Verifică dacă este o eroare critică care nu merită retry
             critical_errors = [
