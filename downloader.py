@@ -13,7 +13,6 @@ import sys
 import shutil
 import requests
 from datetime import datetime, timedelta
-from contextlib import contextmanager
 
 # Configurare logging centralizat
 logging.basicConfig(
@@ -367,7 +366,7 @@ def create_youtube_session_advanced(client_type='mweb'):
         'sleep_interval': 1,  # Redus pentru server mic
         'max_sleep_interval': 5,  # Redus pentru server mic
         'sleep_interval_subtitles': 1,
-        'socket_timeout': 15,  # Redus dramatic pentru server mic
+        'socket_timeout': 30,  # Redus dramatic pentru server mic
         'retries': 1,  # Redus pentru server mic
         'extractor_retries': 1,  # Redus pentru server mic
         'fragment_retries': 2,  # Redus pentru server mic
@@ -635,7 +634,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 5,
             'fragment_retries': 5,
-            'socket_timeout': 15,
+            'socket_timeout': 45,
             'retries': 5,
             'ignoreerrors': True,
             'extract_flat': False,
@@ -669,7 +668,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 4,
             'fragment_retries': 4,
-            'socket_timeout': 15,
+            'socket_timeout': 40,
             'retries': 4,
             'ignoreerrors': True,
             'sleep_interval': 3,
@@ -700,7 +699,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 3,
             'fragment_retries': 3,
-            'socket_timeout': 15,
+            'socket_timeout': 35,
             'retries': 3,
             'ignoreerrors': True,
             'sleep_interval': 4,
@@ -732,7 +731,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 3,
             'fragment_retries': 3,
-            'socket_timeout': 15,
+            'socket_timeout': 30,
             'retries': 3,
             'ignoreerrors': True,
             'sleep_interval': 5,
@@ -760,7 +759,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 2,
             'fragment_retries': 2,
-            'socket_timeout': 15,
+            'socket_timeout': 60,
             'retries': 2,
             'ignoreerrors': True,
             'sleep_interval': 8,
@@ -787,7 +786,7 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 1,
             'fragment_retries': 1,
-            'socket_timeout': 15,
+            'socket_timeout': 90,
             'retries': 1,
             'ignoreerrors': True,
             'sleep_interval': 10,
@@ -984,378 +983,6 @@ def validate_url(url):
     
     return True, "URL valid"
 
-
-class SecurityError(Exception):
-    """Excepție pentru probleme de securitate"""
-    pass
-
-def validate_and_create_temp_dir():
-    """Creează director temporar sigur cu validare împotriva path traversal"""
-    try:
-        # Creează directorul temporar
-        temp_dir = validate_and_create_temp_dir()
-        
-        # Validare strictă împotriva path traversal
-        real_path = os.path.realpath(temp_dir)
-        temp_base = os.path.realpath(tempfile.gettempdir())
-        
-        # Verifică că directorul este într-o locație sigură
-        if not real_path.startswith(temp_base):
-            # Curăță directorul creat
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise SecurityError(f"Invalid temp directory path: {real_path}")
-        
-        # Verifică permisiunile
-        if not os.access(temp_dir, os.W_OK):
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise SecurityError(f"No write access to temp directory: {temp_dir}")
-        
-        logger.info(f"🔒 Secure temp directory created: {temp_dir}")
-        return temp_dir
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to create secure temp directory: {e}")
-        raise SecurityError(f"Cannot create secure temp directory: {e}")
-
-@contextmanager
-def safe_temp_file(suffix=".mp4", prefix="video_"):
-    """Context manager pentru fișiere temporare sigure cu cleanup automat"""
-    temp_dir = None
-    temp_file = None
-    
-    try:
-        # Creează directorul temporar sigur
-        temp_dir = validate_and_create_temp_dir()
-        
-        # Creează numele fișierului temporar
-        timestamp = int(time.time())
-        filename = f"{prefix}{timestamp}{suffix}"
-        temp_file = os.path.join(temp_dir, filename)
-        
-        # Validează că calea finală este sigură
-        real_temp_file = os.path.realpath(temp_file)
-        real_temp_dir = os.path.realpath(temp_dir)
-        
-        if not real_temp_file.startswith(real_temp_dir):
-            raise SecurityError(f"Invalid temp file path: {real_temp_file}")
-        
-        logger.info(f"🔒 Secure temp file created: {temp_file}")
-        yield temp_file
-        
-    except Exception as e:
-        logger.error(f"❌ Error in safe_temp_file: {e}")
-        raise
-    finally:
-        # Cleanup garantat
-        cleanup_success = True
-        
-        # Șterge fișierul
-        if temp_file and os.path.exists(temp_file):
-            try:
-                os.remove(temp_file)
-                logger.info(f"🗑️ Temp file cleaned: {temp_file}")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to remove temp file {temp_file}: {e}")
-                cleanup_success = False
-        
-        # Șterge directorul
-        if temp_dir and os.path.exists(temp_dir):
-            try:
-                shutil.rmtree(temp_dir)
-                logger.info(f"🗑️ Temp directory cleaned: {temp_dir}")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to remove temp directory {temp_dir}: {e}")
-                cleanup_success = False
-        
-        if not cleanup_success:
-            logger.error("❌ Incomplete cleanup of temporary files!")
-
-
-def is_youtube_url(url):
-    """Verifică dacă URL-ul este de la YouTube"""
-    youtube_domains = [
-        'youtube.com', 'www.youtube.com', 'm.youtube.com',
-        'youtu.be', 'www.youtu.be'
-    ]
-    
-    for domain in youtube_domains:
-        if domain in url.lower():
-            return True
-    return False
-
-
-def extract_post_id_from_url(url):
-    """Extrage ID-ul postului din URL-ul Reddit"""
-    import re
-    match = re.search(r'/comments/([a-zA-Z0-9]+)/', url)
-    return match.group(1) if match else None
-
-def extract_reddit_video_direct(url, temp_dir):
-    """
-    Extrage video direct din Reddit folosind proxy-uri și strategii anti-blocking
-    Evită problemele de autentificare și blocarea 403
-    """
-    logger.info(f"🔍 Încep extracția Reddit cu proxy și anti-blocking pentru: {url}")
-    
-    # Lista de proxy-uri publice gratuite (rotative)
-    proxies_list = [
-        None,  # Fără proxy mai întâi
-        {'http': 'http://8.210.83.33:80', 'https': 'http://8.210.83.33:80'},
-        {'http': 'http://47.74.152.29:8888', 'https': 'http://47.74.152.29:8888'},
-        {'http': 'http://20.111.54.16:80', 'https': 'http://20.111.54.16:80'},
-        {'http': 'http://47.88.29.108:8080', 'https': 'http://47.88.29.108:8080'},
-        {'http': 'http://8.219.97.248:80', 'https': 'http://8.219.97.248:80'},
-        {'http': 'http://103.152.112.162:80', 'https': 'http://103.152.112.162:80'},
-        {'http': 'http://185.199.84.161:53281', 'https': 'http://185.199.84.161:53281'},
-    ]
-    
-    # User agents rotative pentru evitarea detectării
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        'Mozilla/5.0 (Android 14; Mobile; rv:109.0) Gecko/121.0 Firefox/121.0'
-    ]
-    
-    # Strategii multiple de acces
-    strategies = [
-        {
-            'name': 'Old Reddit JSON',
-            'url_transform': lambda u: u.replace('www.reddit.com', 'old.reddit.com').replace('reddit.com', 'old.reddit.com').rstrip('/') + '.json',
-        },
-        {
-            'name': 'Reddit API',
-            'url_transform': lambda u: f"https://www.reddit.com/api/info.json?id=t3_{extract_post_id_from_url(u)}",
-        },
-        {
-            'name': 'Mobile Reddit',
-            'url_transform': lambda u: u.replace('www.reddit.com', 'm.reddit.com').replace('reddit.com', 'm.reddit.com').rstrip('/') + '.json',
-        },
-        {
-            'name': 'Reddit RSS',
-            'url_transform': lambda u: u.rstrip('/') + '.rss',
-        }
-    ]
-    
-    errors = []
-    
-    # Încearcă fiecare combinație de proxy + strategie + user agent
-    for proxy in proxies_list:
-        for strategy in strategies:
-            for user_agent in user_agents:
-                try:
-                    proxy_info = f"proxy: {proxy['http'] if proxy else 'direct'}" if proxy else "direct"
-                    logger.info(f"🔄 {strategy['name']} cu {proxy_info} și UA: {user_agent[:30]}...")
-                    
-                    headers = {
-                        'User-Agent': user_agent,
-                        'Accept': 'application/json, text/html, */*',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'DNT': '1',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Cache-Control': 'max-age=0'
-                    }
-                    
-                    target_url = strategy['url_transform'](url)
-                    
-                    # Configurează sesiunea
-                    session = requests.Session()
-                    session.headers.update(headers)
-                    
-                    response = session.get(
-                        target_url,
-                        proxies=proxy,
-                        timeout=10,
-                        verify=False,  # Ignoră SSL pentru proxy-uri
-                        allow_redirects=True
-                    )
-                    
-                    if response.status_code == 200:
-                        logger.info(f"✅ Succes cu {strategy['name']} prin {proxy_info}")
-                        
-                        # Procesează răspunsul în funcție de tip
-                        if strategy['name'] == 'Reddit RSS':
-                            video_url = extract_video_from_rss(response.text)
-                        else:
-                            data = response.json()
-                            video_url = extract_video_from_reddit_json(data)
-                        
-                        if video_url:
-                            logger.info(f"📹 Video URL găsit: {video_url}")
-                            return download_reddit_video(video_url, temp_dir, session, proxy)
-                        else:
-                            logger.warning(f"Nu s-a găsit video în răspunsul de la {strategy['name']}")
-                    else:
-                        error_msg = f"{strategy['name']} ({proxy_info}): HTTP {response.status_code}"
-                        logger.warning(error_msg)
-                        errors.append(error_msg)
-                        
-                except Exception as e:
-                    error_msg = f"{strategy['name']} ({proxy_info if 'proxy_info' in locals() else 'unknown'}): {str(e)}"
-                    logger.warning(error_msg)
-                    errors.append(error_msg)
-                    
-                # Delay între încercări pentru a evita rate limiting
-                time.sleep(random.uniform(0.3, 1.5))
-    
-    # Toate strategiile au eșuat
-    logger.error(f"❌ Toate strategiile Reddit cu proxy au eșuat")
-    return {
-        'success': False,
-        'error': f'❌ Reddit: Toate strategiile au eșuat - {errors[0] if errors else "Eroare necunoscută"}',
-        'file_path': None
-    }
-
-def extract_video_from_rss(rss_content):
-    """Extrage URL-ul video din RSS feed"""
-    try:
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(rss_content)
-        
-        # Caută link-uri video în RSS
-        for item in root.findall('.//item'):
-            description = item.find('description')
-            if description is not None and description.text:
-                # Caută link-uri video în descriere
-                import re
-                video_patterns = [
-                    r'https://v\.redd\.it/[a-zA-Z0-9]+',
-                    r'https://i\.redd\.it/[a-zA-Z0-9]+\.mp4',
-                    r'https://preview\.redd\.it/[^\s"]+\.mp4'
-                ]
-                
-                for pattern in video_patterns:
-                    match = re.search(pattern, description.text)
-                    if match:
-                        return match.group(0)
-        
-        return None
-    except Exception as e:
-        logger.warning(f"Eroare la parsarea RSS: {e}")
-        return None
-
-def extract_video_from_reddit_json(data):
-    """Extrage URL-ul video din JSON Reddit"""
-    try:
-        # Structura JSON poate varia
-        if isinstance(data, list) and len(data) > 0:
-            data = data[0]
-        
-        if 'data' in data and 'children' in data['data']:
-            for child in data['data']['children']:
-                post_data = child.get('data', {})
-                
-                # Caută video în diverse locații
-                video_url = None
-                
-                # 1. Reddit video direct
-                if 'media' in post_data and post_data['media']:
-                    reddit_video = post_data['media'].get('reddit_video', {})
-                    if reddit_video and 'fallback_url' in reddit_video:
-                        video_url = reddit_video['fallback_url']
-                
-                # 2. Secure media
-                if not video_url and 'secure_media' in post_data and post_data['secure_media']:
-                    reddit_video = post_data['secure_media'].get('reddit_video', {})
-                    if reddit_video and 'fallback_url' in reddit_video:
-                        video_url = reddit_video['fallback_url']
-                
-                # 3. Preview images (pentru GIF-uri)
-                if not video_url and 'preview' in post_data:
-                    preview = post_data['preview']
-                    if 'reddit_video_preview' in preview:
-                        video_url = preview['reddit_video_preview'].get('fallback_url')
-                
-                # 4. URL direct
-                if not video_url and 'url' in post_data:
-                    url = post_data['url']
-                    if url and any(ext in url.lower() for ext in ['.mp4', '.webm', '.mov', 'v.redd.it']):
-                        video_url = url
-                
-                if video_url:
-                    return video_url
-        
-        return None
-    except Exception as e:
-        logger.warning(f"Eroare la extragerea video din JSON: {e}")
-        return None
-
-def download_reddit_video(video_url, temp_dir, session, proxy=None):
-    """Descarcă videoclipul Reddit folosind proxy dacă este disponibil"""
-    try:
-        logger.info(f"⬇️ Descarc video de la: {video_url}")
-        
-        # Headers pentru descărcare
-        download_headers = {
-            'User-Agent': random.choice(REAL_USER_AGENTS),
-            'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Referer': 'https://www.reddit.com/',
-            'Origin': 'https://www.reddit.com',
-            'Range': 'bytes=0-'
-        }
-        
-        # Actualizează headers în sesiune
-        session.headers.update(download_headers)
-        
-        response = session.get(
-            video_url, 
-            stream=True, 
-            timeout=30,
-            proxies=proxy,
-            verify=False
-        )
-        response.raise_for_status()
-        
-        # Determină extensia fișierului
-        content_type = response.headers.get('content-type', '')
-        if 'mp4' in content_type:
-            ext = '.mp4'
-        elif 'webm' in content_type:
-            ext = '.webm'
-        else:
-            ext = '.mp4'  # default
-        
-        # Salvează fișierul
-        timestamp = int(time.time())
-        filename = f"reddit_video_{timestamp}{ext}"
-        file_path = os.path.join(temp_dir, filename)
-        
-        with open(file_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        
-        file_size = os.path.getsize(file_path)
-        logger.info(f"✅ Video Reddit descărcat cu succes: {file_path} ({file_size} bytes)")
-        
-        return {
-            'success': True,
-            'file_path': file_path,
-            'error': None
-        }
-        
-    except Exception as e:
-        logger.error(f"Eroare la descărcarea video Reddit: {e}")
-        return {
-            'success': False,
-            'error': f'❌ Reddit: Eroare la descărcarea video - {str(e)}',
-            'file_path': None
-        }
-
 def download_video(url, output_path=None):
     """
     Descarcă un video de pe YouTube, TikTok, Instagram sau Facebook
@@ -1402,6 +1029,32 @@ def download_video(url, output_path=None):
                 'title': 'YouTube - Nu este suportat'
             }
         else:
+            # Procesează URL-urile Reddit cu strategia anti-blocking
+            if 'reddit.com' in url.lower() or 'redd.it' in url.lower():
+                logger.info(f"🔴 REDDIT URL DETECTED: {url}")
+                print(f"[DEBUG] REDDIT URL PROCESSING: {url}")
+                logger.info(f"📁 Using temp_dir: {temp_dir}")
+                
+                reddit_result = extract_reddit_video_direct(url, temp_dir)
+                logger.info(f"🔴 REDDIT RESULT: {reddit_result}")
+                print(f"[DEBUG] REDDIT RESULT: {reddit_result}")
+                
+                if reddit_result['success']:
+                    logger.info(f"✅ REDDIT SUCCESS: {reddit_result['file_path']}")
+                    return {
+                        'success': True,
+                        'file_path': reddit_result['file_path'],
+                        'title': 'Reddit Video',
+                        'error': None
+                    }
+                else:
+                    logger.error(f"❌ REDDIT FAILED: {reddit_result['error']}")
+                    return {
+                        'success': False,
+                        'error': reddit_result['error'],
+                        'title': 'Reddit - Eroare'
+                    }
+            
             # Normalizează URL-urile Facebook înainte de descărcare
             if 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
                 url = normalize_facebook_url(url)
@@ -1446,73 +1099,9 @@ def download_video(url, output_path=None):
                 'ignoreerrors': False,
                 'extract_flat': False,
                 'skip_download': False,
-                'socket_timeout': 15,
+                'socket_timeout': 30,
                 'retries': 3,
             }
-            
-            # Configurații specifice pentru Reddit - folosește API-ul public JSON
-            if 'reddit.com' in url.lower():
-                logger.info("Reddit URL detectat - folosesc API-ul public JSON")
-                
-                # Detectează dacă rulează pe server (Render/Heroku) sau local
-                is_server_environment = (
-                    os.environ.get('RENDER') or 
-                    os.environ.get('DYNO') or 
-                    os.environ.get('PORT') or
-                    '/app' in os.getcwd() or
-                    'RENDER' in str(os.environ) or
-                    os.path.exists('/home/app') or  # Render specific
-                    not os.path.exists('/home') or  # Nu este Linux desktop
-                    os.name != 'nt'  # Nu este Windows
-                )
-                
-                logger.info(f"Detectare mediu server: {is_server_environment}")
-                logger.info(f"RENDER env: {os.environ.get('RENDER')}")
-                logger.info(f"PORT env: {os.environ.get('PORT')}")
-                logger.info(f"CWD: {os.getcwd()}")
-                logger.info(f"OS name: {os.name}")
-                logger.info(f"/home/app exists: {os.path.exists('/home/app')}")
-                
-                if is_server_environment:
-                    logger.info("Mediu server detectat - folosesc extracția directă Reddit")
-                    # Pe server, folosește extracția directă prin JSON API
-                    try:
-                        reddit_result = extract_reddit_video_direct(url, temp_dir)
-                        if reddit_result['success']:
-                            logger.info(f"Reddit video extras cu succes: {reddit_result['file_path']}")
-                            return reddit_result
-                        else:
-                            logger.warning(f"Extracția directă Reddit a eșuat: {reddit_result['error']}")
-                            # Continuă cu yt-dlp ca fallback
-                    except Exception as reddit_error:
-                        logger.warning(f"Eroare la extracția directă Reddit: {reddit_error}")
-                        # Continuă cu yt-dlp ca fallback
-                
-                # Configurare yt-dlp pentru Reddit (doar pe mediu local)
-                if not is_server_environment:
-                    try:
-                        # Încearcă să folosească cookies din browser pentru Reddit (doar local)
-                        ydl_opts['cookiesfrombrowser'] = ('firefox', None, None, None)
-                        logger.info("Configurare cookies din Firefox pentru Reddit (mediu local)")
-                    except Exception as cookie_error:
-                        logger.warning(f"Nu s-au putut încărca cookies din Firefox: {cookie_error}")
-                        try:
-                            # Fallback la Chrome
-                            ydl_opts['cookiesfrombrowser'] = ('chrome', None, None, None)
-                            logger.info("Fallback: configurare cookies din Chrome pentru Reddit")
-                        except Exception as chrome_error:
-                            logger.warning(f"Nu s-au putut încărca cookies din Chrome: {chrome_error}")
-                            # Continuă fără cookies - va da eroare de autentificare dar nu va crăpa aplicația
-                            logger.info("Continuă fără cookies - Reddit va necesita autentificare")
-                else:
-                    logger.info("Mediu server detectat - nu folosesc cookies pentru Reddit (folosesc doar extracția directă)")
-                    # Pe server, dacă extracția directă a eșuat, returnează eroare
-                    if 'reddit.com' in url.lower():
-                        return {
-                            'success': False,
-                            'error': 'Reddit: Extracția directă a eșuat și nu sunt disponibile cookies pe server. Încearcă cu un post Reddit public care conține video.',
-                            'file_path': None
-                        }
             
             # Configurații specifice pentru Threads
             if 'threads.com' in url.lower() or 'threads.net' in url.lower():
@@ -1745,26 +1334,6 @@ def download_video(url, output_path=None):
                 'error': '❌ Instagram/TikTok: Limită de rată atinsă. Încearcă din nou în câteva minute.',
                 'title': 'N/A'
             }
-        # Gestionare specifică pentru Reddit
-        elif 'reddit.com' in url.lower():
-            if 'authentication' in error_msg or 'account authentication is required' in error_msg:
-                return {
-                    'success': False,
-                    'error': '❌ Reddit: Autentificare necesară pentru acest conținut.\n\n🔒 Acest post Reddit poate fi:\n• Privat sau restricționat\n• Disponibil doar pentru utilizatori autentificați\n• Din subreddit privat\n\n💡 Încearcă cu un post Reddit public.',
-                    'title': 'N/A'
-                }
-            elif 'not available' in error_msg or 'removed' in error_msg:
-                return {
-                    'success': False,
-                    'error': '❌ Reddit: Conținutul nu este disponibil sau a fost șters.\n\n🔧 Verifică că:\n• Link-ul este corect\n• Postul nu a fost șters\n• Postul este public',
-                    'title': 'N/A'
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': f'❌ Reddit: Eroare la descărcare.\n\n🔧 Detalii: {str(e)[:100]}...\n\n💡 Încearcă cu un post Reddit public care conține video.',
-                    'title': 'N/A'
-                }
         elif 'login' in error_msg or 'authentication' in error_msg or 'cookies' in error_msg:
             help_msg = '\n\nPentru Instagram: Folosește --cookies-from-browser sau --cookies pentru autentificare.'
             help_msg += '\nVezi: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp'
@@ -1834,6 +1403,362 @@ def download_video(url, output_path=None):
         # Nu șterge temp_dir aici - va fi șters după trimiterea fișierului
         # Cleanup-ul se face în send_video_file din app.py
         pass
+
+def extract_post_id_from_url(url):
+    """Extrage ID-ul postului din URL-ul Reddit"""
+    import re
+    match = re.search(r'/comments/([a-zA-Z0-9]+)/', url)
+    return match.group(1) if match else None
+
+def extract_reddit_video_direct(url, temp_dir):
+    """
+    Extrage video direct din Reddit folosind proxy-uri și strategii anti-blocking
+    Evită problemele de autentificare și blocarea 403
+    """
+    logger.info(f"🔍 REDDIT EXTRACT START: {url}")
+    logger.info(f"📁 Temp directory: {temp_dir}")
+    print(f"[DEBUG] REDDIT EXTRACT CALLED: {url}")  # Debug explicit
+    
+    # Lista de proxy-uri - prioritate pentru conexiunea directă
+    proxies_list = [
+        None,  # Conexiune directă - prioritate maximă
+        None,  # Încercăm din nou conexiunea directă
+        None,  # A treia încercare directă
+    ]
+    
+    # User agents reali pentru evitarea detectării
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0'
+    ]
+    
+    # Strategii multiple de acces cu transformări URL corecte - optimizate pentru rapiditate
+    strategies = [
+        {
+            'name': 'Reddit JSON Direct',
+            'url_transform': lambda u: u.split('?')[0].rstrip('/') + '.json',  # Remove query params
+        },
+        {
+            'name': 'Old Reddit JSON',
+            'url_transform': lambda u: u.split('?')[0].replace('www.reddit.com', 'old.reddit.com').replace('//reddit.com', '//old.reddit.com').rstrip('/') + '.json',
+        },
+        {
+            'name': 'Mobile Reddit',
+            'url_transform': lambda u: u.replace('www.reddit.com', 'm.reddit.com').replace('//reddit.com', '//m.reddit.com').rstrip('/') + '.json',
+        }
+    ]
+    
+    errors = []
+    failed_proxies = set()  # Ține evidența proxy-urilor care au eșuat
+    
+    # Încearcă fiecare combinație de strategie + proxy + user agent (optimizat)
+    for strategy in strategies:
+        for proxy in proxies_list:
+            # Sari peste proxy-urile care au eșuat deja
+            if proxy and proxy.get('http') in failed_proxies:
+                continue
+                
+            for user_agent in user_agents[:3]:  # Limitează la primii 3 user agents pentru eficiență
+                try:
+                    proxy_info = f"proxy: {proxy['http'] if proxy else 'direct'}" if proxy else "direct"
+                    logger.info(f"🔄 {strategy['name']} cu {proxy_info} și UA: {user_agent[:30]}...")
+                    
+                    # Headers mai autentice pentru evitarea detectării
+                    headers = {
+                        'User-Agent': user_agent,
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none',
+                        'Sec-Fetch-User': '?1',
+                        'Cache-Control': 'max-age=0',
+                        'Pragma': 'no-cache'
+                    }
+                    
+                    target_url = strategy['url_transform'](url)
+                    logger.debug(f"🎯 Target URL: {target_url}")
+                    
+                    # Configurează sesiunea cu SSL warnings disabled
+                    session = requests.Session()
+                    session.headers.update(headers)
+                    
+                    # Disable SSL warnings pentru proxy-uri
+                    import urllib3
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                    
+                    response = session.get(
+                        target_url,
+                        proxies=proxy,
+                        timeout=10,  # Timeout redus pentru detectare rapidă a proxy-urilor defecte
+                        verify=False,  # Ignoră SSL pentru proxy-uri
+                        allow_redirects=True,
+                        stream=False
+                    )
+                    
+                    if response.status_code == 200:
+                        logger.info(f"✅ Succes cu {strategy['name']} prin {proxy_info}")
+                        
+                        # Procesează răspunsul în funcție de tip
+                        if strategy['name'] == 'Reddit RSS':
+                            video_url = extract_video_from_rss(response.text)
+                        else:
+                            try:
+                                data = response.json()
+                                video_url = extract_video_from_reddit_json(data)
+                            except Exception as json_error:
+                                logger.error(f"❌ JSON parsing error: {json_error}")
+                                logger.error(f"Response content: {response.text[:200]}")
+                                continue
+                        
+                        if video_url:
+                            logger.info(f"📹 Video URL găsit: {video_url}")
+                            download_result = download_reddit_video(video_url, temp_dir, session, proxy)
+                            if download_result['success']:
+                                logger.info(f"✅ Reddit video extras cu succes prin {strategy['name']} cu {proxy_info}")
+                                return download_result
+                            else:
+                                logger.warning(f"❌ Descărcarea prin {strategy['name']} a eșuat: {download_result['error']}")
+                                # Marchează proxy-ul ca defect dacă descărcarea eșuează
+                                if proxy:
+                                    failed_proxies.add(proxy.get('http'))
+                                    logger.warning(f"❌ Proxy {proxy.get('http')} marcat ca defect după eșec descărcare")
+                                continue
+                        else:
+                            logger.warning(f"Nu s-a găsit video în răspunsul de la {strategy['name']}")
+                            continue
+                    else:
+                        error_msg = f"{strategy['name']} ({proxy_info}): HTTP {response.status_code}"
+                        logger.warning(error_msg)
+                        errors.append(error_msg)
+                        
+                        # Marchează proxy-ul ca defect pentru coduri de eroare specifice
+                        if proxy and response.status_code in [403, 429, 502, 503, 504]:
+                            failed_proxies.add(proxy.get('http'))
+                            logger.warning(f"❌ Proxy {proxy.get('http')} marcat ca defect: HTTP {response.status_code}")
+                        
+                except Exception as e:
+                    error_msg = f"{strategy['name']} ({proxy_info if 'proxy_info' in locals() else 'unknown'}): {str(e)}"
+                    logger.warning(error_msg)
+                    errors.append(error_msg)
+                    
+                    # Marchează proxy-ul ca defect pentru anumite tipuri de erori
+                    if proxy and any(err in str(e).lower() for err in ['connection', 'timeout', 'read timed out', 'incompleteread', 'http 403']):
+                        failed_proxies.add(proxy.get('http'))
+                        logger.warning(f"❌ Proxy {proxy.get('http')} marcat ca defect: {str(e)[:100]}")
+                    
+                # Delay între încercări pentru a evita rate limiting
+                time.sleep(random.uniform(0.3, 1.5))
+    
+    # Strategie finală: încearcă fără proxy-uri deloc
+    logger.info("🔄 Încercare finală fără proxy-uri...")
+    for strategy in strategies[:2]:  # Doar primele 2 strategii pentru fallback
+        for user_agent in user_agents[:2]:  # Doar primii 2 user agents
+            try:
+                logger.info(f"🔄 {strategy['name']} DIRECT (fără proxy) cu UA: {user_agent[:30]}...")
+                
+                headers = {
+                    'User-Agent': user_agent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Connection': 'keep-alive',
+                    'Cache-Control': 'no-cache'
+                }
+                
+                target_url = strategy['url_transform'](url)
+                
+                response = requests.get(
+                    target_url,
+                    headers=headers,
+                    timeout=10,
+                    allow_redirects=True
+                )
+                
+                if response.status_code == 200:
+                    if strategy['name'] == 'Reddit RSS':
+                        video_url = extract_video_from_rss(response.text)
+                    else:
+                        video_url = extract_video_from_reddit_json(response.text)
+                    
+                    if video_url:
+                        logger.info(f"📹 Video URL găsit prin fallback: {video_url}")
+                        download_result = download_reddit_video(video_url, temp_dir, None, None)
+                        if download_result['success']:
+                            logger.info(f"✅ Reddit video extras cu succes prin fallback {strategy['name']}")
+                            return download_result
+                        
+            except Exception as e:
+                logger.debug(f"Fallback {strategy['name']} eșuat: {str(e)}")
+                continue
+    
+    # Toate strategiile au eșuat
+    logger.error(f"❌ Toate strategiile Reddit au eșuat pentru {url}")
+    for error in errors[-5:]:  # Afișează ultimele 5 erori
+        logger.error(f"  - {error}")
+    
+    return {
+        'success': False,
+        'error': f'❌ Reddit: Toate strategiile au eșuat - {errors[0] if errors else "Eroare necunoscută"}',
+        'file_path': None
+    }
+
+def extract_video_from_rss(rss_content):
+    """Extrage URL-ul video din RSS feed"""
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(rss_content)
+        
+        # Caută link-uri video în RSS
+        for item in root.findall('.//item'):
+            description = item.find('description')
+            if description is not None and description.text:
+                # Caută link-uri video în descriere
+                import re
+                video_patterns = [
+                    r'https://v\.redd\.it/[a-zA-Z0-9]+',
+                    r'https://i\.redd\.it/[a-zA-Z0-9]+\.mp4',
+                    r'https://preview\.redd\.it/[^\s"]+\.mp4'
+                ]
+                
+                for pattern in video_patterns:
+                    match = re.search(pattern, description.text)
+                    if match:
+                        return match.group(0)
+        
+        return None
+    except Exception as e:
+        logger.warning(f"Eroare la parsarea RSS: {e}")
+        return None
+
+def extract_video_from_reddit_json(data):
+    """Extrage URL-ul video din JSON Reddit"""
+    try:
+        logger.info(f"🔍 Analyzing JSON data type: {type(data)}")
+        
+        # Verifică dacă data este string (eroare de parsing)
+        if isinstance(data, str):
+            logger.error(f"❌ Data is string, not JSON: {data[:100]}")
+            return None
+            
+        # Structura JSON poate varia
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+        
+        if not isinstance(data, dict):
+            logger.error(f"❌ Data is not dict: {type(data)}")
+            return None
+            
+        if 'data' in data and 'children' in data['data']:
+            for child in data['data']['children']:
+                post_data = child.get('data', {})
+                
+                # Caută video în diverse locații
+                if 'secure_media' in post_data and post_data['secure_media']:
+                    reddit_video = post_data['secure_media'].get('reddit_video')
+                    if reddit_video and 'fallback_url' in reddit_video:
+                        return reddit_video['fallback_url']
+                
+                if 'media' in post_data and post_data['media']:
+                    reddit_video = post_data['media'].get('reddit_video')
+                    if reddit_video and 'fallback_url' in reddit_video:
+                        return reddit_video['fallback_url']
+                
+                # Caută în preview
+                if 'preview' in post_data and 'reddit_video_preview' in post_data['preview']:
+                    video_preview = post_data['preview']['reddit_video_preview']
+                    if 'fallback_url' in video_preview:
+                        return video_preview['fallback_url']
+                
+                # Caută URL direct
+                url = post_data.get('url', '')
+                if url and ('v.redd.it' in url or '.mp4' in url):
+                    return url
+        
+        return None
+    except Exception as e:
+        logger.warning(f"Eroare la extragerea video din JSON: {e}")
+        return None
+
+def download_reddit_video(video_url, temp_dir, session=None, proxy=None):
+    """Descarcă videoclipul Reddit folosind proxy dacă este disponibil"""
+    try:
+        logger.info(f"⬇️ Descarc video de la: {video_url}")
+        
+        # Creează sesiune dacă nu există
+        if session is None:
+            session = requests.Session()
+        
+        # Headers pentru descărcare
+        download_headers = {
+            'User-Agent': random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ]),
+            'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://www.reddit.com/',
+            'Origin': 'https://www.reddit.com',
+            'Range': 'bytes=0-'
+        }
+        
+        # Actualizează headers în sesiune
+        session.headers.update(download_headers)
+        
+        response = session.get(
+            video_url, 
+            stream=True, 
+            timeout=30,
+            proxies=proxy,
+            verify=False
+        )
+        
+        # Accept both 200 (OK) and 206 (Partial Content) for video streaming
+        if response.status_code not in [200, 206]:
+            raise Exception(f"HTTP {response.status_code}: {response.reason}")
+        
+        # Determină extensia fișierului
+        content_type = response.headers.get('content-type', '')
+        if 'mp4' in content_type:
+            ext = '.mp4'
+        elif 'webm' in content_type:
+            ext = '.webm'
+        else:
+            ext = '.mp4'  # default
+        
+        # Salvează fișierul
+        timestamp = int(time.time())
+        filename = f"reddit_video_{timestamp}{ext}"
+        file_path = os.path.join(temp_dir, filename)
+        
+        with open(file_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        file_size = os.path.getsize(file_path)
+        logger.info(f"✅ Video Reddit descărcat cu succes: {file_path} ({file_size} bytes)")
+        
+        return {
+            'success': True,
+            'file_path': file_path,
+            'error': None
+        }
+        
+    except Exception as e:
+        logger.error(f"Eroare la descărcarea video Reddit: {e}")
+        return {
+            'success': False,
+            'error': f'❌ Reddit: Eroare la descărcarea video - {str(e)}',
+            'file_path': None
+        }
 
 def is_supported_url(url):
     """
