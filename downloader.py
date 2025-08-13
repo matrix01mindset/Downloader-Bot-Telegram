@@ -13,6 +13,22 @@ import sys
 import shutil
 import requests
 from datetime import datetime, timedelta
+from anti_bot_detection import (
+    create_anti_bot_ydl_opts,
+    implement_rate_limiting,
+    enhance_ydl_opts_for_production,
+    log_anti_bot_status,
+    get_platform_from_url as get_platform_anti_bot
+)
+from production_config import (
+    get_proxy_for_platform,
+    get_cookies_for_platform,
+    get_rate_limit_config,
+    is_production_environment,
+    validate_url_security,
+    get_production_ydl_opts_enhancement,
+    log_production_metrics
+)
 
 # Configurare logging centralizat
 logging.basicConfig(
@@ -444,56 +460,104 @@ def get_platform_from_url(url):
     return 'generic'
 
 def create_enhanced_ydl_opts(url, temp_dir):
-    """Creează opțiuni yt-dlp îmbunătățite bazate pe platformă"""
+    """Creează opțiuni yt-dlp îmbunătățite cu anti-bot detection și configurații de producție"""
     platform = get_platform_from_url(url)
-    config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
     
-    # Opțiuni de bază
-    ydl_opts = {
-        'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
-        'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
-        'restrictfilenames': True,
-        'noplaylist': True,
-        'extract_flat': False,
-        'writethumbnail': False,
-        'writeinfojson': False,
-        'no_warnings': False,
-        'ignoreerrors': False,
-        'prefer_free_formats': False,
-        'max_filesize': 50 * 1024 * 1024,  # 50MB
-        'max_duration': 600,  # 10 minutes
-        'http_headers': get_random_headers()
-    }
+    # Validează securitatea URL-ului
+    if not validate_url_security(url):
+        raise ValueError(f"URL nesigur sau nepermis: {url}")
     
-    # Adaugă configurații specifice platformei
-    if config.get('ydl_opts_extra'):
-        ydl_opts.update(config['ydl_opts_extra'])
-    
-    # Setează user agent aleatoriu din lista platformei
-    if config.get('user_agents'):
-        import random
-        user_agent = random.choice(config['user_agents'])
-        ydl_opts['http_headers']['User-Agent'] = user_agent
-    
-    return ydl_opts
+    # Folosește modulul anti-bot detection pentru configurații avansate
+    try:
+        ydl_opts = create_anti_bot_ydl_opts(url, temp_dir)
+        ydl_opts = enhance_ydl_opts_for_production(ydl_opts, platform)
+        
+        # Adaugă configurații specifice pentru producție
+        production_opts = get_production_ydl_opts_enhancement()
+        ydl_opts.update(production_opts)
+        
+        # Configurează proxy dacă este disponibil
+        proxy = get_proxy_for_platform(platform)
+        if proxy:
+            ydl_opts['proxy'] = proxy
+            logger.info(f"🌐 Folosind proxy pentru {platform}")
+        
+        # Configurează cookies dacă sunt disponibile
+        cookies_file = get_cookies_for_platform(platform)
+        if cookies_file:
+            ydl_opts['cookiefile'] = cookies_file
+            logger.info(f"🍪 Folosind cookies pentru {platform}")
+        
+        # Configurații suplimentare pentru mediul de producție
+        if is_production_environment():
+            ydl_opts.update({
+                'quiet': True,  # Reduce logging în producție
+                'no_warnings': True,
+                'extract_flat': False,
+                'writeinfojson': False,
+                'writethumbnail': False,
+                'writesubtitles': False,
+                'writeautomaticsub': False
+            })
+            logger.info(f"🏭 Configurații de producție aplicate pentru {platform}")
+        
+        logger.info(f"🛡️ Configurații anti-bot și producție aplicate pentru {platform}")
+        return ydl_opts
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Eroare la aplicarea configurațiilor avansate: {e}")
+        # Fallback la configurația de bază
+        config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
+        
+        ydl_opts = {
+            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
+            'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
+            'restrictfilenames': True,
+            'noplaylist': True,
+            'extract_flat': False,
+            'writethumbnail': False,
+            'writeinfojson': False,
+            'no_warnings': False,
+            'ignoreerrors': False,
+            'prefer_free_formats': False,
+            'max_filesize': 50 * 1024 * 1024,  # 50MB
+            'max_duration': 600,  # 10 minutes
+            'http_headers': get_random_headers()
+        }
+        
+        # Adaugă configurații specifice platformei
+        if config.get('ydl_opts_extra'):
+            ydl_opts.update(config['ydl_opts_extra'])
+        
+        # Setează user agent aleatoriu din lista platformei
+        if config.get('user_agents'):
+            user_agent = random.choice(config['user_agents'])
+            ydl_opts['http_headers']['User-Agent'] = user_agent
+        
+        logger.info(f"📋 Configurații fallback aplicate pentru {platform}")
+        return ydl_opts
 
 def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
-    """Descarcă cu strategii îmbunătățite de retry"""
+    """Descarcă cu strategii îmbunătățite de retry și anti-bot detection"""
     platform = get_platform_from_url(url)
     config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
     
     last_error = None
+    last_request_time = None
     
     for attempt in range(max_attempts):
         try:
             logger.info(f"🔄 Încercare {attempt + 1}/{max_attempts} pentru {platform}...")
             
-            # Creează opțiuni îmbunătățite
+            # Implementează rate limiting pentru evitarea detecției
+            implement_rate_limiting(platform, last_request_time)
+            last_request_time = time.time()
+            
+            # Creează opțiuni îmbunătățite cu anti-bot detection
             ydl_opts = create_enhanced_ydl_opts(url, temp_dir)
             
-            # Adaugă delay între încercări
+            # Adaugă delay între încercări (exponential backoff)
             if attempt > 0:
-                import time
                 delay = 2 ** attempt  # Exponential backoff
                 logger.info(f"⏱️ Așteptare {delay}s înainte de încercarea {attempt + 1}...")
                 time.sleep(delay)
@@ -523,7 +587,12 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
                 video_file = downloaded_files[0]
                 file_size = os.path.getsize(video_file)
                 
+                # Calculează durata descărcării
+                download_duration = time.time() - last_request_time
+                
                 logger.info(f"✅ Descărcare reușită pentru {platform} la încercarea {attempt + 1}")
+                log_anti_bot_status(platform, True, attempt + 1)
+                log_production_metrics(platform, True, download_duration, file_size)
                 
                 return {
                     'success': True,
@@ -534,23 +603,27 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
                     'duration': info.get('duration', 0),
                     'file_size': file_size,
                     'platform': platform,
-                    'attempt_number': attempt + 1
+                    'attempt_number': attempt + 1,
+                    'anti_bot_bypass': True,
+                    'download_duration': download_duration
                 }
                 
         except Exception as e:
             error_msg = str(e)
             last_error = error_msg
             logger.warning(f"❌ Încercarea {attempt + 1} eșuată pentru {platform}: {error_msg[:100]}...")
+            log_anti_bot_status(platform, False, attempt + 1, error_msg[:100])
             
             # Verifică dacă este o eroare critică care nu merită retry
             critical_errors = [
                 'private video', 'video unavailable', 'video not found',
                 'this video is private', 'content not available',
-                'video has been removed', 'account suspended'
+                'video has been removed', 'account suspended',
+                'sign in to confirm', 'bot', 'captcha', '403', '429'
             ]
             
             if any(critical in error_msg.lower() for critical in critical_errors):
-                logger.info(f"🛑 Eroare critică detectată, oprire retry pentru {platform}")
+                logger.info(f"🛑 Eroare critică detectată (posibil anti-bot), oprire retry pentru {platform}")
                 break
     
     return {
