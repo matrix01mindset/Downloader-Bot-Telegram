@@ -1817,21 +1817,25 @@ def initialize_on_startup():
         ensure_app_initialized()
         
         # Delay suplimentar pentru prima descărcare
-        logger.info("⏳ Pregătesc bot-ul pentru prima descărcare...")
-        time.sleep(2)
-        
-        # Warming-up: testez funcția de caption pentru a încărca toate dependențele
-        try:
-            test_caption = create_safe_caption(
-                title="Test warming-up",
-                uploader="Bot",
-                description="Test pentru încărcarea dependențelor",
-                duration="0:01",
-                file_size="1 MB"
-            )
-            logger.info("🔥 Warming-up complet - toate dependențele sunt încărcate")
-        except Exception as e:
-            logger.warning(f"⚠️ Warming-up parțial - unele dependențe pot să nu fie încărcate: {e}")
+        # Skip warming-up pe Render pentru startup rapid
+        if not is_render_environment():
+            logger.info("⏳ Pregătesc bot-ul pentru prima descărcare...")
+            time.sleep(2)
+            
+            # Warming-up: testez funcția de caption pentru a încărca toate dependențele
+            try:
+                test_caption = create_safe_caption(
+                    title="Test warming-up",
+                    uploader="Bot",
+                    description="Test pentru încărcarea dependențelor",
+                    duration="0:01",
+                    file_size="1 MB"
+                )
+                logger.info("🔥 Warming-up complet - toate dependențele sunt încărcate")
+            except Exception as e:
+                logger.warning(f"⚠️ Warming-up parțial - unele dependențe pot să nu fie încărcate: {e}")
+        else:
+            logger.info("[RENDER] Skip warming-up pentru startup rapid")
         
         logger.info("✅ Aplicația Telegram a fost inițializată la pornirea serverului")
         logger.info("🚀 Bot-ul este gata pentru descărcări!")
@@ -1858,4 +1862,6 @@ if __name__ == '__main__':
     # Nu mai inițializez la startup pentru a evita problemele
     logger.info("Serverul pornește fără inițializare complexă")
     
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Pentru gunicorn, nu rulăm app.run() direct
+    if __name__ == '__main__':
+        app.run(host='0.0.0.0', port=port, debug=False)

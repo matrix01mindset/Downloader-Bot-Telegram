@@ -54,6 +54,11 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 # Funcție pentru upgrade automat la versiunea nightly de yt-dlp
 def upgrade_to_nightly_ytdlp():
     """Upgrade yt-dlp la versiunea nightly pentru fix-uri Facebook recente"""
+    # Skip upgrade pe Render la startup pentru a evita timeout-ul
+    if is_render_environment():
+        logger.info("[RENDER] Skip upgrade yt-dlp la startup pentru evitarea timeout-ului")
+        return True
+        
     try:
         logger.info("Verificare și upgrade la yt-dlp nightly pentru fix-uri Facebook...")
         # Încercare upgrade la nightly folosind --pre flag (metoda recomandată)
