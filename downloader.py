@@ -477,8 +477,11 @@ def create_enhanced_ydl_opts(url, temp_dir):
     
     # Folosește modulul anti-bot detection pentru configurații avansate
     try:
-        ydl_opts = create_anti_bot_ydl_opts(url, temp_dir)
+        ydl_opts = create_anti_bot_ydl_opts(url)
         ydl_opts = enhance_ydl_opts_for_production(ydl_opts, platform)
+        
+        # Actualizează outtmpl cu temp_dir specificat
+        ydl_opts['outtmpl'] = os.path.join(temp_dir, '%(title)s.%(ext)s')
         
         # Adaugă configurații specifice pentru producție
         production_opts = get_production_ydl_opts_enhancement()

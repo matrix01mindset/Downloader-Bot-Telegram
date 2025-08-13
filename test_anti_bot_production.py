@@ -121,7 +121,7 @@ def test_anti_bot_config_creation():
                     logger.info(f"Testare configurații pentru {platform}: {url}")
                     
                     # Test configurații anti-bot
-                    ydl_opts = create_anti_bot_ydl_opts(url, temp_dir)
+                    ydl_opts = create_anti_bot_ydl_opts(url)
                     
                     # Verifică că opțiunile conțin elementele necesare
                     required_keys = ['format', 'outtmpl', 'http_headers']
