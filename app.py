@@ -1334,9 +1334,14 @@ def webhook():
                 # Pentru link-urile Facebook, nu bloca procesarea, doar previne mesajele duplicate
                 # Mecanismul de debouncing pentru erori este gestionat în download_video_sync
                 
+                # Extrage user_id din mesaj
+                user_id = None
+                if 'from' in message and 'id' in message['from']:
+                    user_id = message['from']['id']
+                
                 # Verificări de securitate suplimentare pentru utilizatori
                 client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'unknown'))
-                if security_monitor.is_user_blocked(str(user_id)):
+                if user_id and security_monitor.is_user_blocked(str(user_id)):
                     logger.warning(f"Utilizator blocat: {user_id} de la IP: {client_ip}")
                     return jsonify({'status': 'blocked'}), 403
                 
@@ -1353,11 +1358,6 @@ def webhook():
                 sanitized_text = input_sanitizer.sanitize_text(text, ValidationLevel.STRICT)
                 
                 logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {sanitized_text}")
-                
-                # Extrage user_id din mesaj
-                user_id = None
-                if 'from' in message and 'id' in message['from']:
-                    user_id = message['from']['id']
                 
                 # Procesează mesajul și trimite răspuns
                 try:
