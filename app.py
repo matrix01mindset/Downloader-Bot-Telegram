@@ -30,9 +30,12 @@ def setup_render_logging():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-def cleanup_render_temp_files(temp_dir):
+def cleanup_render_temp_files(temp_dir=None):
     try:
         import os
+        import tempfile
+        if temp_dir is None:
+            temp_dir = tempfile.gettempdir()
         for file in os.listdir(temp_dir):
             if file.endswith(('.part', '.tmp')):
                 os.remove(os.path.join(temp_dir, file))
