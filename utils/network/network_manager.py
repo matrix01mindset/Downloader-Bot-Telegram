@@ -18,7 +18,7 @@ import ssl
 import certifi
 
 try:
-    from platforms.base.abstract_platform import PlatformError, DownloadError
+    from platforms.base import PlatformError, DownloadError
 except ImportError:
     # Fallback pentru development
     import sys
@@ -824,7 +824,7 @@ class NetworkManager:
     def __str__(self) -> str:
         total = self.stats['total_requests']
         success = self.stats['successful_requests']
-        return f"NetworkManager(requests={total}, success_rate={success/total*100:.1f}% if total > 0 else 0.0}%)"
+        return f"NetworkManager(requests={total}, success_rate={success/total*100:.1f if total > 0 else 0.0}%)"
     
     def __repr__(self) -> str:
         return (f"NetworkManager(sessions={len(self.sessions)}, "

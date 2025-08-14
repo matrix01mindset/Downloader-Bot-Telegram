@@ -318,11 +318,11 @@ class TestDiskCache:
     def test_size_based_eviction(self, disk_cache):
         """Test eviction bazat pe mărimea cache-ului"""
         # Adaugă câteva obiecte mari pentru a forța eviction
-        large_object = "x" * 100000  # 100KB string
+        large_object = "x" * 400000  # 400KB string pentru a forța cleanup
         
         disk_cache.put("key1", large_object)
         disk_cache.put("key2", large_object) 
-        disk_cache.put("key3", large_object)  # Ar trebui să declanșeze cleanup
+        disk_cache.put("key3", large_object)  # Ar trebui să declanșeze cleanup (1.2MB > 1MB)
         
         # key1 ar trebui să fie evicted (LRU)
         assert disk_cache.get("key1") is None
@@ -379,7 +379,7 @@ class TestSmartCache:
         
     def test_disk_for_large_values(self, smart_cache):
         """Test plasarea valorilor mari pe disk"""
-        large_value = "x" * 2000000  # >1MB - ar trebui să meargă pe disk
+        large_value = "x" * 50000  # 50KB - ar trebui să meargă pe disk (>10KB)
         
         result = smart_cache.put("large_key", large_value)
         assert result is True

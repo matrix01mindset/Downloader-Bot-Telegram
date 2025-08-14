@@ -52,7 +52,7 @@ class CacheEntry:
     access_count: int
     ttl: Optional[float]
     size_bytes: int
-    metadata: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.metadata is None:
@@ -73,11 +73,14 @@ class CacheEntry:
 class LRUCache(Generic[T]):
     """Cache LRU optimizat cu TTL și statistici"""
     
-    def __init__(self, max_size: int = 1000, ttl: Optional[float] = None):
+    def __init__(self, max_size: int = 300, ttl: Optional[float] = None):
         self.max_size = max_size
         self.default_ttl = ttl
+        self.ttl = ttl  # Alias pentru compatibilitate cu testele
         self.cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self.lock = threading.RLock()
+        self._hits = 0
+        self._misses = 0
         self.stats = {
             'hits': 0,
             'misses': 0,
@@ -90,6 +93,7 @@ class LRUCache(Generic[T]):
         with self.lock:
             if key not in self.cache:
                 self.stats['misses'] += 1
+                self._misses += 1
                 return None
             
             entry = self.cache[key]
@@ -99,6 +103,7 @@ class LRUCache(Generic[T]):
                 del self.cache[key]
                 self.stats['expired_removals'] += 1
                 self.stats['misses'] += 1
+                self._misses += 1
                 return None
             
             # Actualizează statistici de acces
@@ -109,6 +114,7 @@ class LRUCache(Generic[T]):
             self.cache.move_to_end(key)
             
             self.stats['hits'] += 1
+            self._hits += 1
             return entry.value
     
     def put(self, key: str, value: T, ttl: Optional[float] = None, metadata: Optional[Dict[str, Any]] = None) -> bool:
@@ -120,7 +126,8 @@ class LRUCache(Generic[T]):
             # Calculează dimensiunea aproximativă
             try:
                 size_bytes = sys.getsizeof(value) + sys.getsizeof(key)
-            except:
+            except Exception as e:
+                logger.debug(f"Nu s-a putut calcula dimensiunea pentru cache key '{key}': {e}")
                 size_bytes = 1024  # Estimare default
             
             # Creează intrarea
@@ -163,6 +170,8 @@ class LRUCache(Generic[T]):
         """Curăță întregul cache"""
         with self.lock:
             self.cache.clear()
+            self._hits = 0
+            self._misses = 0
             self.stats = {
                 'hits': 0,
                 'misses': 0,
@@ -195,6 +204,9 @@ class LRUCache(Generic[T]):
             total_requests = self.stats['hits'] + self.stats['misses']
             hit_rate = (self.stats['hits'] / total_requests * 100) if total_requests > 0 else 0
             
+            # Calculează dimensiunea totală
+            total_size_bytes = sum(entry.size_bytes for entry in self.cache.values())
+            
             return {
                 'entries': len(self.cache),
                 'max_size': self.max_size,
@@ -202,17 +214,19 @@ class LRUCache(Generic[T]):
                 'hits': self.stats['hits'],
                 'misses': self.stats['misses'],
                 'evictions': self.stats['evictions'],
-                'expired_removals': self.stats['expired_removals']
+                'expired_removals': self.stats['expired_removals'],
+                'total_size_bytes': total_size_bytes
             }
 
 class DiskCache:
     """Cache persistent pe disk cu compresie și indexare"""
     
-    def __init__(self, cache_dir: Optional[str] = None, max_size_mb: int = 50):
+    def __init__(self, cache_dir: Optional[str] = None, max_size_mb: int = 20):
         if cache_dir is None:
             cache_dir = os.path.join(tempfile.gettempdir(), "telegram_bot_cache")
         
         self.cache_dir = cache_dir
+        self.max_size_mb = max_size_mb  # Expune pentru testele
         self.max_size_bytes = max_size_mb * 1024 * 1024
         self.index_file = os.path.join(cache_dir, "cache_index.json")
         
@@ -346,18 +360,24 @@ class DiskCache:
     
     def _cleanup_lru(self, needed_space: int):
         """Curăță intrările mai puțin folosite recent"""
-        # Sortează după last_accessed
+        # Sortează după last_accessed (cele mai vechi primul)
         entries = list(self.index.items())
         entries.sort(key=lambda x: x[1].get('last_accessed', 0))
         
         freed_space = 0
+        keys_to_remove = []
+        
         for key, entry_info in entries:
             if freed_space >= needed_space:
                 break
             
             freed_space += entry_info.get('size_bytes', 0)
+            keys_to_remove.append(key)
+            logger.debug(f"🗑️ Marking LRU disk cache entry for removal: {key}")
+        
+        # Elimină cheile marcate
+        for key in keys_to_remove:
             self.remove(key)
-            logger.debug(f"🗑️ Removed LRU disk cache entry: {key}")
     
     def cleanup_expired(self) -> int:
         """Curăță intrările expirate"""
@@ -392,18 +412,19 @@ class DiskCache:
             return {
                 'entries': len(self.index),
                 'total_size_bytes': total_size,
-                'total_size_mb': round(total_size / (1024 * 1024), 2),
-                'max_size_mb': round(self.max_size_bytes / (1024 * 1024), 2),
-                'usage_percent': round((total_size / self.max_size_bytes) * 100, 2) if self.max_size_bytes > 0 else 0
+                'total_size_mb': round(total_size / (1024 * 1024), 6),  # Mai multă precizie
+                'max_size_mb': self.max_size_mb,
+                'utilization_percent': round((total_size / self.max_size_bytes) * 100, 2) if self.max_size_bytes > 0 else 0,
+                'cache_dir': self.cache_dir
             }
 
 class SmartCache(Generic[T]):
     """Cache inteligent cu strategie adaptivă și management automat"""
     
     def __init__(self, 
-                 memory_cache_size: int = 500,
-                 disk_cache_size_mb: int = 50,
-                 default_ttl: Optional[float] = 3600,  # 1 oră
+                 memory_cache_size: int = 200,
+                 disk_cache_size_mb: int = 20,
+                 default_ttl: Optional[float] = 1800,  # 30 minute
                  strategy: CacheStrategy = CacheStrategy.SMART):
         
         self.strategy = strategy
@@ -422,7 +443,7 @@ class SmartCache(Generic[T]):
         # Background cleanup
         self.cleanup_thread: Optional[threading.Thread] = None
         self.should_stop = False
-        self.cleanup_interval = 300  # 5 minute
+        self.cleanup_interval = 120  # 2 minute
         
         # Configurare avansată
         if config:
@@ -464,7 +485,8 @@ class SmartCache(Generic[T]):
         # Calculează dimensiunea aproximativă
         try:
             value_size = sys.getsizeof(value)
-        except:
+        except Exception as e:
+            logger.debug(f"Nu s-a putut calcula dimensiunea valorii pentru cache: {e}")
             value_size = 1024
         
         # Strategie de plasare
@@ -483,6 +505,16 @@ class SmartCache(Generic[T]):
         """Strategie inteligentă de plasare în cache"""
         # Obiecte mici și frecvent accesate -> memorie
         if value_size < 10240:  # < 10KB
+            # Verifică dacă memory cache este plin și transferă pe disk
+            if len(self.memory_cache.cache) >= self.memory_cache.max_size:
+                # Transferă cea mai veche intrare pe disk
+                if self.memory_cache.cache:
+                    oldest_key = next(iter(self.memory_cache.cache))
+                    oldest_entry = self.memory_cache.cache[oldest_key]
+                    # Salvează pe disk înainte de eviction
+                    self.disk_cache.put(oldest_key, oldest_entry.value, oldest_entry.ttl, oldest_entry.metadata)
+                    logger.debug(f"🔄 Transferred {oldest_key} from memory to disk")
+            
             return self.memory_cache.put(key, value, ttl, metadata)
         else:
             # Obiecte mari -> disk
@@ -689,8 +721,8 @@ def cached(ttl: Optional[float] = None,
 
 # Singleton instance
 cache = SmartCache[Any](
-    memory_cache_size=500,
-    disk_cache_size_mb=50,
-    default_ttl=3600,  # 1 oră
+    memory_cache_size=200,
+    disk_cache_size_mb=20,
+    default_ttl=1800,  # 30 minute
     strategy=CacheStrategy.SMART
 )

@@ -138,7 +138,7 @@ class DownloadConfig:
     retry_delay: float = 1.0
     timeout: int = 300  # 5 minute
     chunk_size: int = 8192  # 8KB
-    max_file_size: int = 1024 * 1024 * 1024  # 1GB
+    max_file_size: int = 45 * 1024 * 1024  # 45MB
     download_directory: str = "downloads"
     temp_directory: str = "temp"
     user_agent: Optional[str] = None

@@ -9,16 +9,42 @@ from downloader import download_video, is_supported_url, upgrade_to_nightly_ytdl
 import tempfile
 import time
 import threading
+from utils.security.auth_manager import AuthenticationManager, require_permission
+from utils.security.security_monitor import SecurityMonitor
+from utils.security.input_sanitizer import InputSanitizer, ValidationLevel
 # Force redeploy - 2025-08-09 - Facebook fixes deployed
 import re
 from utils.activity_logger import activity_logger, log_command_executed, log_download_success, log_download_error
 from urllib.parse import urlparse
-from render_optimized_config import (
-    is_render_environment,
-    setup_render_logging,
-    cleanup_render_temp_files,
-    RENDER_OPTIMIZED_CONFIG
-)
+# Render optimized config - using built-in alternatives
+import tempfile
+import logging
+
+def is_render_environment():
+    import os
+    return os.getenv('RENDER') is not None
+
+def setup_render_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+def cleanup_render_temp_files(temp_dir):
+    try:
+        import os
+        for file in os.listdir(temp_dir):
+            if file.endswith(('.part', '.tmp')):
+                os.remove(os.path.join(temp_dir, file))
+    except Exception:
+        pass
+
+RENDER_OPTIMIZED_CONFIG = {
+    'flask_config': {
+        'MAX_CONTENT_LENGTH': 45 * 1024 * 1024,
+        'SEND_FILE_MAX_AGE_DEFAULT': 31536000
+    }
+}
 
 # Încarcă variabilele de mediu din .env pentru testare locală
 try:
@@ -114,6 +140,7 @@ def filter_supported_urls(urls):
 def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None):
     """
     Trimite mesaj cu fallback la text simplu dacă parse_mode eșuează.
+    Versiune optimizată cu AsyncDownloadManager pentru performanță îmbunătățită.
     """
     import requests
     
@@ -168,6 +195,87 @@ def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None)
                 
     except Exception as e:
         logger.error(f"Excepție la trimiterea mesajului: {e}")
+        return False
+
+# Versiune asincronă optimizată pentru performanță
+async def async_send_telegram_message(chat_id, text, parse_mode='HTML', reply_markup=None):
+    """
+    Versiune asincronă optimizată pentru trimiterea mesajelor Telegram.
+    Utilizează AsyncDownloadManager pentru performanță îmbunătățită.
+    """
+    from utils.network.async_download_manager import get_download_manager, NetworkRequest
+    
+    if not TOKEN:
+        logger.error("TOKEN nu este setat!")
+        return False
+    
+    # Validează chat_id înainte de trimitere
+    if not validate_chat_id(chat_id):
+        logger.error(f"Chat ID invalid: {chat_id}")
+        return False
+    
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    
+    # Pregătește datele pentru cerere
+    data = {
+        'chat_id': chat_id,
+        'text': text,
+        'parse_mode': parse_mode
+    }
+    if reply_markup:
+        data['reply_markup'] = reply_markup
+    
+    try:
+        # Obține download manager-ul
+        download_manager = await get_download_manager()
+        
+        # Creează cererea de rețea
+        network_request = NetworkRequest(
+            url=url,
+            method='POST',
+            json=data,
+            timeout=30,
+            request_id=f"telegram_msg_{chat_id}_{int(time.time())}"
+        )
+        
+        # Execută cererea
+        result = await download_manager.make_request(network_request)
+        
+        if result.get('success', False) and result.get('status_code') == 200:
+            logger.info(f"Mesaj trimis cu succes către chat_id {chat_id} cu {parse_mode}")
+            return True
+        else:
+            # Fallback fără parse_mode
+            logger.warning(f"Eroare cu {parse_mode}: {result.get('status_code')} - {str(result.get('error', ''))[:200]}")
+            logger.info(f"Încerc să trimit fără parse_mode...")
+            
+            data_fallback = {
+                'chat_id': chat_id,
+                'text': text
+            }
+            if reply_markup:
+                data_fallback['reply_markup'] = reply_markup
+            
+            # Cererea de fallback
+            fallback_request = NetworkRequest(
+                url=url,
+                method='POST',
+                json=data_fallback,
+                timeout=30,
+                request_id=f"telegram_msg_fallback_{chat_id}_{int(time.time())}"
+            )
+            
+            fallback_result = await download_manager.make_request(fallback_request)
+            
+            if fallback_result.get('success', False) and fallback_result.get('status_code') == 200:
+                logger.info(f"Mesaj trimis cu succes către chat_id {chat_id} fără parse_mode")
+                return True
+            else:
+                logger.error(f"Eroare și la fallback: {fallback_result.get('status_code')} - {str(fallback_result.get('error', ''))[:200]}")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Excepție la trimiterea mesajului asincron: {e}")
         return False
 
 # Funcție centrală pentru crearea caption-urilor sigure
@@ -273,6 +381,31 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
 
 # Configurare Flask cu optimizări pentru Render
 app = Flask(__name__)
+
+# Inițializare sisteme de securitate
+auth_manager = AuthenticationManager()
+security_monitor = SecurityMonitor()
+input_sanitizer = InputSanitizer()
+
+@app.before_request
+def security_middleware():
+    """Middleware de securitate pentru toate cererile"""
+    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'unknown'))
+    
+    # Verifică dacă IP-ul este blocat
+    if security_monitor.is_ip_blocked(client_ip):
+        logger.warning(f"Cerere blocată de la IP: {client_ip}")
+        return jsonify({'status': 'blocked', 'message': 'Access denied'}), 403
+    
+    # Analizează cererea pentru amenințări (doar pentru webhook-uri)
+    if request.endpoint == 'webhook':
+        security_monitor.analyze_request({
+            'ip': client_ip,
+            'path': request.path,
+            'method': request.method,
+            'user_agent': request.headers.get('User-Agent', ''),
+            'timestamp': time.time()
+        })
 
 # 🛡️ SECURITATE: Forțează dezactivarea debug mode în producție
 if os.getenv('FLASK_ENV') == 'production' or os.getenv('RENDER') or is_render_environment():
@@ -573,8 +706,8 @@ async def log_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"❌ Eroare la generarea raportului: {e}",
                 parse_mode='HTML'
             )
-        except:
-            logger.error("Nu s-a putut trimite mesajul de eroare pentru comanda /log")
+        except Exception as e:
+            logger.error(f"Nu s-a putut trimite mesajul de eroare pentru comanda /log: {e}")
 
 async def safe_send_message(update, text, **kwargs):
     """
@@ -679,11 +812,14 @@ async def process_single_video(update, url, video_index=None, total_videos=None,
             
             await safe_edit_message(status_message, success_text)
             
-            # Trimite videoclipul
+            # Trimite videoclipul sau fișierul audio
             try:
-                with open(result['file_path'], 'rb') as video_file:
+                file_path = result['file_path']
+                file_extension = os.path.splitext(file_path)[1].lower()
+                
+                with open(file_path, 'rb') as media_file:
                     caption = create_safe_caption(
-                        title=result.get('title', 'Video'),
+                        title=result.get('title', 'Media'),
                         uploader=result.get('uploader'),
                         description=result.get('description'),
                         duration=result.get('duration'),
@@ -691,20 +827,43 @@ async def process_single_video(update, url, video_index=None, total_videos=None,
                     )
                     
                     try:
-                        if hasattr(update.message, 'reply_video'):
-                            await update.message.reply_video(
-                                video=video_file,
-                                caption=caption,
-                                supports_streaming=True,
-                                parse_mode='Markdown'
-                            )
+                        # Check if it's an audio file (MP3 from SoundCloud)
+                        if file_extension in ['.mp3', '.m4a', '.aac', '.wav', '.flac']:
+                            # Send as audio
+                            if hasattr(update.message, 'reply_audio'):
+                                await update.message.reply_audio(
+                                    audio=media_file,
+                                    caption=caption,
+                                    title=result.get('title', 'Audio'),
+                                    performer=result.get('uploader', 'Unknown'),
+                                    duration=result.get('duration'),
+                                    parse_mode='Markdown'
+                                )
+                            else:
+                                await update.effective_chat.send_audio(
+                                    audio=media_file,
+                                    caption=caption,
+                                    title=result.get('title', 'Audio'),
+                                    performer=result.get('uploader', 'Unknown'),
+                                    duration=result.get('duration'),
+                                    parse_mode='Markdown'
+                                )
                         else:
-                            await update.effective_chat.send_video(
-                                video=video_file,
-                                caption=caption,
-                                supports_streaming=True,
-                                parse_mode='Markdown'
-                            )
+                            # Send as video
+                            if hasattr(update.message, 'reply_video'):
+                                await update.message.reply_video(
+                                    video=media_file,
+                                    caption=caption,
+                                    supports_streaming=True,
+                                    parse_mode='Markdown'
+                                )
+                            else:
+                                await update.effective_chat.send_video(
+                                    video=media_file,
+                                    caption=caption,
+                                    supports_streaming=True,
+                                    parse_mode='Markdown'
+                                )
                     except Exception as e:
                         error_msg = str(e).lower()
                         if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
@@ -882,8 +1041,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 update,
                 "❌ A apărut o eroare neașteptată. Te rog să încerci din nou."
             )
-        except:
-            logger.error("Nu s-a putut trimite mesajul de eroare generică")
+        except Exception as e:
+            logger.error(f"Nu s-a putut trimite mesajul de eroare generică: {e}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -1090,8 +1249,8 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
         try:
             if update and update.callback_query:
                 await update.callback_query.answer("❌ A apărut o eroare neașteptată.")
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Nu s-a putut răspunde la callback query: {e}")
 
 # Handler-ii vor fi adăugați, iar aplicația va fi inițializată la primul request
 
@@ -1172,7 +1331,25 @@ def webhook():
                 # Pentru link-urile Facebook, nu bloca procesarea, doar previne mesajele duplicate
                 # Mecanismul de debouncing pentru erori este gestionat în download_video_sync
                 
-                logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {text}")
+                # Verificări de securitate suplimentare pentru utilizatori
+                client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'unknown'))
+                if security_monitor.is_user_blocked(str(user_id)):
+                    logger.warning(f"Utilizator blocat: {user_id} de la IP: {client_ip}")
+                    return jsonify({'status': 'blocked'}), 403
+                
+                # Analizează cererea pentru amenințări specifice utilizatorului
+                security_monitor.analyze_request({
+                    'ip': client_ip,
+                    'user_id': str(user_id) if user_id else None,
+                    'text': text,
+                    'chat_id': str(chat_id),
+                    'timestamp': time.time()
+                })
+                
+                # Sanitizează input-ul
+                sanitized_text = input_sanitizer.sanitize_text(text, ValidationLevel.STRICT)
+                
+                logger.info(f"Procesez mesaj de la chat_id: {chat_id}, text: {sanitized_text}")
                 
                 # Extrage user_id din mesaj
                 user_id = None
@@ -1230,10 +1407,10 @@ def webhook():
                         success = send_telegram_message(chat_id, help_text)
                         logger.info(f"Mesaj de ajutor trimis: {success}")
                         
-                    elif text and ('tiktok.com' in text or 'instagram.com' in text or 'facebook.com' in text or 'fb.watch' in text or 'twitter.com' in text or 'x.com' in text or 'threads.net' in text or 'threads.com' in text or 'pinterest.com' in text or 'pin.it' in text or 'reddit.com' in text or 'redd.it' in text or 'vimeo.com' in text or 'dailymotion.com' in text or 'dai.ly' in text):
-                        logger.info(f"Link video detectat: {text}")
+                    elif sanitized_text and ('tiktok.com' in sanitized_text or 'instagram.com' in sanitized_text or 'facebook.com' in sanitized_text or 'fb.watch' in sanitized_text or 'twitter.com' in sanitized_text or 'x.com' in sanitized_text or 'threads.net' in sanitized_text or 'threads.com' in sanitized_text or 'pinterest.com' in sanitized_text or 'pin.it' in sanitized_text or 'reddit.com' in sanitized_text or 'redd.it' in sanitized_text or 'vimeo.com' in sanitized_text or 'dailymotion.com' in sanitized_text or 'dai.ly' in sanitized_text):
+                        logger.info(f"Link video detectat: {sanitized_text}")
                         # Procesează link-ul video
-                        process_video_link_sync(chat_id, text, user_id)
+                        process_video_link_sync(chat_id, sanitized_text, user_id)
                         
                     else:
                         success = send_telegram_message(chat_id, "❌ Te rog trimite un link valid de video sau folosește /help pentru ajutor.")
@@ -1612,8 +1789,8 @@ def send_video_file(chat_id, file_path, video_info):
             try:
                 error_details = response.json()
                 logger.error(f"Eroare la trimiterea video-ului: {response.status_code} - {error_details}")
-            except:
-                logger.error(f"Eroare la trimiterea video-ului: {response.status_code} - {response.text[:200]}")
+            except Exception as e:
+                logger.error(f"Eroare la parsarea răspunsului JSON pentru video: {e}. Status: {response.status_code} - Text: {response.text[:200]}")
             
             # Verifică tipul erorii și trimite mesaj corespunzător
             if response.status_code == 400:
@@ -1781,6 +1958,41 @@ def ping_endpoint():
         'timestamp': time.time(),
         'status': 'alive'
     })
+
+@app.route('/security/status', methods=['GET'])
+def security_status():
+    """Endpoint pentru monitorizarea stării securității"""
+    try:
+        status = security_monitor.get_security_status()
+        return jsonify({
+            'status': 'ok',
+            'security_status': status,
+            'timestamp': time.time()
+        }), 200
+    except Exception as e:
+        logger.error(f"Eroare la obținerea stării securității: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Security status unavailable'
+        }), 500
+
+@app.route('/security/threats', methods=['GET'])
+def recent_threats():
+    """Endpoint pentru vizualizarea amenințărilor recente"""
+    try:
+        threats = security_monitor.get_recent_threats(limit=50)
+        return jsonify({
+            'status': 'ok',
+            'threats': [threat.__dict__ for threat in threats],
+            'count': len(threats),
+            'timestamp': time.time()
+        }), 200
+    except Exception as e:
+        logger.error(f"Eroare la obținerea amenințărilor: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Threats data unavailable'
+        }), 500
 
 # Funcție pentru inițializarea în contextul Flask
 def ensure_app_initialized():

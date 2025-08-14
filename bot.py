@@ -364,14 +364,14 @@ async def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         # Șterge fișierul temporar
         try:
             os.remove(filepath)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Nu s-a putut șterge fișierul temporar {filepath}: {e}")
             
         # Șterge mesajul de procesare
         try:
             await processing_message.delete()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Nu s-a putut șterge mesajul de procesare: {e}")
             
     except Exception as e:
         error_message = f"❌ Eroare: {str(e)}"
@@ -405,8 +405,8 @@ async def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         # Șterge mesajul de procesare
         try:
             await processing_message.delete()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Nu s-a putut șterge mesajul de procesare în cazul de eroare: {e}")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """

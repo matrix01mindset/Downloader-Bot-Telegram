@@ -65,7 +65,7 @@ class CacheConfig:
     backend: str = "memory"  # memory, redis, file
     ttl: int = 3600  # Time to live în secunde
     max_size: int = 1000  # Numărul maxim de intrări
-    cleanup_interval: int = 300  # Interval de curățare în secunde
+    cleanup_interval: int = 120  # Interval de curățare în secunde
     
     # Redis specific
     redis_url: Optional[str] = None
@@ -152,7 +152,7 @@ class DownloadConfig:
     
     # Fișiere
     chunk_size: int = 8192  # 8KB
-    max_file_size: int = 5 * 1024 * 1024 * 1024  # 5GB
+    max_file_size: int = 45 * 1024 * 1024  # 45MB
     
     # Retry și timeout
     download_timeout: int = 300  # 5 minute
@@ -161,7 +161,7 @@ class DownloadConfig:
     
     # Cleanup
     cleanup_temp_files: bool = True
-    cleanup_interval: int = 3600  # 1 oră
+    cleanup_interval: int = 600  # 10 minute
     max_temp_age: int = 86400  # 24 ore
     
     # Progress tracking
@@ -330,7 +330,7 @@ class LoggingConfig:
     # File logging
     log_to_file: bool = True
     log_file: str = "logs/downloader.log"
-    max_file_size: int = 10 * 1024 * 1024  # 10MB
+    max_file_size: int = 45 * 1024 * 1024  # 45MB
     backup_count: int = 5
     
     # Console logging

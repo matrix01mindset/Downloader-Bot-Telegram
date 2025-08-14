@@ -49,7 +49,7 @@ class FileManager:
         self.temp_dir = config.get('temp_dir', '/tmp')
         self.max_temp_files = config.get('max_temp_files', 100)
         self.cleanup_older_than = config.get('cleanup_older_than', 300)  # 5 minute
-        self.max_file_size = config.get('max_file_size_mb', 50) * 1024 * 1024  # MB to bytes
+        self.max_file_size = config.get('max_file_size_mb', 45) * 1024 * 1024  # MB to bytes
         self.allowed_extensions = config.get('allowed_extensions', [
             '.mp4', '.mkv', '.webm', '.mov', '.avi', '.m4v', '.3gp'
         ])
@@ -65,7 +65,7 @@ class FileManager:
         
         # Task pentru cleanup periodic
         self.cleanup_task = None
-        self.cleanup_interval = config.get('cleanup_interval', 60)  # secunde
+        self.cleanup_interval = config.get('cleanup_interval', 30)  # secunde
         
         logger.info(f"✅ File Manager initialized - Base dir: {self.base_temp_dir}")
         
@@ -267,8 +267,8 @@ class FileManager:
                         import gc
                         gc.collect()
                         await asyncio.sleep(0.1)
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Nu s-a putut forța garbage collection: {e}")
                         
                 await asyncio.to_thread(os.remove, file_path)
                 logger.debug(f"Deleted file: {file_path}")
@@ -293,8 +293,8 @@ class FileManager:
                 if file_path in self.active_files:
                     self.active_files.pop(file_path)
                 return True
-            except:
-                logger.error(f"Failed to delete {file_path} after retry")
+            except Exception as e:
+                logger.error(f"Failed to delete {file_path} after retry: {e}")
                 return False
                 
         except Exception as e:
@@ -488,5 +488,5 @@ class FileManager:
         try:
             if hasattr(self, 'cleanup_task') and self.cleanup_task and not self.cleanup_task.done():
                 self.cleanup_task.cancel()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Eroare la curățarea resurselor în destructor: {e}")

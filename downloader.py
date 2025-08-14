@@ -13,30 +13,94 @@ import sys
 import shutil
 import requests
 from datetime import datetime, timedelta
-from anti_bot_detection import (
-    create_anti_bot_ydl_opts,
-    implement_rate_limiting,
-    enhance_ydl_opts_for_production,
-    log_anti_bot_status,
-    get_platform_from_url as get_platform_anti_bot
+from utils.common.http_headers import HTTPHeaders, YDLConfig, NetworkUtils
+from utils.common.validators import (
+    URLValidator,
+    ContentValidator,
+    SecurityValidator
 )
-from production_config import (
-    get_proxy_for_platform,
-    get_cookies_for_platform,
-    get_rate_limit_config,
-    is_production_environment,
-    validate_url_security,
-    get_production_ydl_opts_enhancement,
-    log_production_metrics
-)
-from render_optimized_config import (
-    get_render_ytdl_opts,
-    get_render_headers,
-    is_render_environment,
-    get_render_temp_dir,
-    cleanup_render_temp_files,
-    RENDER_OPTIMIZED_CONFIG
-)
+# Anti-bot detection functions removed - using built-in alternatives
+# Production config functions - using built-in alternatives
+def get_proxy_for_platform(platform):
+    return None  # No proxy by default
+
+def get_cookies_for_platform(platform):
+    return None  # No cookies by default
+
+def get_rate_limit_config(platform):
+    # Basic rate limiting config
+    return {'delay_seconds': 1, 'requests_per_minute': 30}
+
+def is_production_environment():
+    return os.getenv('RENDER') is not None or os.getenv('PRODUCTION') == 'true'
+
+def validate_url_security(url):
+    # Basic URL validation
+    return url.startswith(('http://', 'https://'))
+
+def get_production_ydl_opts_enhancement():
+    return {}
+
+def log_production_metrics(platform, success, duration, file_size):
+    logger.info(f"📊 {platform}: {'✅' if success else '❌'} {duration:.1f}s {file_size/(1024*1024):.1f}MB")
+# Render optimized config - using built-in alternatives
+def get_render_ytdl_opts(platform):
+    return {
+        'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
+        'restrictfilenames': True,
+        'noplaylist': True,
+        'extract_flat': False,
+        'writethumbnail': False,
+        'writeinfojson': False,
+        'max_filesize': 45 * 1024 * 1024,
+        'max_duration': 600
+    }
+
+def get_render_headers():
+    return {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+
+def is_render_environment():
+    return os.getenv('RENDER') is not None
+
+def get_render_temp_dir():
+    return tempfile.gettempdir()
+
+def cleanup_render_temp_files(temp_dir):
+    try:
+        for file in os.listdir(temp_dir):
+            if file.endswith(('.part', '.tmp')):
+                os.remove(os.path.join(temp_dir, file))
+    except Exception:
+        pass
+
+RENDER_OPTIMIZED_CONFIG = {
+    'rate_limiting': {
+        'requests_per_minute': 30,
+        'cooldown_seconds': 2
+    },
+    'security': {
+        'max_file_size': 45 * 1024 * 1024,
+        'allowed_extensions': ['.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.3gp']
+    }
+}
+# SoundCloud downloader - using built-in alternative
+def download_soundcloud_track(url, temp_dir):
+    """Simple SoundCloud download using yt-dlp"""
+    try:
+        ydl_opts = {
+            'format': 'best[filesize<45M]/best',
+            'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
+            'restrictfilenames': True,
+            'noplaylist': True
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        return True
+    except Exception as e:
+        logger.error(f"SoundCloud download error: {e}")
+        return False
 
 # Configurare logging centralizat
 logging.basicConfig(
@@ -260,10 +324,10 @@ YOUTUBE_CLIENT_CONFIGS = {
 
 
 def validate_and_create_temp_dir():
-    """Creează director temporar sigur cu validare împotriva path traversal"""
+    """Creează director temporar sigur cu validare îmbunătățită împotriva path traversal"""
     try:
-        # Creează directorul temporar
-        temp_dir = tempfile.mkdtemp(prefix="video_download_")
+        # Creează directorul temporar cu prefix securizat
+        temp_dir = tempfile.mkdtemp(prefix="secure_video_download_")
         
         # Validare strictă împotriva path traversal
         real_path = os.path.realpath(temp_dir)
@@ -273,31 +337,104 @@ def validate_and_create_temp_dir():
         if not real_path.startswith(temp_base):
             # Curăță directorul creat
             try:
-                import shutil
                 shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise Exception(f"Invalid temp directory path: {real_path}")
+            except Exception as e:
+                logger.warning(f"Nu s-a putut șterge directorul temporar: {e}")
+            raise SecurityError(f"Path traversal detectat: {real_path}")
+        
+        # Verifică că calea nu conține caractere periculoase
+        dangerous_chars = ['..', '<', '>', '"', "'", '&', '|', ';']
+        for char in dangerous_chars:
+            if char in real_path:
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception as e:
+                    logger.warning(f"Nu s-a putut șterge directorul temporar după detectarea caracterelor periculoase: {e}")
+                raise SecurityError(f"Caractere periculoase detectate în calea: {real_path}")
         
         # Verifică permisiunile
         if not os.access(temp_dir, os.W_OK):
             try:
-                import shutil
                 shutil.rmtree(temp_dir, ignore_errors=True)
-            except:
-                pass
-            raise Exception(f"No write access to temp directory: {temp_dir}")
+            except Exception as e:
+                logger.warning(f"Nu s-a putut șterge directorul temporar după refuzul accesului de scriere: {e}")
+            raise SecurityError(f"Acces de scriere refuzat: {temp_dir}")
         
-        logger.info(f"🔒 Secure temp directory created: {temp_dir}")
+        # Setează permisiuni restrictive (doar pentru owner)
+        try:
+            os.chmod(temp_dir, 0o700)
+        except Exception as e:
+            logger.debug(f"Nu s-a putut seta chmod (normal pe Windows): {e}")
+        
+        logger.info(f"🔒 Director temporar securizat creat: {temp_dir}")
         return temp_dir
         
+    except SecurityError:
+        raise  # Re-ridică erorile de securitate
     except Exception as e:
-        logger.error(f"❌ Failed to create secure temp directory: {e}")
-        # Fallback la directorul curent
-        fallback_dir = os.path.join(os.getcwd(), 'temp_downloads')
-        os.makedirs(fallback_dir, exist_ok=True)
-        logger.warning(f"Using fallback temp directory: {fallback_dir}")
-        return fallback_dir
+        logger.error(f"❌ Eroare la crearea directorului temporar: {e}")
+        # Fallback securizat
+        try:
+            fallback_dir = os.path.join(tempfile.gettempdir(), 'secure_fallback_downloads')
+            os.makedirs(fallback_dir, exist_ok=True)
+            os.chmod(fallback_dir, 0o700)
+            logger.warning(f"Folosesc directorul fallback securizat: {fallback_dir}")
+            return fallback_dir
+        except Exception as e:
+            raise SecurityError(f"Nu s-a putut crea un director temporar sigur: {e}")
+
+
+class SecurityError(Exception):
+    """Excepție pentru probleme de securitate"""
+    pass
+
+
+def sanitize_filename(filename):
+    """Sanitizează numele fișierului pentru a preveni atacurile"""
+    if not filename or not isinstance(filename, str):
+        return "download"
+    
+    # Elimină caractere periculoase
+    dangerous_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/', '..', '&', ';']
+    sanitized = filename
+    
+    for char in dangerous_chars:
+        sanitized = sanitized.replace(char, '_')
+    
+    # Limitează lungimea
+    sanitized = sanitized[:100]
+    
+    # Elimină spațiile de la început și sfârșit
+    sanitized = sanitized.strip()
+    
+    # Asigură-te că nu este gol
+    if not sanitized:
+        sanitized = "download"
+    
+    return sanitized
+
+
+def validate_file_path(file_path, base_dir=None):
+    """Validează calea fișierului împotriva path traversal"""
+    if not file_path or not isinstance(file_path, str):
+        raise SecurityError("Calea fișierului este invalidă")
+    
+    # Rezolvă calea absolută
+    abs_path = os.path.abspath(file_path)
+    
+    # Verifică împotriva path traversal
+    if base_dir:
+        base_abs = os.path.abspath(base_dir)
+        if not abs_path.startswith(base_abs):
+            raise SecurityError(f"Path traversal detectat: {file_path}")
+    
+    # Verifică caractere periculoase
+    dangerous_patterns = ['..', '<', '>', '"', "'", '&', '|', ';']
+    for pattern in dangerous_patterns:
+        if pattern in file_path:
+            raise SecurityError(f"Caractere periculoase în calea fișierului: {pattern}")
+    
+    return abs_path
 
 # Configurații îmbunătățite pentru toate platformele
 ENHANCED_PLATFORM_CONFIGS = {
@@ -331,9 +468,7 @@ ENHANCED_PLATFORM_CONFIGS = {
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ],
         'ydl_opts_extra': {
-            'http_chunk_size': 10485760,
-            'retries': 3,
-            'socket_timeout': 30,
+            **YDLConfig.get_base_ydl_opts(),
             'geo_bypass': True,
             'nocheckcertificate': True,
             'extractor_args': {
@@ -444,6 +579,30 @@ ENHANCED_PLATFORM_CONFIGS = {
                 }
             }
         }
+    },
+    'soundcloud': {
+        'user_agents': [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ],
+        'ydl_opts_extra': {
+            'format': 'best[ext=mp3]/best[acodec=mp3]/best[acodec=aac]/best',
+            'extractaudio': True,
+            'audioformat': 'mp3',
+            'audioquality': '192',
+            'http_chunk_size': 10485760,
+            'retries': 5,
+            'socket_timeout': 30,
+            'geo_bypass': True,
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'soundcloud': {
+                    'client_id': None,  # yt-dlp will auto-detect
+                    'api_version': 'v2'
+                }
+            }
+        }
     }
 }
 
@@ -469,6 +628,8 @@ def get_platform_from_url(url):
         return 'pinterest'
     elif 'threads.net' in url_lower:
         return 'threads'
+    elif any(domain in url_lower for domain in ['soundcloud.com', 'snd.sc']):
+        return 'soundcloud'
     
     return 'generic'
 
@@ -480,10 +641,33 @@ def create_enhanced_ydl_opts(url, temp_dir):
     if not validate_url_security(url):
         raise ValueError(f"URL nesigur sau nepermis: {url}")
     
-    # Folosește modulul anti-bot detection pentru configurații avansate
+    # Folosește configurații built-in pentru platformă
     try:
-        ydl_opts = create_anti_bot_ydl_opts(url)
-        ydl_opts = enhance_ydl_opts_for_production(ydl_opts, platform)
+        config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
+        ydl_opts = {
+            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best',
+            'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
+            'restrictfilenames': True,
+            'noplaylist': True,
+            'extract_flat': False,
+            'writethumbnail': False,
+            'writeinfojson': False,
+            'no_warnings': False,
+            'ignoreerrors': False,
+            'prefer_free_formats': False,
+            'max_filesize': 45 * 1024 * 1024,
+            'max_duration': 600,
+            'http_headers': get_random_headers()
+        }
+        
+        # Adaugă configurații specifice platformei
+        if config.get('ydl_opts_extra'):
+            ydl_opts.update(config['ydl_opts_extra'])
+        
+        # Setează user agent aleatoriu din lista platformei
+        if config.get('user_agents'):
+            user_agent = random.choice(config['user_agents'])
+            ydl_opts['http_headers']['User-Agent'] = user_agent
         
         # Actualizează outtmpl cu temp_dir specificat
         ydl_opts['outtmpl'] = os.path.join(temp_dir, '%(title)s.%(ext)s')
@@ -536,7 +720,7 @@ def create_enhanced_ydl_opts(url, temp_dir):
             'no_warnings': False,
             'ignoreerrors': False,
             'prefer_free_formats': False,
-            'max_filesize': 50 * 1024 * 1024,  # 50MB
+            'max_filesize': 45 * 1024 * 1024,  # 45MB (consistent cu limita Telegram)
             'max_duration': 600,  # 10 minutes
             'http_headers': get_random_headers()
         }
@@ -554,19 +738,27 @@ def create_enhanced_ydl_opts(url, temp_dir):
         return ydl_opts
 
 def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
-    """Descarcă cu strategii îmbunătățite de retry și anti-bot detection"""
+    """Descarcă cu strategii îmbunătățite de retry și anti-bot detection adaptiv"""
     platform = get_platform_from_url(url)
     config = ENHANCED_PLATFORM_CONFIGS.get(platform, {})
     
     last_error = None
     last_request_time = None
     
+    # Rate limiting simplu pentru platformă
+    rate_config = get_rate_limit_config(platform)
+    if rate_config:
+        delay = rate_config.get('delay_seconds', 1)
+        logger.info(f"⏱️ Rate limiting pentru {platform}: {delay}s delay")
+    
     for attempt in range(max_attempts):
         try:
             logger.info(f"🔄 Încercare {attempt + 1}/{max_attempts} pentru {platform}...")
             
-            # Implementează rate limiting pentru evitarea detecției
-            implement_rate_limiting(platform)
+            # Implementează rate limiting simplu
+            rate_config = get_rate_limit_config(platform)
+            if rate_config and rate_config.get('delay_seconds', 0) > 0:
+                time.sleep(rate_config['delay_seconds'])
             last_request_time = time.time()
             
             # Creează opțiuni îmbunătățite cu anti-bot detection
@@ -607,8 +799,9 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
                 download_duration = time.time() - last_request_time
                 
                 logger.info(f"✅ Descărcare reușită pentru {platform} la încercarea {attempt + 1}")
-                log_anti_bot_status(platform, True, attempt + 1)
-                log_production_metrics(platform, True, download_duration, file_size)
+                # Log pentru producție
+                if 'log_production_metrics' in globals():
+                    log_production_metrics(platform, True, download_duration, file_size)
                 
                 return {
                     'success': True,
@@ -628,7 +821,6 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
             error_msg = str(e)
             last_error = error_msg
             logger.warning(f"❌ Încercarea {attempt + 1} eșuată pentru {platform}: {error_msg[:100]}...")
-            log_anti_bot_status(platform, False, f"Încercarea {attempt + 1}: {error_msg[:100]}")
             
             # Verifică dacă este o eroare critică care nu merită retry
             critical_errors = [
@@ -638,9 +830,20 @@ def download_with_enhanced_retry(url, temp_dir, max_attempts=3):
                 'sign in to confirm', 'bot', 'captcha', '403', '429'
             ]
             
+            # Verifică dacă este o eroare de rate limiting sau anti-bot
+            rate_limit_errors = ['429', 'too many requests', 'rate limit', 'blocked']
+            anti_bot_errors = ['bot', 'captcha', 'verification', 'suspicious']
+            
             if any(critical in error_msg.lower() for critical in critical_errors):
-                logger.info(f"🛑 Eroare critică detectată (posibil anti-bot), oprire retry pentru {platform}")
+                logger.info(f"🛑 Eroare critică detectată, oprire retry pentru {platform}")
                 break
+            elif any(rate_error in error_msg.lower() for rate_error in rate_limit_errors):
+                logger.warning(f"⚠️ Eroare de rate limiting detectată pentru {platform}, se va încerca din nou cu delay mai mare")
+            elif any(bot_error in error_msg.lower() for bot_error in anti_bot_errors):
+                logger.warning(f"🤖 Eroare anti-bot detectată pentru {platform}, se va aplica strategii adaptive")
+    
+    # Log final pentru platformă
+    logger.info(f"🏁 Finalizare încercări pentru {platform} după {max_attempts} tentative")
     
     return {
         'success': False,
@@ -1049,11 +1252,7 @@ def try_facebook_fallback(url, output_path, title):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
+                **HTTPHeaders.get_standard_browser_headers(),
                 'Sec-Fetch-User': '?1',
                 'Upgrade-Insecure-Requests': '1',
                 'Cache-Control': 'max-age=0',
@@ -1372,42 +1571,90 @@ def try_facebook_fallback(url, output_path, title):
     }
 
 def validate_url(url):
-    """Validează URL-ul pentru a preveni erorile DNS"""
-    if not url or len(url.strip()) < 10:
-        return False, "URL invalid sau prea scurt"
+    """Validează URL-ul cu securitate îmbunătățită împotriva atacurilor"""
+    import urllib.parse
+    import re
+    
+    if not url or not isinstance(url, str):
+        return False, "URL invalid sau lipsă"
     
     url = url.strip()
     
-    # Verifică dacă URL-ul conține domenii suportate
-    supported_domains = [
-        # TikTok
-        'tiktok.com', 'vm.tiktok.com',
-        # Instagram
-        'instagram.com', 'www.instagram.com',
-        # Facebook
-        'facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch', 'fb.me',
-        # Twitter/X
-        'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com',
-        # Threads
-        'threads.net', 'www.threads.net', 'threads.com', 'www.threads.com',
-        # Pinterest
-        'pinterest.com', 'www.pinterest.com', 'pinterest.co.uk', 'pin.it', 'pinterest.fr', 'pinterest.de', 'pinterest.ca',
-        # Reddit
-        'reddit.com', 'www.reddit.com', 'old.reddit.com', 'redd.it', 'v.redd.it', 'i.redd.it',
-        # Vimeo
-        'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
-        # Dailymotion
-        'dailymotion.com', 'www.dailymotion.com', 'dai.ly', 'geo.dailymotion.com'
-    ]
+    # Verifică lungimea minimă și maximă
+    if len(url) < 10 or len(url) > 2048:
+        return False, "URL invalid - lungime necorespunzătoare"
     
-    if not any(domain in url.lower() for domain in supported_domains):
-        return False, "Domeniu nesuportat"
+    # Verifică scheme permise (doar HTTP/HTTPS)
+    if not url.startswith(('http://', 'https://')):
+        return False, "Schemă nepermisă - doar HTTP/HTTPS sunt acceptate"
     
-    # Verifică dacă URL-ul nu este corupt (ex: doar "w")
-    if len(url) < 15 or not url.startswith(('http://', 'https://')):
-        return False, "URL corupt sau incomplet"
-    
-    return True, "URL valid"
+    try:
+        # Parse URL pentru validare structurală
+        parsed = urllib.parse.urlparse(url)
+        
+        # Verifică că există un domeniu valid
+        if not parsed.netloc or len(parsed.netloc) < 3:
+            return False, "Domeniu invalid sau lipsă"
+        
+        # Verifică împotriva path traversal și caractere periculoase
+        dangerous_patterns = [
+            r'\.\.[\/\\]',  # Path traversal
+            r'[<>"\']',       # HTML/Script injection
+            r'javascript:',   # JavaScript URLs
+            r'data:',         # Data URLs
+            r'file:',         # File URLs
+            r'ftp:',          # FTP URLs
+        ]
+        
+        for pattern in dangerous_patterns:
+            if re.search(pattern, url, re.IGNORECASE):
+                return False, f"URL conține caractere sau pattern-uri periculoase"
+        
+        # Verifică domenii suportate cu validare strictă
+        supported_domains = [
+            # TikTok
+            'tiktok.com', 'vm.tiktok.com',
+            # Instagram
+            'instagram.com', 'www.instagram.com',
+            # Facebook
+            'facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch', 'fb.me',
+            # Twitter/X
+            'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com',
+            # Threads
+            'threads.net', 'www.threads.net', 'threads.com', 'www.threads.com',
+            # Pinterest
+            'pinterest.com', 'www.pinterest.com', 'pinterest.co.uk', 'pin.it', 'pinterest.fr', 'pinterest.de', 'pinterest.ca',
+            # Reddit
+            'reddit.com', 'www.reddit.com', 'old.reddit.com', 'redd.it', 'v.redd.it', 'i.redd.it',
+            # Vimeo
+            'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
+            # Dailymotion
+            'dailymotion.com', 'www.dailymotion.com', 'dai.ly', 'geo.dailymotion.com',
+            # SoundCloud
+            'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com', 'snd.sc'
+        ]
+        
+        domain_lower = parsed.netloc.lower()
+        domain_valid = False
+        
+        for supported_domain in supported_domains:
+            if domain_lower == supported_domain or domain_lower.endswith('.' + supported_domain):
+                domain_valid = True
+                break
+        
+        if not domain_valid:
+            return False, f"Domeniu nesuportat: {parsed.netloc}"
+        
+        # Verifică că nu există port-uri neobișnuite (securitate)
+        if parsed.port and parsed.port not in [80, 443, 8080, 8443]:
+            return False, "Port neautorizat detectat"
+        
+        logger.info(f"🔒 URL validat cu succes: {parsed.netloc}")
+        return True, "URL valid și sigur"
+        
+    except Exception as e:
+        logger.error(f"❌ Eroare la validarea URL: {e}")
+        return False, f"Eroare la validarea URL: {str(e)}"
 
 def download_video(url, output_path=None):
     """
@@ -1480,6 +1727,21 @@ def download_with_render_optimization(url, temp_dir, max_attempts=3):
     platform = get_platform_from_url(url)
     logger.info(f"🚀 RENDER OPTIMIZED DOWNLOAD pentru {platform}: {url}")
     
+    # Special handling for SoundCloud
+    if platform == 'soundcloud':
+        logger.info(f"🎵 Using dedicated SoundCloud downloader for: {url}")
+        try:
+            result = download_soundcloud_track(url, temp_dir)
+            if result['success']:
+                logger.info(f"✅ SoundCloud download successful: {result['title']}")
+                return result
+            else:
+                logger.warning(f"❌ SoundCloud download failed: {result['error']}")
+                # Fall back to regular yt-dlp method
+        except Exception as e:
+            logger.warning(f"❌ SoundCloud downloader exception: {str(e)}")
+            # Fall back to regular yt-dlp method
+    
     last_error = None
     
     for attempt in range(max_attempts):
@@ -1546,8 +1808,7 @@ def download_with_render_optimization(url, temp_dir, max_attempts=3):
                 logger.info(f"✅ Render download reușit pentru {platform} la încercarea {attempt + 1}")
                 logger.info(f"📊 Render stats: {file_size / (1024*1024):.1f}MB în {download_duration:.1f}s")
                 
-                # Log pentru anti-bot și producție
-                log_anti_bot_status(platform, True, f"Render încercarea {attempt + 1}: {download_duration:.1f}s")
+                # Log pentru producție
                 if 'log_production_metrics' in globals():
                     log_production_metrics(platform, True, download_duration, file_size)
                 
@@ -1569,8 +1830,8 @@ def download_with_render_optimization(url, temp_dir, max_attempts=3):
             error_msg = f"Render încercare {attempt + 1} eșuată pentru {platform}: {last_error[:100]}"
             logger.warning(error_msg)
             
-            # Log pentru anti-bot
-            log_anti_bot_status(platform, False, f"Render încercarea {attempt + 1}: {last_error[:100]}")
+            # Log pentru eroare
+            logger.debug(f"Render încercarea {attempt + 1} eșuată: {last_error[:100]}")
             
             # Cleanup parțial în caz de eroare
             if is_render_environment():
@@ -1578,8 +1839,8 @@ def download_with_render_optimization(url, temp_dir, max_attempts=3):
                     for file in os.listdir(temp_dir):
                         if file.endswith('.part') or file.endswith('.tmp'):
                             os.remove(os.path.join(temp_dir, file))
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Nu s-a putut șterge fișierele temporare în Render: {e}")
             
             if attempt == max_attempts - 1:
                 break
@@ -1686,14 +1947,73 @@ def extract_reddit_video_direct(url, temp_dir):
                     import urllib3
                     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                     
-                    response = session.get(
-                        target_url,
-                        proxies=proxy,
-                        timeout=10,  # Timeout redus pentru detectare rapidă a proxy-urilor defecte
-                        verify=False,  # Ignoră SSL pentru proxy-uri
-                        allow_redirects=True,
-                        stream=False
-                    )
+                    # Optimizare cu AsyncDownloadManager pentru performanță îmbunătățită
+                    try:
+                        # Încearcă să folosească AsyncDownloadManager dacă este disponibil
+                        import asyncio
+                        from utils.network.async_download_manager import get_download_manager, NetworkRequest
+                        
+                        # Verifică dacă suntem într-un context async
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # Suntem într-un context async, folosim AsyncDownloadManager
+                            async def make_async_request():
+                                download_manager = await get_download_manager()
+                                network_request = NetworkRequest(
+                                    url=target_url,
+                                    method='GET',
+                                    headers=headers,
+                                    timeout=10,
+                                    request_id=f"reddit_{int(time.time())}"
+                                )
+                                return await download_manager.make_request(network_request)
+                            
+                            # Execută cererea async
+                            async_result = asyncio.create_task(make_async_request())
+                            result = asyncio.run_coroutine_threadsafe(async_result, loop).result(timeout=15)
+                            
+                            if result.get('success', False):
+                                # Simulează un obiect response pentru compatibilitate
+                                class AsyncResponse:
+                                    def __init__(self, data, status_code):
+                                        self.text = data.get('content', '')
+                                        self.status_code = status_code
+                                    
+                                    def json(self):
+                                        import json
+                                        return json.loads(self.text)
+                                
+                                response = AsyncResponse(result, result.get('status_code', 200))
+                            else:
+                                # Fallback la requests tradițional
+                                response = session.get(
+                                    target_url,
+                                    proxies=proxy,
+                                    timeout=10,
+                                    verify=False,
+                                    allow_redirects=True,
+                                    stream=False
+                                )
+                        except RuntimeError:
+                            # Nu suntem într-un context async, folosim requests tradițional
+                            response = session.get(
+                                target_url,
+                                proxies=proxy,
+                                timeout=10,
+                                verify=False,
+                                allow_redirects=True,
+                                stream=False
+                            )
+                    except ImportError:
+                        # AsyncDownloadManager nu este disponibil, folosim requests tradițional
+                        response = session.get(
+                            target_url,
+                            proxies=proxy,
+                            timeout=10,
+                            verify=False,
+                            allow_redirects=True,
+                            stream=False
+                        )
                     
                     if response.status_code == 200:
                         logger.info(f"✅ Succes cu {strategy['name']} prin {proxy_info}")
@@ -1804,7 +2124,7 @@ def extract_reddit_video_direct(url, temp_dir):
 def extract_video_from_rss(rss_content):
     """Extrage URL-ul video din RSS feed"""
     try:
-        import xml.etree.ElementTree as ET
+        import defusedxml.ElementTree as ET
         root = ET.fromstring(rss_content)
         
         # Caută link-uri video în RSS
@@ -1973,7 +2293,9 @@ def is_supported_url(url):
         # Vimeo
         'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
         # Dailymotion
-        'dailymotion.com', 'www.dailymotion.com', 'dai.ly', 'geo.dailymotion.com'
+        'dailymotion.com', 'www.dailymotion.com', 'dai.ly', 'geo.dailymotion.com',
+        # SoundCloud
+        'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com', 'snd.sc'
     ]
     
     return any(domain in url.lower() for domain in supported_domains)

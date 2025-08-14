@@ -169,7 +169,8 @@ class FileCleanupManager:
                 file_path = os.path.join(directory, filename)
                 
                 if os.path.isfile(file_path):
-                    file_age = current_time - os.path.getctime(file_path)
+                    # Folosește modification time în loc de creation time pentru compatibilitate cross-platform
+                    file_age = current_time - os.path.getmtime(file_path)
                     
                     if file_age > max_age_seconds:
                         try:
@@ -196,7 +197,7 @@ class MemoryManager:
     - Alerting pentru memory leaks
     """
     
-    def __init__(self, max_memory_mb: int = 200):
+    def __init__(self, max_memory_mb: int = 100):
         self.max_memory_mb = max_memory_mb
         self.warning_threshold = max_memory_mb * 0.8  # 80% warning
         self.critical_threshold = max_memory_mb * 0.95  # 95% critical
@@ -212,9 +213,9 @@ class MemoryManager:
         # Cleanup settings
         self.auto_cleanup_enabled = True
         self.last_cleanup = time.time()
-        self.cleanup_interval = 60  # 1 minut
+        self.cleanup_interval = 30  # 30 secunde
         self.last_gc_collect = time.time()
-        self.gc_interval = 300  # 5 minute
+        self.gc_interval = 120  # 2 minute
         
         # Statistics
         self.stats = {

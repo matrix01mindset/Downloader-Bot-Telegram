@@ -137,6 +137,9 @@ class SimpleRateLimiter:
                 'time_window_seconds': self.time_window
             }
 
+# Alias pentru compatibilitate
+RateLimiter = SimpleRateLimiter
+
 # Instanță globală pentru folosire în aplicație
 rate_limiter = SimpleRateLimiter(
     max_requests=5,  # 5 cereri

@@ -377,7 +377,8 @@ class SystemManager:
         try:
             status = await memory_manager.get_memory_status()
             return status.get('status') != 'critical'
-        except:
+        except Exception as e:
+            logger.debug(f"Health check memory manager eșuat: {e}")
             return False
             
     async def _health_check_cache(self) -> bool:
@@ -385,7 +386,8 @@ class SystemManager:
         try:
             stats = await cache.get_stats()
             return stats.get('health', {}).get('cleanup_thread_alive', False)
-        except:
+        except Exception as e:
+            logger.debug(f"Health check cache eșuat: {e}")
             return False
             
     async def _health_check_monitoring(self) -> bool:
@@ -393,7 +395,8 @@ class SystemManager:
         try:
             dashboard = await monitoring.get_dashboard_metrics()
             return 'system' in dashboard
-        except:
+        except Exception as e:
+            logger.debug(f"Health check monitoring eșuat: {e}")
             return False
             
     async def _health_check_platform_manager(self) -> bool:
@@ -401,7 +404,8 @@ class SystemManager:
         try:
             platforms = await platform_manager.get_available_platforms()
             return len(platforms) > 0
-        except:
+        except Exception as e:
+            logger.debug(f"Health check platform manager eșuat: {e}")
             return False
             
     async def _health_check_rate_limiter(self) -> bool:
@@ -409,7 +413,8 @@ class SystemManager:
         try:
             stats = rate_limiter.get_stats()
             return isinstance(stats, dict)
-        except:
+        except Exception as e:
+            logger.debug(f"Health check rate limiter eșuat: {e}")
             return False
             
     def _update_system_state(self):
@@ -463,8 +468,8 @@ class SystemManager:
         if monitoring:
             try:
                 dashboard_metrics = await monitoring.get_dashboard_metrics()
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Nu s-au putut obține metrici de la monitoring: {e}")
                 
         return {
             'system_state': self.state.value,

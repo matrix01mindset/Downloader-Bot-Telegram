@@ -85,7 +85,7 @@ class ExtractionConfig:
     proxy: Optional[str] = None
     follow_redirects: bool = True
     verify_ssl: bool = True
-    max_file_size: int = 100 * 1024 * 1024  # 100MB
+    max_file_size: int = 45 * 1024 * 1024  # 45MB
     preferred_quality: QualityLevel = QualityLevel.HD
     extract_thumbnails: bool = True
     extract_subtitles: bool = False
