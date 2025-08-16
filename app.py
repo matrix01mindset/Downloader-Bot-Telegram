@@ -406,7 +406,7 @@ class ErrorHandler:
             logger.error(log_msg)
         else:
             logger.warning(log_msg)
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+
 
 def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None):
     """
