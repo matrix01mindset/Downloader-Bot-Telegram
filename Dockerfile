@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Telegram Video Downloader Bot - Secure Dockerfile
 # Optimized for Render.com deployment
 
@@ -48,4 +49,27 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:$PORT/health || exit 1
 
 # Run the application
+=======
+# Dockerfile pentru Render deployment
+FROM python:3.11-slim
+
+# Setează directorul de lucru
+WORKDIR /app
+
+# Copiază requirements.txt și instalează dependențele
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiază toate fișierele aplicației
+COPY . .
+
+# Expune portul
+EXPOSE 10000
+
+# Setează variabilele de mediu
+ENV PYTHONUNBUFFERED=1
+ENV PORT=10000
+
+# Rulează aplicația
+>>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
 CMD ["python", "app.py"]
