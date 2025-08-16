@@ -1277,7 +1277,7 @@ async def process_single_video(update, url, video_index=None, total_videos=None,
             # Șterge mesajul de eroare după 5 secunde
             await asyncio.sleep(5)
             await safe_delete_message(status_message)
-            
+
 async def send_video_with_retry(update, file_path, title, uploader=None, description=None, duration=None, file_size=None, max_retries=3):
     """
     Trimite videoclip cu retry logic inteligent folosind ErrorHandler
