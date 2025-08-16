@@ -191,7 +191,6 @@ def escape_html(text: str) -> str:
     
     return html.escape(text)
 
-<<<<<<< HEAD
 def validate_chat_id(chat_id):
     """
     Validează chat_id înainte de trimiterea mesajelor
