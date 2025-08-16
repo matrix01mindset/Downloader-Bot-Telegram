@@ -452,10 +452,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 <<<<<<< HEAD
             "📥 **Gata pentru o nouă descărcare!**\n\n"
             "Trimite-mi un link de pe TikTok, Instagram, Facebook, Twitter/X, Threads, Pinterest, Reddit, Vimeo sau Dailymotion"
-=======
-            "📥 <b>Gata pentru o nouă descărcare!</b>\n\n"
-            "Trimite-mi un link de pe TikTok, Instagram, Facebook sau Twitter/X"
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
         )
         return
     
@@ -489,7 +485,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📋 **Cum să folosești:**
 1. Trimite-mi un link de la una din platformele suportate
-2. Așteptă să procesez videoclipul
+2. Așteaptă să procesez videoclipul
 3. Descarcă videoclipul direct în Telegram
 
 ⚠️ **Limite:**
@@ -502,11 +498,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /help - Afișează acest mesaj
 /menu - Meniul principal"""
     
-        help_text += """🆘 **Cum să folosești botul:**
-=======
-        help_text = """
+        help_text += """
 🆘 <b>Cum să folosești botul:</b>
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
 
 1. 📋 Copiază link-ul videoclipului
 2. 📤 Trimite-l în acest chat
@@ -528,7 +521,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         platforms_text = """
 🔗 <b>Platforme suportate în detaliu:</b>
 
-<<<<<<< HEAD
 📱 **TikTok**
 - tiktok.com, vm.tiktok.com
 - Videoclipuri publice
@@ -541,20 +533,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📘 **Facebook**
 - facebook.com, fb.watch, fb.me
-=======
-📱 <b>TikTok</b>
-- tiktok.com
-- Videoclipuri publice
-- Fără watermark
-
-📸 <b>Instagram</b>
-- instagram.com/p/
-- Postări video publice
-- Reels și IGTV
-
-📘 <b>Facebook</b>
-- facebook.com, fb.watch
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
 - Videoclipuri publice
 - URL normalization
 
@@ -562,7 +540,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - twitter.com, x.com
 - Tweet-uri cu video publice
 
-<<<<<<< HEAD
 🧵 **Threads**
 - threads.net, threads.com
 - Postări video publice
@@ -586,9 +563,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - dailymotion.com, dai.ly
 - Videoclipuri publice
 - Suport geo-restricții
-=======
-⚠️ <b>Notă:</b> YouTube nu este suportat momentan din cauza complexității tehnice și a restricțiilor platformei.
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
         """
         
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]

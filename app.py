@@ -938,7 +938,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Doar videoclipuri publice
 • YouTube nu este suportat momentan
 
-<<<<<<< HEAD
 🔧 **Funcționalități:**
 • Descărcare automată în calitate optimă
 • Detectare automată a platformei
@@ -957,11 +956,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Folosește link-uri directe (nu scurtate)
 • Verifică că videoclipul este public
 • Pentru probleme persistente, folosește `/ping`
-=======
-⚠️ <b>Probleme frecvente:</b>
-- Videoclipul este privat → Nu poate fi descărcat
-- Videoclipul este prea lung → Max 15 minute
-- Link invalid → Verifică că link-ul este corect
 
     """
     
@@ -1180,77 +1174,69 @@ async def process_single_video(update, url, video_index=None, total_videos=None,
             await safe_edit_message(status_message, success_text)
             
             # Trimite videoclipul sau fișierul audio
-            try:
-                file_path = result['file_path']
-                file_extension = os.path.splitext(file_path)[1].lower()
-                
-                with open(file_path, 'rb') as media_file:
-                    caption = create_safe_caption(
-                        title=result.get('title', 'Media'),
-                        uploader=result.get('uploader'),
-                        description=result.get('description'),
-                        duration=result.get('duration'),
-                        file_size=result.get('file_size')
-                    )
-                    
-                    try:
-                        # Check if it's an audio file (MP3 from SoundCloud)
-                        if file_extension in ['.mp3', '.m4a', '.aac', '.wav', '.flac']:
-                            # Send as audio
-                            if hasattr(update.message, 'reply_audio'):
-                                await update.message.reply_audio(
-                                    audio=media_file,
-                                    caption=caption,
-                                    title=result.get('title', 'Audio'),
-                                    performer=result.get('uploader', 'Unknown'),
-                                    duration=result.get('duration'),
-                                    parse_mode='Markdown'
-                                )
-                            else:
-                                await update.effective_chat.send_audio(
-                                    audio=media_file,
-                                    caption=caption,
-                                    title=result.get('title', 'Audio'),
-                                    performer=result.get('uploader', 'Unknown'),
-                                    duration=result.get('duration'),
-                                    parse_mode='Markdown'
-                                )
-                        else:
-                            # Send as video
-                            if hasattr(update.message, 'reply_video'):
-                                await update.message.reply_video(
-                                    video=media_file,
-                                    caption=caption,
-                                    supports_streaming=True,
-                                    parse_mode='Markdown'
-                                )
-                            else:
-                                await update.effective_chat.send_video(
-                                    video=media_file,
-                                    caption=caption,
-                                    supports_streaming=True,
-                                    parse_mode='Markdown'
-                                )
-                    except Exception as e:
-                        error_msg = str(e).lower()
-                        if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
-                            logger.warning(f"Nu se poate trimite videoclipul - chat inaccesibil pentru user {user_id}: {e}")
-                            return False
-                        else:
-                            raise
-            except Exception as e:
-                logger.error(f"Eroare la trimiterea videoclipului: {e}")
-                await safe_edit_message(
-                    status_message,
-                    f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
+            file_path = result['file_path']
+            file_extension = os.path.splitext(file_path)[1].lower()
+            
+            with open(file_path, 'rb') as media_file:
+                caption = create_safe_caption(
+                    title=result.get('title', 'Media'),
+                    uploader=result.get('uploader'),
+                    description=result.get('description'),
+                    duration=result.get('duration'),
+                    file_size=result.get('file_size')
                 )
-                return False
+                
+                try:
+                    # Check if it's an audio file (MP3 from SoundCloud)
+                    if file_extension in ['.mp3', '.m4a', '.aac', '.wav', '.flac']:
+                        # Send as audio
+                        if hasattr(update.message, 'reply_audio'):
+                            await update.message.reply_audio(
+                                audio=media_file,
+                                caption=caption,
+                                title=result.get('title', 'Audio'),
+                                performer=result.get('uploader', 'Unknown'),
+                                duration=result.get('duration'),
+                                parse_mode='Markdown'
+                            )
+                        else:
+                            await update.effective_chat.send_audio(
+                                audio=media_file,
+                                caption=caption,
+                                title=result.get('title', 'Audio'),
+                                performer=result.get('uploader', 'Unknown'),
+                                duration=result.get('duration'),
+                                parse_mode='Markdown'
+                            )
+                    else:
+                        # Send as video
+                        if hasattr(update.message, 'reply_video'):
+                            await update.message.reply_video(
+                                video=media_file,
+                                caption=caption,
+                                supports_streaming=True,
+                                parse_mode='Markdown'
+                            )
+                        else:
+                            await update.effective_chat.send_video(
+                                video=media_file,
+                                caption=caption,
+                                supports_streaming=True,
+                                parse_mode='Markdown'
+                            )
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
+                        logger.warning(f"Nu se poate trimite videoclipul - chat inaccesibil pentru user {user_id}: {e}")
+                        return False
+                    else:
+                        raise
             
             # Șterge fișierul temporar cu cleanup optimizat pentru Render
             try:
-                os.remove(result['file_path'])
+                os.remove(file_path)
                 if is_render_environment():
-                    logger.info(f"[RENDER] Fișier temporar șters: {result['file_path']}")
+                    logger.info(f"[RENDER] Fișier temporar șters: {file_path}")
             except Exception as e:
                 if is_render_environment():
                     logger.warning(f"[RENDER] Nu s-a putut șterge fișierul temporar: {e}")
@@ -1371,8 +1357,7 @@ async def send_video_with_retry(update, file_path, title, uploader=None, descrip
     
     # Dacă ajungem aici, toate încercările au eșuat
     metrics.record_download_failure(platform, 'max_retries_exceeded')
-    return False
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+            return False
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -1394,7 +1379,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         
-<<<<<<< HEAD
         # Logging îmbunătățit pentru Render
         if is_render_environment():
             logger.info(f"[RENDER] Mesaj primit de la {user_id} în chat {chat_id}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}")
@@ -1478,7 +1462,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if status_message:
                     await safe_edit_message(status_message, user_message)
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
         else:
             logger.info(f"Mesaj primit de la {user_id} în chat {chat_id}: {message_text}")
         
@@ -2601,7 +2584,7 @@ def reset_metrics_endpoint():
         return jsonify({
             'status': 'error',
             'message': str(e)
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+
         }), 500
 
 # Funcție pentru inițializarea în contextul Flask

@@ -1133,127 +1133,13 @@ def try_facebook_fallback(url, output_path, title):
         logger.info(f"URL Facebook normalizat cu patch: {normalized_url}")
         url = normalized_url
     
-<<<<<<< HEAD
-    # STEP 1: Încearcă cu sistemul de rotare URL înainte de fallback-uri
-    logger.info("🔄 STEP 1: Încercare cu sistemul de rotare URL (silențios)...")
-    try:
-        robust_opts = create_robust_facebook_opts()
-        robust_opts.update({
-            'outtmpl': output_path,
-            'quiet': False,
-            'noplaylist': True,
-            'extractaudio': False,
-            'skip_download': True,  # Doar extragere info pentru rotare
-            'writeinfojson': False,
-            'writethumbnail': False,
-            'geo_bypass': True,
-            'geo_bypass_country': 'US',
-        })
-        
-        # Încearcă rotarea URL-urilor
-        rotation_result = try_facebook_with_rotation(url, robust_opts, max_attempts=4)
-        success_url, video_info, rotation_info = rotation_result
-        
-        if success_url and video_info:
-            logger.info(f"✅ Facebook rotation SUCCESS! Using {rotation_info['successful_format']} at attempt {rotation_info['attempt_number']}")
-            
-            # Acum descarcă cu URL-ul care funcționează
-            download_opts = robust_opts.copy()
-            download_opts['skip_download'] = False
-            
-            with yt_dlp.YoutubeDL(download_opts) as ydl:
-                ydl.download([success_url])
-                
-                # Verifică dacă fișierul a fost descărcat
-                import glob
-                temp_dir = os.path.dirname(output_path)
-                downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
-                downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
-                
-                if downloaded_files:
-                    logger.info("✅ Facebook descărcare reușită cu sistem de rotare")
-                    return {
-                        'success': True,
-                        'file_path': downloaded_files[0],
-                        'title': video_info.get('title', title),
-                        'description': video_info.get('description', ''),
-                        'rotation_info': f"✅ Succes cu {rotation_info['successful_format']} la încercarea {rotation_info['attempt_number']}",
-                        'uploader': video_info.get('uploader', ''),
-                        'duration': video_info.get('duration', 0),
-                        'file_size': os.path.getsize(downloaded_files[0])
-                    }
-        else:
-            # Rotația a eșuat - oferă mesaj detaliat bazat pe informațiile de rotație
-            if rotation_info:
-                if rotation_info.get('error_type') == 'critical':
-                    return {
-                        'success': False,
-                        'error': f"❌ Facebook: Conținut privat sau indisponibil.\n\n🔄 Formate încercate: {', '.join(rotation_info['attempted_formats'])}\n🛑 Oprire la încercarea {rotation_info['stopped_at_attempt']} din cauza erorii critice.\n\n💡 Verifică dacă link-ul este public și valid.",
-                        'title': title
-                    }
-                elif rotation_info.get('error_type') == 'all_failed':
-                    return {
-                        'success': False,
-                        'error': f"❌ Facebook: Toate formatele au eșuat.\n\n🔄 Formate încercate ({rotation_info['total_attempts']}): {', '.join(rotation_info['attempted_formats'])}\n\n📋 Continuă cu fallback-urile clasice...",
-                        'title': title
-                    }
-    except Exception as rotation_error:
-        logger.warning(f"🔄 Sistemul de rotare eșuat: {str(rotation_error)[:100]}...")
-        logger.info("📋 Continuă cu fallback-urile clasice...")
-    
-    # STEP 2: Încearcă cu configurația robustă din patch (fallback clasic)
-    logger.info("🔧 STEP 2: Încercare cu configurația robustă din patch...")
-    try:
-        robust_opts = create_robust_facebook_opts()
-        robust_opts.update({
-            'outtmpl': output_path,
-            'quiet': False,
-            'noplaylist': True,
-            'extractaudio': False,
-            'skip_download': False,
-            'writeinfojson': False,
-            'writethumbnail': False,
-            'geo_bypass': True,
-            'geo_bypass_country': 'US',
-        })
-        
-        with yt_dlp.YoutubeDL(robust_opts) as ydl:
-            logger.info("Începe descărcarea Facebook cu patch robust...")
-            ydl.download([url])
-            
-            # Verifică dacă fișierul a fost descărcat
-            import glob
-            temp_dir = os.path.dirname(output_path)
-            downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
-            downloaded_files = [f for f in downloaded_files if os.path.isfile(f)]
-            
-            if downloaded_files:
-                logger.info("✅ Facebook descărcare reușită cu patch robust")
-                return {
-                    'success': True,
-                    'file_path': downloaded_files[0],
-                    'title': title,
-                    'description': '',
-                    'uploader': '',
-                    'duration': 0,
-                    'file_size': os.path.getsize(downloaded_files[0])
-                }
-    except Exception as patch_error:
-        logger.warning(f"Patch robust eșuat: {str(patch_error)[:100]}...")
-        logger.info("📋 Continuă cu fallback-urile alternative...")
-    
-    # Configurații alternative pentru Facebook - optimizate pentru 2025 cu strategii diverse
-=======
     # Configurații alternative pentru Facebook - optimizate pentru Render free tier 2025
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+
     fallback_configs = [
         # Configurația 1: Chrome desktop cu API v20.0 (cea mai recentă pentru 2025)
         {
-<<<<<<< HEAD
-            'format': 'best[filesize<45M][height<=720]/best',
-=======
             'format': 'best[filesize<50M][height<=480]/best[height<=480]/best[filesize<50M]/best',  # Limită agresivă pentru Render
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -1281,43 +1167,7 @@ def try_facebook_fallback(url, output_path, title):
             'extractor_args': {
                 'facebook': {
                     'legacy_ssl': True,
-<<<<<<< HEAD
-                    'api_version': 'v19.0',
-                    'tab': 'videos'
-                }
-            },
-        },
-        # Configurația 2: Firefox desktop cu strategii alternative
-        {
-            'format': 'best[filesize<45M][height<=720]/best',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-            },
-            'extractor_retries': 4,
-            'fragment_retries': 4,
-            'socket_timeout': 40,
-            'retries': 4,
-            'ignoreerrors': True,
-            'sleep_interval': 3,
-            'max_sleep_interval': 7,
-            'extractor_args': {
-                'facebook': {
-                    'legacy_ssl': True,
-                    'api_version': 'v18.0',
-=======
                     'api_version': 'v20.0',  # Actualizat pentru 2025
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
                     'tab': 'videos',
                     'mobile_client': False
                 }
@@ -1325,83 +1175,13 @@ def try_facebook_fallback(url, output_path, title):
         },
         # Configurația 2: iPhone Safari mobile optimizat pentru Render
         {
-<<<<<<< HEAD
-            'format': 'best[filesize<45M][height<=720]/best',
-=======
             'format': 'best[filesize<40M][height<=360]/best[height<=360]/best[filesize<40M]/best',
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
-<<<<<<< HEAD
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-            },
-            'extractor_retries': 3,
-            'fragment_retries': 3,
-            'socket_timeout': 35,
-            'retries': 3,
-            'ignoreerrors': True,
-            'sleep_interval': 4,
-            'max_sleep_interval': 8,
-            'extractor_args': {
-                'facebook': {
-                    'mobile_client': True,
-                    'legacy_ssl': True,
-                    'api_version': 'v17.0',
-                    'tab': 'videos'
-                }
-            },
-        },
-        # Configurația 4: Android Chrome mobile cu strategii agresive
-        {
-            'format': 'best[filesize<45M][height<=720]/best',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-            },
-            'extractor_retries': 3,
-            'fragment_retries': 3,
-            'socket_timeout': 30,
-            'retries': 3,
-            'ignoreerrors': True,
-            'sleep_interval': 5,
-            'max_sleep_interval': 10,
-            'extractor_args': {
-                'facebook': {
-                    'android_client': True,
-                    'legacy_ssl': True,
-                    'api_version': 'v18.0',
-                    'tab': 'videos'
-                }
-            },
-        },
-        # Configurația 5: Strategia de ultimă instanță - calitate scăzută, timeout mare
-        {
-            'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:122.0) Gecko/122.0 Firefox/122.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-=======
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
                 'Accept-Encoding': 'gzip, deflate',
                 'Connection': 'keep-alive',
             },
@@ -1740,7 +1520,6 @@ def download_video(url, output_path=None):
             os.makedirs(temp_dir, exist_ok=True)
             logger.info(f"🏭 Folosind directorul Render: {temp_dir}")
         else:
-<<<<<<< HEAD
             temp_dir = validate_and_create_temp_dir()
             if not temp_dir:
                 return {
@@ -1768,56 +1547,6 @@ def download_video(url, output_path=None):
     
         # Folosește strategia îmbunătățită de descărcare cu configurații Render
         result = download_with_render_optimization(url, temp_dir, max_attempts=3)
-=======
-            # Determină platforma și obține configurația specifică
-            platform = get_platform_from_url(url)
-            logger.info(f"Platformă detectată: {platform}")
-            
-            # Normalizează URL-urile Facebook înainte de descărcare
-            if platform == 'facebook':
-                url = normalize_facebook_url(url)
-                logger.info(f"URL procesat pentru Facebook: {url}")
-            
-            # Obține configurația specifică platformei optimizată pentru Render
-            ydl_opts = get_platform_specific_config(platform)
-            ydl_opts['outtmpl'] = os.path.join(temp_dir, '%(title).50s.%(ext)s')
-            
-            logger.info(f"Configurație {platform} aplicată cu format: {ydl_opts.get('format', 'default')}")
-    
-        logger.info("=== DOWNLOAD_VIDEO Creating YoutubeDL instance ===")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Extrage informații despre video
-            logger.info("=== DOWNLOAD_VIDEO Extracting video info ===")
-            info = ydl.extract_info(url, download=False)
-            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Title: {info.get('title', 'N/A')}")
-            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Duration: {info.get('duration', 0)}")
-            logger.info(f"=== DOWNLOAD_VIDEO Info extracted === Uploader: {info.get('uploader', 'N/A')}")
-            
-            # Extrage titlul și alte informații
-            title = info.get('title', 'video')
-            description = info.get('description', '')
-            uploader = info.get('uploader', '')
-            duration = info.get('duration', 0)
-            
-            # Îmbunătățește titlul pentru diferite platforme
-            if 'instagram.com' in url.lower():
-                # Pentru Instagram, încearcă să găsești un titlu mai bun
-                if description and len(description) > len(title):
-                    # Ia primele 100 de caractere din descriere ca titlu
-                    title = description[:100].strip()
-                    if len(description) > 100:
-                        title += '...'
-                elif uploader:
-                    title = f"Video de la {uploader}"
-            
-            elif 'tiktok.com' in url.lower():
-                # Pentru TikTok, încearcă să găsești un titlu mai bun
-                if description and len(description) > len(title):
-                    # Ia primele 100 de caractere din descriere ca titlu
-                    title = description[:100].strip()
-                    if len(description) > 100:
-                        title += '...'
-                elif uploader:
                     title = f"TikTok de la {uploader}"
             
             # Curăță titlul de caractere speciale problematice și emoticoane
@@ -1965,19 +1694,36 @@ def download_video(url, output_path=None):
                  'duration': duration,
                  'file_size': file_size
              }
-            
+
+    
     except yt_dlp.DownloadError as e:
         logger.error(f"=== DOWNLOAD_VIDEO DownloadError === {str(e)}")
         error_msg = str(e).lower()
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
         
-        if result['success']:
-            logger.info(f"✅ RENDER OPTIMIZED SUCCESS: {result['title']}")
+        if 'private' in error_msg or 'login' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Videoul este privat sau necesită autentificare.',
+                'title': 'N/A'
+            }
+        elif 'not available' in error_msg or 'removed' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Videoul nu mai este disponibil sau a fost șters.',
+                'title': 'N/A'
+            }
+        elif 'Unsupported URL' in error_msg:
+            return {
+                'success': False,
+                'error': '❌ Formatul acestui link nu este suportat. Te rog să încerci un link direct către video.',
+                'title': 'N/A'
+            }
         else:
-            logger.error(f"❌ RENDER OPTIMIZED FAILED: {result['error']}")
-        
-        return result
-    
+            return {
+                'success': False,
+                'error': f'❌ Eroare la descărcare: {str(e)}',
+                'title': 'N/A'
+            }
     except Exception as e:
         logger.error(f"=== ENHANCED DOWNLOAD_VIDEO Exception === {str(e)}")
         import traceback
@@ -2559,7 +2305,7 @@ def is_supported_url(url):
     """
     Verifică dacă URL-ul este suportat - îmbunătățit pentru 2025
     """
-<<<<<<< HEAD
+
     supported_domains = [
         # TikTok
         'tiktok.com', 'vm.tiktok.com',
@@ -2783,7 +2529,10 @@ def download_tiktok_alternative(url, temp_dir):
             'title': 'TikTok - Eroare excepție'
         }
 
-=======
+def is_supported_url(url):
+    """
+    Verifică dacă URL-ul este dintr-o platformă suportată.
+    """
     url_lower = url.lower()
     
     # Platforme suportate cu variante multiple de URL
@@ -2795,7 +2544,19 @@ def download_tiktok_alternative(url, temp_dir):
         # Facebook
         'facebook.com', 'fb.watch', 'm.facebook.com', 'fb.me',
         # Twitter/X
-        'twitter.com', 'x.com', 't.co', 'mobile.twitter.com'
+        'twitter.com', 'x.com', 't.co', 'mobile.twitter.com',
+        # Threads
+        'threads.net',
+        # Pinterest
+        'pinterest.com', 'pin.it',
+        # Reddit
+        'reddit.com', 'redd.it',
+        # Vimeo
+        'vimeo.com',
+        # Dailymotion
+        'dailymotion.com', 'dai.ly',
+        # SoundCloud
+        'soundcloud.com'
     ]
     
     return any(pattern in url_lower for pattern in supported_patterns)
@@ -2814,6 +2575,18 @@ def get_platform_from_url(url):
         return 'facebook'
     elif any(pattern in url_lower for pattern in ['twitter.com', 'x.com', 't.co']):
         return 'twitter'
+    elif 'threads.net' in url_lower:
+        return 'threads'
+    elif any(pattern in url_lower for pattern in ['pinterest.com', 'pin.it']):
+        return 'pinterest'
+    elif any(pattern in url_lower for pattern in ['reddit.com', 'redd.it']):
+        return 'reddit'
+    elif 'vimeo.com' in url_lower:
+        return 'vimeo'
+    elif any(pattern in url_lower for pattern in ['dailymotion.com', 'dai.ly']):
+        return 'dailymotion'
+    elif 'soundcloud.com' in url_lower:
+        return 'soundcloud'
     else:
         return 'unknown'
 
@@ -2917,4 +2690,3 @@ def get_platform_specific_config(platform):
                 'Connection': 'keep-alive',
             }
         }
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
