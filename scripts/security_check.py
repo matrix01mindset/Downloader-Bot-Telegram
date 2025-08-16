@@ -29,7 +29,7 @@ class SecurityChecker:
         self.secret_patterns = {
             'telegram_bot_token': r'\b\d{8,10}:[A-Za-z0-9_-]{35}\b',
             'api_key_generic': r'["\']?[A-Za-z0-9_-]{32,}["\']?\s*[:=]\s*["\']?[A-Za-z0-9_-]{20,}["\']?',
-            'webhook_url': r'https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[/a-zA-Z0-9._-]*',
+            'webhook_url': r'https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/webhook|/callback|/api/webhook)[/a-zA-Z0-9._-]*',
             'password_field': r'password\s*[:=]\s*["\'][^"\']{3,}["\']',
             'secret_field': r'secret\s*[:=]\s*["\'][^"\']{10,}["\']',
             'token_field': r'token\s*[:=]\s*["\'][^"\']{10,}["\']',
@@ -40,13 +40,13 @@ class SecurityChecker:
         # Fișiere care trebuie ignorate
         self.ignore_files = {
             '.env.example', '.env.template', 'security_check.py',
-            'secrets_manager.py', 'README.md'
+            'secure_deploy.py', 'secrets_manager.py', 'README.md'
         }
         
         # Directoare care trebuie ignorate
         self.ignore_dirs = {
             '__pycache__', '.git', 'node_modules', 'venv', 'env',
-            '.vscode', '.idea', 'secrets'
+            '.vscode', '.idea', 'secrets', 'youtube_dl', 'yt_dlp', 'yt_dlp_plugins', 'yt_dlp_plugins_contrib'
         }
         
         # Extensii de fișiere de verificat
@@ -98,6 +98,7 @@ class SecurityChecker:
     def _scan_file(self, file_path: Path):
         """Scanează un fișier specific pentru probleme de securitate."""
         try:
+            print(f"Attempting to scan file: {file_path}")
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
@@ -174,7 +175,7 @@ class SecurityChecker:
             return
         
         try:
-            with open(gitignore_path, 'r') as f:
+            with open(gitignore_path, 'r', encoding='utf-8') as f:
                 gitignore_content = f.read()
             
             # Verifică intrările esențiale
@@ -215,7 +216,7 @@ class SecurityChecker:
             gitignore_path = self.project_root / '.gitignore'
             if gitignore_path.exists():
                 try:
-                    with open(gitignore_path, 'r') as f:
+                    with open(gitignore_path, 'r', encoding='utf-8') as f:
                         gitignore_content = f.read()
                     
                     if env_file.name not in gitignore_content and '.env' not in gitignore_content:
@@ -239,7 +240,7 @@ class SecurityChecker:
         for config_file in config_files:
             if config_file.exists():
                 try:
-                    with open(config_file, 'r') as f:
+                    with open(config_file, 'r', encoding='utf-8') as f:
                         content = f.read()
                     
                     # Verifică pentru token-uri hardcodate (nu placeholder-uri)
@@ -395,7 +396,7 @@ Dacă găsești probleme de securitate, contactează echipa de dezvoltare imedia
             from utils.secrets_manager import SecretsManager
             manager = SecretsManager()
             
-            with open(template_path, 'w') as f:
+            with open(template_path, 'w', encoding='utf-8') as f:
                 f.write(manager.get_environment_template())
             
             print("✅ Created .env.template")
@@ -409,7 +410,7 @@ Dacă găsești probleme de securitate, contactează echipa de dezvoltare imedia
         ]
         
         if gitignore_path.exists():
-            with open(gitignore_path, 'r') as f:
+            with open(gitignore_path, 'r', encoding='utf-8') as f:
                 current_content = f.read()
             
             entries_to_add = []
@@ -418,7 +419,7 @@ Dacă găsești probleme de securitate, contactează echipa de dezvoltare imedia
                     entries_to_add.append(entry)
             
             if entries_to_add:
-                with open(gitignore_path, 'a') as f:
+                with open(gitignore_path, 'a', encoding='utf-8') as f:
                     f.write('\n# Added by security checker\n')
                     for entry in entries_to_add:
                         f.write(f'{entry}\n')

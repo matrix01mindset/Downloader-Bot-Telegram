@@ -1,41 +1,7 @@
-# Core dependencies - versiuni actualizate și securizate
-flask==3.0.3
-python-telegram-bot==22.3
-yt-dlp==2024.12.13
-requests==2.32.3
-werkzeug==3.0.6
-Pillow==11.0.0
-PyYAML==6.0.2
-
-# Security dependencies
-cryptography==44.0.0
-python-dotenv==1.0.1
-defusedxml==0.7.1
-certifi==2024.12.14
-idna==3.10
-
-# Performance and utilities
-aiofiles==24.1.0
-psutil==6.1.0
-aiohttp==3.11.10
-httpx==0.28.1
-
-# Testing dependencies (doar pentru development)
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-html==4.1.1
-pytest-mock==3.12.0
-
-# Rate limiting și monitoring
-ratelimit==2.2.1
-prometheus-client==0.21.1
-
-# Cleanup și optimizare
-chardet==5.2.0
-urllib3==2.2.3
-charset-normalizer==3.4.3
-
-# WSGI server pentru producție
-gunicorn==23.0.0
-gevent==24.11.1
+python-telegram-bot
+yt-dlp
+fastapi
+uvicorn
+requests
+pyyaml
+python-dotenv

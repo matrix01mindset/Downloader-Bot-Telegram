@@ -17,6 +17,9 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import argparse
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Import local utilities
 try:
@@ -235,7 +238,7 @@ class SecureDeployment:
                 return False
             
             # Verifică că fișierul nu este gol
-            with open(requirements_file, 'r') as f:
+            with open(requirements_file, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
             
             if not content:
@@ -295,7 +298,7 @@ class SecureDeployment:
             gitignore_path = self.project_root / '.gitignore'
             
             if gitignore_path.exists():
-                with open(gitignore_path, 'r') as f:
+                with open(gitignore_path, 'r', encoding='utf-8') as f:
                     gitignore_content = f.read()
                 
                 for pattern in sensitive_files:
@@ -351,7 +354,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
 CMD ["python", "main.py"]
 '''
         
-        with open(self.project_root / 'Dockerfile', 'w') as f:
+        with open(self.project_root / 'Dockerfile', 'w', encoding='utf-8') as f:
             f.write(dockerfile_content)
     
     def _create_dockerignore(self):
@@ -368,6 +371,7 @@ secrets/
 .git/
 .gitignore
 README.md
+*.md
 *.md
 .vscode/
 .idea/
@@ -403,7 +407,7 @@ node_modules/
 Thumbs.db
 '''
         
-        with open(self.project_root / '.dockerignore', 'w') as f:
+        with open(self.project_root / '.dockerignore', 'w', encoding='utf-8') as f:
             f.write(dockerignore_content)
     
     def _create_render_yaml(self):
@@ -424,7 +428,7 @@ services:
     healthCheckPath: /health
 '''
         
-        with open(self.project_root / 'render.yaml', 'w') as f:
+        with open(self.project_root / 'render.yaml', 'w', encoding='utf-8') as f:
             f.write(render_config)
     
     def _create_railway_json(self):
@@ -440,14 +444,14 @@ services:
             }
         }
         
-        with open(self.project_root / 'railway.json', 'w') as f:
+        with open(self.project_root / 'railway.json', 'w', encoding='utf-8') as f:
             json.dump(railway_config, f, indent=2)
     
     def _create_procfile(self):
         """Creează Procfile pentru Heroku."""
         procfile_content = 'web: python main.py'
         
-        with open(self.project_root / 'Procfile', 'w') as f:
+        with open(self.project_root / 'Procfile', 'w', encoding='utf-8') as f:
             f.write(procfile_content)
     
     def _generate_deployment_guide(self, platform: str = None):

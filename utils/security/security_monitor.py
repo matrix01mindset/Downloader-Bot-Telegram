@@ -94,7 +94,7 @@ class SecurityMonitor:
         
         # Token și webhook pentru monitorizare
         self.telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.expected_webhook_url = os.getenv('WEBHOOK_URL', 'https://telegram-video-downloader-1471.onrender.com/webhook')
+        self.expected_webhook_url = os.getenv('WEBHOOK_URL')
         
         # Fișier pentru persistența amenințărilor
         self.threats_file = Path("logs/security_threats.json")

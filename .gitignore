@@ -419,3 +419,7 @@ metrics/
 render_deployment_config.json
 local_test_config.json
 development_secrets.json
+
+# Added by security checker
+# Security files
+*.token

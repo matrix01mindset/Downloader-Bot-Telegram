@@ -87,7 +87,7 @@ class SecretsManager:
             'salt': base64.b64encode(salt).decode()
         }
         
-        with open(self.key_file, 'w') as f:
+        with open(self.key_file, 'w', encoding='utf-8') as f:
             json.dump(key_data, f)
         
         # Setează permisiuni restrictive
@@ -100,10 +100,10 @@ class SecretsManager:
     def _load_master_key(self):
         """Încarcă cheia master existentă."""
         try:
-            with open(self.key_file, 'r') as f:
+            with open(self.key_file, 'r', encoding='utf-8') as f:
                 key_data = json.load(f)
             
-            key = base64.urlsafe_b64encode(key_data['key'].encode())
+            key = key_data['key'].encode()
             self._master_key = Fernet(key)
             logger.debug("Loaded master encryption key")
             
@@ -205,7 +205,7 @@ class SecretsManager:
             if not self.secrets_config_file.exists():
                 return None
             
-            with open(self.secrets_config_file, 'r') as f:
+            with open(self.secrets_config_file, 'r', encoding='utf-8') as f:
                 encrypted_data = json.load(f)
             
             return encrypted_data.get(name)
@@ -217,7 +217,7 @@ class SecretsManager:
     def save_secrets_to_file(self) -> bool:
         """Salvează toate secretele din cache în fișierul încriptat."""
         try:
-            with open(self.secrets_config_file, 'w') as f:
+            with open(self.secrets_config_file, 'w', encoding='utf-8') as f:
                 json.dump(self._cache, f, indent=2)
             
             # Setează permisiuni restrictive
@@ -409,7 +409,7 @@ if __name__ == "__main__":
     # Generează template-ul .env
     template_path = Path(".env.template")
     if not template_path.exists():
-        with open(template_path, 'w') as f:
+        with open(template_path, 'w', encoding='utf-8') as f:
             f.write(manager.get_environment_template())
         print(f"✅ Generated {template_path}")
     

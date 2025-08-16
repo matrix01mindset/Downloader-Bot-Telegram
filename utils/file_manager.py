@@ -84,7 +84,7 @@ class FileManager:
             
             # Test de scriere
             test_file = os.path.join(test_dir, '.write_test')
-            with open(test_file, 'w') as f:
+            with open(test_file, 'w', encoding='utf-8') as f:
                 f.write('test')
             os.remove(test_file)
             
