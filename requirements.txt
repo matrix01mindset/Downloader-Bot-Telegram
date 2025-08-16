@@ -1,17 +1,11 @@
-<<<<<<< HEAD
-python-telegram-bot
-yt-dlp
-fastapi
-uvicorn
-requests
-pyyaml
-python-dotenv
-=======
-flask>=2.0.0
 python-telegram-bot>=21.0
 yt-dlp[default]>=2025.8.7
+fastapi
+uvicorn
 requests>=2.25.0
+pyyaml
+python-dotenv
+flask>=2.0.0
 werkzeug>=2.0.0
 Pillow>=8.0.0
 psutil>=5.8.0
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
