@@ -763,7 +763,7 @@ if not TOKEN:
     print("⚠️ AVERTISMENT: TELEGRAM_BOT_TOKEN nu este setat!")
     TOKEN = "PLACEHOLDER_TOKEN"
 
-<<<<<<< HEAD
+
 # Inițializare bot și application cu configurații optimizate pentru producție
 # Configurare bot cu connection pool și timeout-uri reduse pentru Render
 try:
@@ -911,11 +911,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Comandă /help - informații complete de ajutor
     """
     help_text = """
-<<<<<<< HEAD
-🤖 **Bot Descărcare Video - Ghid Complet**
-=======
 🆘 <b>Cum să folosești botul:</b>
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
 
 📋 **Comenzi disponibile:**
 • `/start` - Pornește botul și afișează meniul principal
@@ -929,19 +925,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 3️⃣ Așteaptă să fie procesat (poate dura 30s-2min)
 4️⃣ Primești videoclipul descărcat automat
 
-<<<<<<< HEAD
-🔗 **Platforme suportate:**
-• TikTok (tiktok.com, vm.tiktok.com)
-• Instagram (instagram.com, reels, stories)
-• Facebook (facebook.com, fb.watch, watch)
-• Twitter/X (twitter.com, x.com)
-=======
 🔗 <b>Platforme suportate:</b>
 - TikTok (tiktok.com)
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch)
 - Twitter/X (twitter.com, x.com)
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
 
 ⚠️ **Limitări importante:**
 • Mărime maximă: 45MB (limita Telegram)
@@ -974,7 +962,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Videoclipul este privat → Nu poate fi descărcat
 - Videoclipul este prea lung → Max 15 minute
 - Link invalid → Verifică că link-ul este corect
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+
     """
     
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
@@ -1149,7 +1137,6 @@ async def safe_edit_callback_message(query, text, **kwargs):
             logger.error(f"Eroare la editarea mesajului callback: {e}")
             return None
 
-<<<<<<< HEAD
 async def process_single_video(update, url, video_index=None, total_videos=None, delay_seconds=3):
     """
     Procesează un singur video cu mesaje de status actualizate.
@@ -1291,20 +1278,6 @@ async def process_single_video(update, url, video_index=None, total_videos=None,
             await asyncio.sleep(5)
             await safe_delete_message(status_message)
             
-            return False
-            
-    except Exception as e:
-        logger.error(f"Eroare la procesarea videoclipului: {e}")
-        if status_message:
-            await safe_edit_message(
-                status_message,
-                f"❌ Eroare neașteptată:\n{str(e)}"
-            )
-            # Șterge mesajul de eroare după 5 secunde
-            await asyncio.sleep(5)
-            await safe_delete_message(status_message)
-        return False
-=======
 async def send_video_with_retry(update, file_path, title, uploader=None, description=None, duration=None, file_size=None, max_retries=3):
     """
     Trimite videoclip cu retry logic inteligent folosind ErrorHandler
@@ -1425,7 +1398,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Logging îmbunătățit pentru Render
         if is_render_environment():
             logger.info(f"[RENDER] Mesaj primit de la {user_id} în chat {chat_id}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}")
-=======
         logger.info(f"Mesaj primit de la {user_id} în chat {chat_id}: {message_text}")
         
         # Verifică dacă mesajul conține un URL suportat
@@ -1863,7 +1835,6 @@ def is_rate_limited(chat_id):
 def webhook():
     """Procesează webhook-urile de la Telegram - Optimizat pentru Render"""
     try:
-<<<<<<< HEAD
         # Cleanup fișiere temporare pentru Render
         if is_render_environment():
             cleanup_render_temp_files()
@@ -1872,24 +1843,17 @@ def webhook():
         if request.method == 'GET':
             return jsonify({'status': 'webhook_ready', 'method': 'GET', 'environment': 'render' if is_render_environment() else 'local'}), 200
             
-=======
         # Înregistrează cererea webhook pentru metrici
         metrics.record_webhook_request()
-        
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
         # Obține datele JSON de la Telegram
         json_data = request.get_json()
         
         if not json_data:
-<<<<<<< HEAD
             if is_render_environment():
                 logger.error("[RENDER] Nu s-au primit date JSON")
             else:
                 logger.error("Nu s-au primit date JSON")
             return jsonify({'status': 'error', 'message': 'No JSON data'}), 400
-=======
-            return jsonify({'status': 'ok'}), 200  # Returnează OK pentru a evita retry-urile
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
         
         # Logging optimizat pentru Render
         if is_render_environment():
@@ -2551,7 +2515,6 @@ def ping_endpoint():
         'status': 'alive'
     })
 
-<<<<<<< HEAD
 @app.route('/security/status', methods=['GET'])
 def security_status():
     """Endpoint pentru monitorizarea stării securității"""
@@ -2585,7 +2548,6 @@ def recent_threats():
         return jsonify({
             'status': 'error',
             'message': 'Threats data unavailable'
-=======
 @app.route('/metrics', methods=['GET'])
 def metrics_endpoint():
     """Endpoint pentru metrici și monitoring"""
@@ -2722,10 +2684,6 @@ if __name__ == '__main__':
     # Nu mai inițializez la startup pentru a evita problemele
     logger.info("Serverul pornește fără inițializare complexă")
     
-<<<<<<< HEAD
     # Pentru gunicorn, nu rulăm app.run() direct
     if __name__ == '__main__':
         app.run(host='0.0.0.0', port=port, debug=False)
-=======
-    app.run(host='0.0.0.0', port=port, debug=False)
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
