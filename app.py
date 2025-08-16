@@ -468,7 +468,7 @@ def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None)
         logger.error(f"Excepție la trimiterea mesajului: {e}")
         return False
 
-<<<<<<< HEAD
+
 # Versiune asincronă optimizată pentru performanță
 async def async_send_telegram_message(chat_id, text, parse_mode='HTML', reply_markup=None):
     """
@@ -550,10 +550,7 @@ async def async_send_telegram_message(chat_id, text, parse_mode='HTML', reply_ma
         logger.error(f"Excepție la trimiterea mesajului asincron: {e}")
         return False
 
-# Funcție centrală pentru crearea caption-urilor sigure
-=======
 # Funcție centrală pentru crearea caption-urilor sigure - îmbunătățită
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
 def create_safe_caption(title, uploader=None, description=None, duration=None, file_size=None, max_length=1000):
     """
     Creează un caption sigur pentru Telegram, respectând limitele de caractere.
@@ -777,28 +774,13 @@ except Exception as e:
 application = (
     Application.builder()
     .token(TOKEN)
-    .connection_pool_size(50)  # Redus pentru mediul de producție
-    .pool_timeout(30.0)  # Timeout mărit pentru Render
-    .get_updates_connection_pool_size(5)  # Redus pentru webhook mode
-    .get_updates_pool_timeout(30.0)  # Timeout mărit pentru Render
-    .read_timeout(30.0)  # Timeout mărit pentru Render
-    .write_timeout(30.0)  # Timeout mărit pentru Render
-    .connect_timeout(20.0)  # Timeout mărit pentru Render
-=======
-# Inițializare bot și application cu configurații optimizate pentru Render free tier
-# Configurații agresiv optimizate pentru limitările de memorie și CPU
-bot = Bot(TOKEN)
-application = (
-    Application.builder()
-    .token(TOKEN)
-    .connection_pool_size(10)  # Redus dramatic pentru Render free tier
-    .pool_timeout(10.0)  # Timeout foarte redus pentru a evita blocarea
-    .get_updates_connection_pool_size(2)  # Minimal pentru webhook mode
-    .get_updates_pool_timeout(10.0)  # Timeout redus
-    .read_timeout(8.0)  # Timeout foarte redus pentru citire
-    .write_timeout(8.0)  # Timeout foarte redus pentru scriere
-    .connect_timeout(5.0)  # Timeout foarte redus pentru conectare
->>>>>>> f16d7f6b7f14800a43ce30bdb7d8cce6bda7096e
+    .connection_pool_size(30)  # Balance between production and Render limits
+    .pool_timeout(20.0)       # Balanced timeout
+    .get_updates_connection_pool_size(3)
+    .get_updates_pool_timeout(20.0)
+    .read_timeout(20.0)
+    .write_timeout(20.0)
+    .connect_timeout(15.0)
     .build()
 )
 
