@@ -114,7 +114,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Comandă /start - mesaj de bun venit cu meniu interactiv
     """
     welcome_message = """
-🎬 **Bot Descărcare Video**
+🎬 <b>Bot Descărcare Video</b>
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
@@ -180,19 +180,19 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Comandă /menu - afișează meniul principal
     """
     welcome_message = """
-🎬 **Bot Descărcare Video**
+🎬 <b>Bot Descărcare Video</b>
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 • TikTok  
 • Instagram
 • Facebook
 • Twitter/X
 
-⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice.
+⚠️ <b>Notă:</b> YouTube nu este suportat momentan din cauza complexității tehnice.
 
-⚠️ **Limitări:**
+⚠️ <b>Limitări:</b>
 - Videoclipuri max 15 minute
 - Calitate max 720p
 - Doar videoclipuri publice
@@ -239,7 +239,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Afișează confirmarea cu butoane
-    confirmation_text = f"🔗 **Link detectat:**\n`{url}`\n\n📥 Vrei să descarc acest videoclip?"
+    confirmation_text = f"🔗 <b>Link detectat:</b>\n`{url}`\n\n📥 Vrei să descarc acest videoclip?"
     
     keyboard = [
         [InlineKeyboardButton("✅ Da, descarcă!", callback_data=f'download_{url}')],
@@ -280,20 +280,45 @@ async def process_download(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         if file_size > 512 * 1024 * 1024:  # 512MB
             raise Exception("Fișierul este prea mare (max 512MB pentru siguranță)")
         
-        # Creează caption sigur folosind aceeași logică ca în app.py
-        caption = create_safe_caption_bot(
-            title=title,
-            uploader=uploader,
-            description=description
-        )
+        # Creează caption sigur cu retry logic
+        caption_strategies = [
+            # Strategia 1: Caption complet
+            lambda: create_safe_caption_bot(title, uploader, description, 1000),
+            # Strategia 2: Fără descriere
+            lambda: create_safe_caption_bot(title, uploader, None, 800),
+            # Strategia 3: Doar titlu și creator
+            lambda: create_safe_caption_bot(title, uploader, None, 500),
+            # Strategia 4: Doar titlu
+            lambda: create_safe_caption_bot(title, None, None, 200),
+            # Strategia 5: Caption minimal
+            lambda: f"✅ <b>{escape_html(str(title)[:50]) if title else 'Video'}</b>\n\n🎬 Descărcare completă!"
+        ]
         
-        # Trimite videoclipul cu caption complet
-        with open(filepath, 'rb') as video_file:
-            await query.message.reply_video(
-                video=video_file,
-                caption=caption,
-                parse_mode='HTML'
-            )
+        # Încearcă să trimită videoclipul cu retry pentru caption-uri prea lungi
+        video_sent = False
+        for attempt in range(3):
+            try:
+                caption_strategy = caption_strategies[min(attempt, len(caption_strategies) - 1)]
+                caption = caption_strategy()
+                
+                with open(filepath, 'rb') as video_file:
+                    await query.message.reply_video(
+                        video=video_file,
+                        caption=caption,
+                        parse_mode='HTML'
+                    )
+                video_sent = True
+                break
+                
+            except Exception as video_error:
+                if "caption too long" in str(video_error).lower() or "message too long" in str(video_error).lower():
+                    logger.warning(f"Caption prea lung la încercarea {attempt + 1}, încerc cu caption mai scurt")
+                    continue
+                else:
+                    raise video_error
+        
+        if not video_sent:
+            raise Exception("Nu s-a putut trimite videoclipul după multiple încercări")
         
         # Trimite mesaj cu opțiuni după descărcare
         keyboard = [
@@ -364,7 +389,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Gestionează cererea pentru descărcare nouă
     elif query.data == 'new_download':
         await query.edit_message_text(
-            "📥 **Gata pentru o nouă descărcare!**\n\n"
+            "📥 <b>Gata pentru o nouă descărcare!</b>\n\n"
             "Trimite-mi un link de pe TikTok, Instagram, Facebook sau Twitter/X"
         )
         return
@@ -382,14 +407,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif query.data == 'help':
         help_text = """
-🆘 **Cum să folosești botul:**
+🆘 <b>Cum să folosești botul:</b>
 
 1. 📋 Copiază link-ul videoclipului
 2. 📤 Trimite-l în acest chat
 3. ⏳ Așteaptă să fie procesat
 4. 📥 Primești videoclipul descărcat
 
-💡 **Sfaturi:**
+💡 <b>Sfaturi:</b>
 - Asigură-te că videoclipul este public
 - Link-urile scurte (youtu.be, bit.ly) funcționează
 - Poți trimite multiple link-uri consecutive
@@ -402,27 +427,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif query.data == 'platforms':
         platforms_text = """
-🔗 **Platforme suportate în detaliu:**
+🔗 <b>Platforme suportate în detaliu:</b>
 
-📱 **TikTok**
+📱 <b>TikTok</b>
 - tiktok.com
 - Videoclipuri publice
 - Fără watermark
 
-📸 **Instagram**
+📸 <b>Instagram</b>
 - instagram.com/p/
 - Postări video publice
 - Reels și IGTV
 
-📘 **Facebook**
+📘 <b>Facebook</b>
 - facebook.com, fb.watch
 - Videoclipuri publice
 
-🐦 **Twitter/X**
+🐦 <b>Twitter/X</b>
 - twitter.com, x.com
 - Tweet-uri cu video publice
 
-⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice și a restricțiilor platformei.
+⚠️ <b>Notă:</b> YouTube nu este suportat momentan din cauza complexității tehnice și a restricțiilor platformei.
         """
         
         keyboard = [[InlineKeyboardButton("🔙 Înapoi la meniu", callback_data='back_to_menu')]]
@@ -432,22 +457,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif query.data == 'settings':
         settings_text = """
-⚙️ **Setări și limitări:**
+⚙️ <b>Setări și limitări:</b>
 
-📏 **Limitări de timp:**
+📏 <b>Limitări de timp:</b>
 - Maximum 3 ore per videoclip
 - Timeout procesare: 10 minute
 
-💾 **Limitări de mărime:**
+💾 <b>Limitări de mărime:</b>
 - Maximum 550MB (limită crescută)
 - Calitate optimizată automat
 
-🎬 **Calitate video:**
+🎬 <b>Calitate video:</b>
 - Rezoluție maximă: 720p
 - Format: MP4 (compatibil universal)
 - Audio inclus automat
 
-🔒 **Restricții:**
+🔒 <b>Restricții:</b>
 - Doar conținut public
 - Fără videoclipuri protejate de copyright
 - Fără conținut pentru adulți
@@ -460,24 +485,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif query.data == 'faq':
         faq_text = """
-❓ **Întrebări frecvente:**
+❓ <b>Întrebări frecvente:</b>
 
-**Q: De ce nu funcționează link-ul meu?**
+<b>Q: De ce nu funcționează link-ul meu?</b>
 A: Verifică că videoclipul este public și link-ul este corect.
 
-**Q: Cât durează descărcarea?**
+<b>Q: Cât durează descărcarea?</b>
 A: De obicei 10-60 secunde, depinde de mărimea videoclipului.
 
-**Q: Pot descărca playlist-uri întregi?**
+<b>Q: Pot descărca playlist-uri întregi?</b>
 A: Nu, doar videoclipuri individuale.
 
-**Q: De ce calitatea este mai mică?**
+<b>Q: De ce calitatea este mai mică?</b>
 A: Pentru a respecta limitele Telegram (100MB).
 
-**Q: Botul păstrează videoclipurile?**
+<b>Q: Botul păstrează videoclipurile?</b>
 A: Nu, toate fișierele sunt șterse automat după trimitere.
 
-**Q: Pot folosi botul gratuit?**
+<b>Q: Pot folosi botul gratuit?</b>
 A: Da, botul este complet gratuit!
         """
         
@@ -488,19 +513,19 @@ A: Da, botul este complet gratuit!
         
     elif query.data == 'back_to_menu':
         welcome_message = """
-🎬 **Bot Descărcare Video**
+🎬 <b>Bot Descărcare Video</b>
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 • TikTok
 • Instagram
 • Facebook
 • Twitter/X
 
-⚠️ **Notă:** YouTube nu este suportat momentan din cauza complexității tehnice.
+⚠️ <b>Notă:</b> YouTube nu este suportat momentan din cauza complexității tehnice.
 
-⚠️ **Limitări:**
+⚠️ <b>Limitări:</b>
 - Videoclipuri max 3 ore
 - Mărime max 550MB
 - Calitate max 720p

@@ -4,13 +4,24 @@ Un bot Telegram modern și interactiv pentru descărcarea videoclipurilor de pe 
 
 ## 🚀 Funcționalități
 
+### ✨ Funcționalități de bază
 - **🎯 Meniu interactiv** cu butoane inline
-- **📥 Descărcare automată** de videoclipuri
-- **🔗 Platforme multiple** suportate
+- **📥 Descărcare automată** de videoclipuri optimizate pentru Telegram
+- **🔗 Platforme multiple** suportate cu configurații specifice
 - **✅ Confirmare descărcare** cu preview link
 - **🔄 Opțiuni post-descărcare** (descărcare nouă, meniu)
 - **❓ Secțiune FAQ** integrată
-- **⚙️ Informații detaliate** despre limitări
+
+### 🆕 Funcționalități avansate (2025)
+- **🧠 Caption Manager inteligent** - gestionează automat caption-uri lungi cu truncare inteligentă
+- **🔧 Error Handler centralizat** - clasifică și gestionează erorile cu retry logic
+- **⏱️ Rate limiting** - protecție împotriva spam-ului (3 cereri/minut)
+- **🌐 Platform detection** - detectează automat platforma și aplică configurații optimizate
+- **📊 Monitoring și metrici** - endpoint `/metrics` pentru monitorizare în timp real
+- **🧹 Cleanup automat** - gestionarea inteligentă a fișierelor temporare
+- **🔄 Retry logic** - reîncercări automate cu exponential backoff
+- **🎨 HTML formatting** - compatibilitate îmbunătățită cu Telegram API
+- **💾 Optimizări Render** - configurații specifice pentru Render free tier
 
 ## 🎮 Comenzi Disponibile
 
@@ -170,15 +181,27 @@ if file_size > 100 * 1024 * 1024:  # 100MB
 
 ## 📱 Utilizare
 
+### 🤖 Comenzi bot
 1. **Pornește botul:** trimite `/start`
 2. **Trimite un link** de video de pe:
-   - YouTube: `https://youtube.com/watch?v=...`
    - TikTok: `https://tiktok.com/@user/video/...`
    - Instagram: `https://instagram.com/p/...`
    - Facebook: `https://facebook.com/watch?v=...`
    - Twitter/X: `https://twitter.com/user/status/...`
-3. **Așteaptă** procesarea și descărcarea
-4. **Primești** videoclipul în chat
+3. **Așteaptă** procesarea și descărcarea (max 30 minute, 50MB)
+4. **Primești** videoclipul optimizat în chat
+
+### 📊 Endpoint-uri de monitoring
+- **Health check:** `https://your-app.onrender.com/health`
+- **Metrici:** `https://your-app.onrender.com/metrics`
+- **Ping:** `https://your-app.onrender.com/ping`
+- **Set webhook:** `https://your-app.onrender.com/set_webhook`
+- **Reset metrici:** `POST https://your-app.onrender.com/reset_metrics`
+
+### 🔍 Verificare deployment
+```bash
+python verify_deployment.py https://your-app.onrender.com
+```
 
 ## 🐛 Depanare
 

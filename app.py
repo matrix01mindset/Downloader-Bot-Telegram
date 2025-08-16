@@ -20,12 +20,118 @@ except ImportError:
     # dotenv nu este disponibil în producție, nu e problemă
     pass
 
-# Configurare logging
+# Configurare logging îmbunătățit pentru producție
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Reduce logging pentru biblioteci externe pentru a economisi resurse
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('telegram').setLevel(logging.WARNING)
+
+# Metrici pentru monitoring
+class BotMetrics:
+    """Colectează metrici pentru monitoring"""
+    
+    def __init__(self):
+        self.reset_metrics()
+    
+    def reset_metrics(self):
+        """Resetează metricile"""
+        self.downloads_total = 0
+        self.downloads_success = 0
+        self.downloads_failed = 0
+        self.platform_stats = {
+            'tiktok': {'success': 0, 'failed': 0},
+            'instagram': {'success': 0, 'failed': 0},
+            'facebook': {'success': 0, 'failed': 0},
+            'twitter': {'success': 0, 'failed': 0},
+            'unknown': {'success': 0, 'failed': 0}
+        }
+        self.error_types = {}
+        self.webhook_requests = 0
+        self.rate_limited_requests = 0
+        self.start_time = time.time()
+    
+    def record_download_attempt(self, platform='unknown'):
+        """Înregistrează o încercare de descărcare"""
+        self.downloads_total += 1
+        if platform not in self.platform_stats:
+            platform = 'unknown'
+    
+    def record_download_success(self, platform='unknown'):
+        """Înregistrează o descărcare reușită"""
+        self.downloads_success += 1
+        if platform not in self.platform_stats:
+            platform = 'unknown'
+        self.platform_stats[platform]['success'] += 1
+    
+    def record_download_failure(self, platform='unknown', error_type='unknown'):
+        """Înregistrează o descărcare eșuată"""
+        self.downloads_failed += 1
+        if platform not in self.platform_stats:
+            platform = 'unknown'
+        self.platform_stats[platform]['failed'] += 1
+        
+        # Înregistrează tipul de eroare
+        if error_type not in self.error_types:
+            self.error_types[error_type] = 0
+        self.error_types[error_type] += 1
+    
+    def record_webhook_request(self):
+        """Înregistrează o cerere webhook"""
+        self.webhook_requests += 1
+    
+    def record_rate_limit(self):
+        """Înregistrează o cerere rate limited"""
+        self.rate_limited_requests += 1
+    
+    def get_success_rate(self):
+        """Calculează rata de succes"""
+        if self.downloads_total == 0:
+            return 0.0
+        return (self.downloads_success / self.downloads_total) * 100
+    
+    def get_uptime(self):
+        """Calculează uptime-ul în secunde"""
+        return time.time() - self.start_time
+    
+    def get_stats(self):
+        """Returnează statisticile complete"""
+        uptime_hours = self.get_uptime() / 3600
+        
+        return {
+            'uptime_hours': round(uptime_hours, 2),
+            'downloads_total': self.downloads_total,
+            'downloads_success': self.downloads_success,
+            'downloads_failed': self.downloads_failed,
+            'success_rate': round(self.get_success_rate(), 2),
+            'webhook_requests': self.webhook_requests,
+            'rate_limited_requests': self.rate_limited_requests,
+            'platform_stats': self.platform_stats,
+            'error_types': self.error_types
+        }
+    
+    def log_periodic_stats(self):
+        """Loghează statisticile periodic"""
+        stats = self.get_stats()
+        logger.info(f"📊 STATS: Downloads: {stats['downloads_success']}/{stats['downloads_total']} "
+                   f"({stats['success_rate']}%), Webhooks: {stats['webhook_requests']}, "
+                   f"Rate limited: {stats['rate_limited_requests']}, "
+                   f"Uptime: {stats['uptime_hours']}h")
+        
+        # Loghează alertele pentru probleme
+        if stats['success_rate'] < 50 and stats['downloads_total'] > 5:
+            logger.warning(f"🚨 ALERT: Success rate scăzut: {stats['success_rate']}%")
+        
+        if stats['rate_limited_requests'] > stats['webhook_requests'] * 0.3:
+            logger.warning(f"🚨 ALERT: Prea multe cereri rate limited: {stats['rate_limited_requests']}")
+
+# Instanță globală pentru metrici
+metrics = BotMetrics()
 
 # Funcții pentru escaparea caracterelor speciale
 def escape_markdown_v2(text: str) -> str:
@@ -47,6 +153,167 @@ def escape_html(text: str) -> str:
         return ""
     
     return html.escape(text)
+
+def is_caption_too_long_error(error_msg: str) -> bool:
+    """
+    Detectează dacă eroarea este cauzată de un caption prea lung.
+    """
+    error_lower = str(error_msg).lower()
+    caption_errors = [
+        'caption too long',
+        'message too long', 
+        'text too long',
+        'caption is too long',
+        'message text is too long',
+        'bad request: message caption is too long',
+        'bad request: message text is too long'
+    ]
+    return any(err in error_lower for err in caption_errors)
+
+class ErrorHandler:
+    """
+    Gestionează clasificarea erorilor și strategiile de retry pentru bot
+    """
+    
+    # Tipuri de erori
+    ERROR_TYPES = {
+        'CAPTION_TOO_LONG': 'caption_too_long',
+        'PRIVATE_VIDEO': 'private_video',
+        'PLATFORM_ERROR': 'platform_error',
+        'NETWORK_ERROR': 'network_error',
+        'FILE_TOO_LARGE': 'file_too_large',
+        'PARSING_ERROR': 'parsing_error',
+        'CHAT_INACCESSIBLE': 'chat_inaccessible',
+        'UNKNOWN_ERROR': 'unknown_error'
+    }
+    
+    @staticmethod
+    def classify_error(error_msg: str, platform: str = "unknown") -> str:
+        """
+        Clasifică tipul de eroare bazat pe mesajul de eroare
+        """
+        error_lower = str(error_msg).lower()
+        
+        # Erori de caption prea lung
+        if is_caption_too_long_error(error_msg):
+            return ErrorHandler.ERROR_TYPES['CAPTION_TOO_LONG']
+        
+        # Erori de chat inaccesibil
+        chat_errors = ['chat not found', 'forbidden', 'blocked', 'user is deactivated']
+        if any(err in error_lower for err in chat_errors):
+            return ErrorHandler.ERROR_TYPES['CHAT_INACCESSIBLE']
+        
+        # Erori de videoclip privat
+        private_errors = ['private', 'login required', 'sign in', 'authentication', 'access denied']
+        if any(err in error_lower for err in private_errors):
+            return ErrorHandler.ERROR_TYPES['PRIVATE_VIDEO']
+        
+        # Erori de fișier prea mare
+        size_errors = ['file too large', 'too big', 'exceeds limit', 'file size', 'too heavy']
+        if any(err in error_lower for err in size_errors):
+            return ErrorHandler.ERROR_TYPES['FILE_TOO_LARGE']
+        
+        # Erori de parsing/extragere
+        parsing_errors = ['cannot parse', 'extract', 'unsupported url', 'not available', 'removed', 'deleted']
+        if any(err in error_lower for err in parsing_errors):
+            return ErrorHandler.ERROR_TYPES['PARSING_ERROR']
+        
+        # Erori de rețea
+        network_errors = ['timeout', 'connection', 'network', 'unreachable', 'dns', 'ssl']
+        if any(err in error_lower for err in network_errors):
+            return ErrorHandler.ERROR_TYPES['NETWORK_ERROR']
+        
+        # Erori specifice platformei
+        platform_errors = ['rate limit', 'blocked', 'banned', 'restricted', 'geo', 'region']
+        if any(err in error_lower for err in platform_errors):
+            return ErrorHandler.ERROR_TYPES['PLATFORM_ERROR']
+        
+        return ErrorHandler.ERROR_TYPES['UNKNOWN_ERROR']
+    
+    @staticmethod
+    def should_retry(error_type: str, attempt: int, max_attempts: int = 3) -> bool:
+        """
+        Determină dacă ar trebui să reîncerce bazat pe tipul de eroare și numărul de încercări
+        """
+        if attempt >= max_attempts:
+            return False
+        
+        # Erori care merită retry
+        retry_errors = [
+            ErrorHandler.ERROR_TYPES['CAPTION_TOO_LONG'],
+            ErrorHandler.ERROR_TYPES['NETWORK_ERROR'],
+            ErrorHandler.ERROR_TYPES['PLATFORM_ERROR']
+        ]
+        
+        return error_type in retry_errors
+    
+    @staticmethod
+    def get_retry_delay(attempt: int, error_type: str) -> float:
+        """
+        Calculează delay-ul pentru retry cu exponential backoff
+        """
+        base_delays = {
+            ErrorHandler.ERROR_TYPES['CAPTION_TOO_LONG']: 0.5,
+            ErrorHandler.ERROR_TYPES['NETWORK_ERROR']: 2.0,
+            ErrorHandler.ERROR_TYPES['PLATFORM_ERROR']: 3.0
+        }
+        
+        base_delay = base_delays.get(error_type, 1.0)
+        return min(base_delay * (2 ** attempt), 30.0)  # Max 30 secunde
+    
+    @staticmethod
+    def get_user_message(error_type: str, platform: str = "unknown", original_error: str = "") -> str:
+        """
+        Returnează mesaj prietenos pentru utilizator bazat pe tipul de eroare
+        """
+        messages = {
+            ErrorHandler.ERROR_TYPES['CAPTION_TOO_LONG']: 
+                "❌ Descrierea videoclipului este prea lungă. Încerc cu o versiune mai scurtă...",
+            
+            ErrorHandler.ERROR_TYPES['PRIVATE_VIDEO']: 
+                f"❌ Videoclipul este privat sau necesită autentificare.\n\n"
+                f"💡 Asigură-te că videoclipul este public și accesibil fără cont.",
+            
+            ErrorHandler.ERROR_TYPES['FILE_TOO_LARGE']: 
+                f"❌ Videoclipul este prea mare pentru Telegram (max 50MB).\n\n"
+                f"💡 Încearcă un videoclip mai scurt sau de calitate mai mică.",
+            
+            ErrorHandler.ERROR_TYPES['PARSING_ERROR']: 
+                f"❌ Nu pot procesa acest link de pe {platform.title()}.\n\n"
+                f"💡 Verifică că link-ul este corect și videoclipul există.",
+            
+            ErrorHandler.ERROR_TYPES['NETWORK_ERROR']: 
+                f"❌ Probleme de conectivitate.\n\n"
+                f"💡 Te rog să încerci din nou în câteva momente.",
+            
+            ErrorHandler.ERROR_TYPES['PLATFORM_ERROR']: 
+                f"❌ Probleme temporare cu {platform.title()}.\n\n"
+                f"💡 Încearcă din nou mai târziu sau cu alt link.",
+            
+            ErrorHandler.ERROR_TYPES['CHAT_INACCESSIBLE']: 
+                f"❌ Nu pot trimite mesaje în acest chat.",
+            
+            ErrorHandler.ERROR_TYPES['UNKNOWN_ERROR']: 
+                f"❌ A apărut o eroare neașteptată.\n\n"
+                f"💡 Te rog să încerci din nou sau cu alt link."
+        }
+        
+        return messages.get(error_type, messages[ErrorHandler.ERROR_TYPES['UNKNOWN_ERROR']])
+    
+    @staticmethod
+    def log_error(error_type: str, platform: str, error_msg: str, user_id: int = None):
+        """
+        Loghează eroarea pentru debugging
+        """
+        log_msg = f"Error [{error_type}] on {platform}"
+        if user_id:
+            log_msg += f" for user {user_id}"
+        log_msg += f": {error_msg}"
+        
+        if error_type in [ErrorHandler.ERROR_TYPES['UNKNOWN_ERROR'], ErrorHandler.ERROR_TYPES['PLATFORM_ERROR']]:
+            logger.error(log_msg)
+        else:
+            logger.warning(log_msg)
 
 def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None):
     """
@@ -100,10 +367,11 @@ def safe_send_with_fallback(chat_id, text, parse_mode='HTML', reply_markup=None)
         logger.error(f"Excepție la trimiterea mesajului: {e}")
         return False
 
-# Funcție centrală pentru crearea caption-urilor sigure
+# Funcție centrală pentru crearea caption-urilor sigure - îmbunătățită
 def create_safe_caption(title, uploader=None, description=None, duration=None, file_size=None, max_length=1000):
     """
     Creează un caption sigur pentru Telegram, respectând limitele de caractere.
+    Îmbunătățită pentru gestionarea caracterelor Unicode, emoticoanelor și diacriticelor.
     
     Args:
         title (str): Titlul videoclipului
@@ -117,89 +385,133 @@ def create_safe_caption(title, uploader=None, description=None, duration=None, f
         str: Caption-ul formatat și sigur pentru Telegram
     """
     try:
-        # Escapează titlul pentru HTML
-        title_safe = escape_html(title[:200]) if title else "Video"
-        if len(title) > 200:
-            title_safe = title_safe[:-3] + "..."
+        # Funcție helper pentru curățarea textului
+        def clean_text(text, max_len):
+            if not text:
+                return ""
+            
+            # Normalizează Unicode pentru diacritice și caractere speciale
+            import unicodedata
+            text = unicodedata.normalize('NFC', str(text))
+            
+            # Curăță caractere de control și invizibile, dar păstrează emoticoanele
+            cleaned = ''.join(char for char in text if unicodedata.category(char)[0] != 'C' or ord(char) > 127)
+            
+            # Înlocuiește newlines și spații multiple
+            cleaned = re.sub(r'[\r\n]+', ' ', cleaned)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+            
+            # Truncare inteligentă
+            if len(cleaned) <= max_len:
+                return cleaned
+            
+            # Încearcă să găsești o întrerupere naturală
+            truncate_pos = max_len - 3  # Spațiu pentru "..."
+            
+            # Caută ultima propoziție completă
+            for punct in ['. ', '! ', '? ']:
+                last_punct = cleaned[:truncate_pos].rfind(punct)
+                if last_punct > max_len // 2:
+                    return cleaned[:last_punct + 1]
+            
+            # Caută ultimul spațiu
+            last_space = cleaned[:truncate_pos].rfind(' ')
+            if last_space > max_len // 2:
+                return cleaned[:last_space] + "..."
+            
+            # Truncare forțată
+            return cleaned[:truncate_pos] + "..."
+        
+        # Procesează titlul cu prioritate maximă
+        title_clean = clean_text(title, 200) if title else "Video"
+        title_safe = escape_html(title_clean)
         
         # Începe cu titlul
         caption = f"✅ <b>{title_safe}</b>\n\n"
         
-        # Adaugă creatorul dacă există
+        # Adaugă creatorul cu prioritate înaltă
         if uploader and uploader.strip():
-            uploader_clean = escape_html(uploader.strip()[:100])  # Limitează la 100 caractere
-            caption += f"👤 <b>Creator:</b> {uploader_clean}\n"
+            uploader_clean = clean_text(uploader, 100)
+            uploader_safe = escape_html(uploader_clean)
+            caption += f"👤 <b>Creator:</b> {uploader_safe}\n"
         
-        # Formatează durata cu verificări de tip
+        # Formatează durata cu verificări robuste
         if duration and isinstance(duration, (int, float)) and duration > 0:
             try:
-                minutes = int(duration // 60)
-                seconds = int(duration % 60)
-                caption += f"⏱️ <b>Durată:</b> {minutes}:{seconds:02d}\n"
-            except (TypeError, ValueError):
+                total_seconds = int(float(duration))
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                
+                if hours > 0:
+                    caption += f"⏱️ <b>Durată:</b> {hours}:{minutes:02d}:{seconds:02d}\n"
+                else:
+                    caption += f"⏱️ <b>Durată:</b> {minutes}:{seconds:02d}\n"
+            except (TypeError, ValueError, OverflowError):
                 pass  # Skip duration if formatting fails
         
-        # Formatează dimensiunea fișierului cu verificări de tip
+        # Formatează dimensiunea fișierului cu verificări robuste
         if file_size and isinstance(file_size, (int, float)) and file_size > 0:
             try:
-                size_mb = float(file_size) / (1024 * 1024)
-                caption += f"📦 <b>Mărime:</b> {size_mb:.1f} MB\n"
-            except (TypeError, ValueError):
+                size_bytes = float(file_size)
+                if size_bytes >= 1024 * 1024 * 1024:  # GB
+                    size_gb = size_bytes / (1024 * 1024 * 1024)
+                    caption += f"📦 <b>Mărime:</b> {size_gb:.1f} GB\n"
+                elif size_bytes >= 1024 * 1024:  # MB
+                    size_mb = size_bytes / (1024 * 1024)
+                    caption += f"📦 <b>Mărime:</b> {size_mb:.1f} MB\n"
+                elif size_bytes >= 1024:  # KB
+                    size_kb = size_bytes / 1024
+                    caption += f"📦 <b>Mărime:</b> {size_kb:.1f} KB\n"
+                else:
+                    caption += f"📦 <b>Mărime:</b> {int(size_bytes)} bytes\n"
+            except (TypeError, ValueError, OverflowError):
                 pass  # Skip file size if formatting fails
         
         # Calculează spațiul rămas pentru descriere
-        current_length = len(caption)
+        current_length = len(caption.encode('utf-8'))  # Folosește byte length pentru precizie
         footer = "\n\n🎬 Descărcare completă!"
-        footer_length = len(footer)
+        footer_length = len(footer.encode('utf-8'))
         
-        # Spațiul disponibil pentru descriere
-        available_space = max_length - current_length - footer_length - 50  # Buffer de siguranță
+        # Spațiul disponibil pentru descriere (buffer mai mare pentru siguranță)
+        available_space = max_length - current_length - footer_length - 100
         
-        # Adaugă descrierea dacă există și dacă avem spațiu
-        if description and description.strip() and available_space > 20:
-            description_clean = description.strip()
+        # Adaugă descrierea dacă există și dacă avem spațiu suficient
+        if description and description.strip() and available_space > 50:
+            # Calculează lungimea maximă pentru descriere în caractere (aproximativ)
+            max_desc_chars = max(50, available_space // 2)  # Estimare conservatoare
             
-            # Curăță descrierea de caractere problematice
-            description_clean = re.sub(r'[\r\n]+', ' ', description_clean)  # Înlocuiește newlines cu spații
-            description_clean = re.sub(r'\s+', ' ', description_clean)  # Curăță spațiile multiple
-            
-            # Truncează descrierea la spațiul disponibil
-            if len(description_clean) > available_space:
-                # Găsește ultima propoziție completă sau ultimul spațiu
-                truncate_pos = available_space - 3  # Spațiu pentru "..."
+            description_clean = clean_text(description, max_desc_chars)
+            if description_clean:
+                description_safe = escape_html(description_clean)
+                desc_section = f"\n📝 <b>Descriere:</b>\n{description_safe}"
                 
-                # Încearcă să găsești ultima propoziție completă
-                last_sentence = description_clean[:truncate_pos].rfind('.')
-                if last_sentence > available_space // 2:  # Dacă găsim o propoziție la jumătate
-                    description_clean = description_clean[:last_sentence + 1]
-                else:
-                    # Altfel, găsește ultimul spațiu
-                    last_space = description_clean[:truncate_pos].rfind(' ')
-                    if last_space > available_space // 2:
-                        description_clean = description_clean[:last_space] + "..."
-                    else:
-                        description_clean = description_clean[:truncate_pos] + "..."
-            
-            # Escapează descrierea pentru HTML
-            description_safe = escape_html(description_clean)
-            caption += f"\n📝 <b>Descriere:</b>\n{description_safe}"
+                # Verifică dacă adăugarea descrierii nu depășește limita
+                test_caption = caption + desc_section + footer
+                if len(test_caption.encode('utf-8')) <= max_length:
+                    caption += desc_section
         
         # Adaugă footer-ul
         caption += footer
         
-        # Verificare finală de siguranță
-        if len(caption) > max_length:
-            # Dacă încă este prea lung, truncează drastic
-            safe_length = max_length - len(footer) - 10
-            caption = caption[:safe_length] + "..." + footer
+        # Verificare finală de siguranță cu byte length
+        caption_bytes = len(caption.encode('utf-8'))
+        if caption_bytes > max_length:
+            logger.warning(f"Caption prea lung după procesare: {caption_bytes} bytes")
+            # Truncare de urgență - păstrează doar titlul și footer-ul
+            safe_title = escape_html(clean_text(title, 100)) if title else "Video"
+            caption = f"✅ <b>{safe_title}</b>\n\n🎬 Descărcare completă!"
         
         return caption
         
     except Exception as e:
         logger.error(f"Eroare la crearea caption-ului: {e}")
-        # Fallback la un caption minimal
-        title_safe = escape_html(title[:100]) if title else 'Video'
-        return f"✅ <b>{title_safe}</b>\n\n🎬 Descărcare completă!"
+        # Fallback la un caption minimal ultra-sigur
+        try:
+            safe_title = escape_html(str(title)[:50]) if title else 'Video'
+            return f"✅ <b>{safe_title}</b>\n\n🎬 Descărcare completă!"
+        except:
+            return "✅ <b>Video</b>\n\n🎬 Descărcare completă!"
 
 # Configurare Flask
 app = Flask(__name__)
@@ -224,24 +536,63 @@ if not TOKEN:
             print(f"  - {key}")
     raise ValueError("TELEGRAM_BOT_TOKEN nu este setat în variabilele de mediu")
 
-# Inițializare bot și application cu configurații optimizate pentru producție
-# Configurare bot cu connection pool și timeout-uri reduse pentru Render
+# Inițializare bot și application cu configurații optimizate pentru Render free tier
+# Configurații agresiv optimizate pentru limitările de memorie și CPU
 bot = Bot(TOKEN)
 application = (
     Application.builder()
     .token(TOKEN)
-    .connection_pool_size(50)  # Redus pentru mediul de producție
-    .pool_timeout(20.0)  # Timeout redus
-    .get_updates_connection_pool_size(5)  # Redus pentru webhook mode
-    .get_updates_pool_timeout(20.0)  # Timeout redus
-    .read_timeout(15.0)  # Timeout redus pentru citire
-    .write_timeout(15.0)  # Timeout redus pentru scriere
-    .connect_timeout(10.0)  # Timeout redus pentru conectare
+    .connection_pool_size(10)  # Redus dramatic pentru Render free tier
+    .pool_timeout(10.0)  # Timeout foarte redus pentru a evita blocarea
+    .get_updates_connection_pool_size(2)  # Minimal pentru webhook mode
+    .get_updates_pool_timeout(10.0)  # Timeout redus
+    .read_timeout(8.0)  # Timeout foarte redus pentru citire
+    .write_timeout(8.0)  # Timeout foarte redus pentru scriere
+    .connect_timeout(5.0)  # Timeout foarte redus pentru conectare
     .build()
 )
 
 # Variabilă globală pentru starea inițializării
 _app_initialized = False
+
+def cleanup_temp_files():
+    """
+    Curăță agresiv fișierele temporare pentru a economisi spațiu pe Render
+    """
+    try:
+        import glob
+        import os
+        
+        # Directoare temporare comune
+        temp_dirs = [
+            tempfile.gettempdir(),
+            '/tmp',
+            './temp',
+            './downloads'
+        ]
+        
+        files_deleted = 0
+        for temp_dir in temp_dirs:
+            if os.path.exists(temp_dir):
+                # Șterge fișiere video temporare
+                patterns = ['*.mp4', '*.avi', '*.mkv', '*.webm', '*.mov', '*.flv', '*.part', '*.tmp']
+                for pattern in patterns:
+                    for file_path in glob.glob(os.path.join(temp_dir, pattern)):
+                        try:
+                            if os.path.isfile(file_path):
+                                # Verifică dacă fișierul este mai vechi de 5 minute
+                                file_age = time.time() - os.path.getmtime(file_path)
+                                if file_age > 300:  # 5 minute
+                                    os.remove(file_path)
+                                    files_deleted += 1
+                        except Exception as e:
+                            logger.debug(f"Nu s-a putut șterge {file_path}: {e}")
+        
+        if files_deleted > 0:
+            logger.info(f"Cleanup: {files_deleted} fișiere temporare șterse")
+            
+    except Exception as e:
+        logger.debug(f"Eroare la cleanup fișiere temporare: {e}")
 
 def initialize_telegram_application():
     """Inițializează aplicația Telegram o singură dată"""
@@ -250,6 +601,9 @@ def initialize_telegram_application():
         return True
         
     try:
+        # Cleanup la inițializare
+        cleanup_temp_files()
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -269,11 +623,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Comandă /start - mesaj de bun venit cu meniu interactiv
     """
     welcome_message = """
-🎬 **Bot Descărcare Video**
+🎬 <b>Bot Descărcare Video</b>
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 • TikTok
 • Instagram
 • Facebook
@@ -281,7 +635,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
 
 ⚠️ YouTube nu este suportat momentan.
 
-⚠️ **Limitări:**
+⚠️ <b>Limitări:</b>
 - Videoclipuri max 3 ore
 - Mărime max 550MB
 - Calitate max 720p
@@ -298,21 +652,21 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await safe_send_message(update, welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    await safe_send_message(update, welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comandă /help - informații de ajutor
     """
     help_text = """
-🆘 **Cum să folosești botul:**
+🆘 <b>Cum să folosești botul:</b>
 
 1. Copiază link-ul videoclipului
 2. Trimite-l în acest chat
 3. Așteaptă să fie procesat
 4. Primești videoclipul descărcat
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 - TikTok (tiktok.com)
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch)
@@ -320,7 +674,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚠️ YouTube nu este suportat momentan.
 
-⚠️ **Probleme frecvente:**
+⚠️ <b>Probleme frecvente:</b>
 - Videoclipul este privat → Nu poate fi descărcat
 - Videoclipul este prea lung → Max 15 minute
 - Link invalid → Verifică că link-ul este corect
@@ -329,25 +683,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await safe_send_message(update, help_text, parse_mode='Markdown', reply_markup=reply_markup)
+    await safe_send_message(update, help_text, parse_mode='HTML', reply_markup=reply_markup)
 
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Afișează meniul principal
     """
     welcome_message = """
-🎬 **Bot Descărcare Video**
+🎬 <b>Bot Descărcare Video</b>
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 • YouTube
 • TikTok  
 • Instagram
 • Facebook
 • Twitter/X
 
-⚠️ **Limitări:**
+⚠️ <b>Limitări:</b>
 - Videoclipuri max 3 ore
 - Mărime max 550MB
 - Calitate max 720p
@@ -363,7 +717,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await safe_send_message(update, welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+    await safe_send_message(update, welcome_message, parse_mode='HTML', reply_markup=reply_markup)
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -438,6 +792,101 @@ async def safe_edit_callback_message(query, text, **kwargs):
             logger.error(f"Eroare la editarea mesajului callback: {e}")
             return None
 
+async def send_video_with_retry(update, file_path, title, uploader=None, description=None, duration=None, file_size=None, max_retries=3):
+    """
+    Trimite videoclip cu retry logic inteligent folosind ErrorHandler
+    """
+    user_id = update.effective_user.id
+    
+    # Determină platforma pentru metrici
+    platform = 'unknown'
+    if hasattr(update.message, 'text') and update.message.text:
+        from downloader import get_platform_from_url
+        platform = get_platform_from_url(update.message.text)
+    
+    # Înregistrează încercarea de descărcare
+    metrics.record_download_attempt(platform)
+    
+    # Strategii de fallback pentru caption-uri
+    caption_strategies = [
+        # Strategia 1: Caption complet
+        lambda: create_safe_caption(title, uploader, description, duration, file_size, 1000),
+        # Strategia 2: Fără descriere
+        lambda: create_safe_caption(title, uploader, None, duration, file_size, 800),
+        # Strategia 3: Doar titlu și creator
+        lambda: create_safe_caption(title, uploader, None, None, None, 500),
+        # Strategia 4: Doar titlu
+        lambda: create_safe_caption(title, None, None, None, None, 200),
+        # Strategia 5: Caption minimal
+        lambda: f"✅ <b>{escape_html(str(title)[:50]) if title else 'Video'}</b>\n\n🎬 Descărcare completă!"
+    ]
+    
+    for attempt in range(max_retries):
+        try:
+            # Alege strategia de caption bazată pe încercare
+            caption_strategy = caption_strategies[min(attempt, len(caption_strategies) - 1)]
+            caption = caption_strategy()
+            
+            logger.info(f"Încercare {attempt + 1} de trimitere video pentru user {user_id}, caption length: {len(caption)} chars")
+            
+            with open(file_path, 'rb') as video_file:
+                if hasattr(update.message, 'reply_video'):
+                    await update.message.reply_video(
+                        video=video_file,
+                        caption=caption,
+                        supports_streaming=True,
+                        parse_mode='HTML'
+                    )
+                else:
+                    await update.effective_chat.send_video(
+                        video=video_file,
+                        caption=caption,
+                        supports_streaming=True,
+                        parse_mode='HTML'
+                    )
+            
+            logger.info(f"Video trimis cu succes pentru user {user_id} la încercarea {attempt + 1}")
+            
+            # Înregistrează succesul pentru metrici
+            metrics.record_download_success(platform)
+            
+            # Cleanup imediat după trimiterea cu succes
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    logger.debug(f"Fișier șters imediat după trimitere: {file_path}")
+            except Exception as cleanup_error:
+                logger.debug(f"Nu s-a putut șterge fișierul {file_path}: {cleanup_error}")
+            
+            return True
+            
+        except Exception as e:
+            error_msg = str(e)
+            error_type = ErrorHandler.classify_error(error_msg, "telegram")
+            
+            # Loghează eroarea
+            ErrorHandler.log_error(error_type, "telegram", error_msg, user_id)
+            
+            # Verifică dacă este eroare de chat inaccesibil
+            if error_type == ErrorHandler.ERROR_TYPES['CHAT_INACCESSIBLE']:
+                logger.warning(f"Chat inaccesibil pentru user {user_id}")
+                return False
+            
+            # Verifică dacă ar trebui să reîncerce
+            if ErrorHandler.should_retry(error_type, attempt, max_retries):
+                delay = ErrorHandler.get_retry_delay(attempt, error_type)
+                logger.info(f"Reîncerc după {delay} secunde pentru user {user_id}")
+                await asyncio.sleep(delay)
+                continue
+            else:
+                # Nu mai încearcă - aruncă eroarea
+                metrics.record_download_failure(platform, error_type)
+                raise e
+    
+    # Dacă ajungem aici, toate încercările au eșuat
+    metrics.record_download_failure(platform, 'max_retries_exceeded')
+    return False
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Procesează mesajele text (link-uri pentru descărcare)
@@ -473,45 +922,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 loop = asyncio.get_event_loop()
                 
-                # Rulează descărcarea în thread pool
+                # Rulează descărcarea în thread pool cu progress updates
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    # Actualizează mesajul cu progres
+                    await safe_edit_message(
+                        status_message,
+                        "🔄 Analizez videoclipul și verific compatibilitatea..."
+                    )
+                    
+                    # Așteaptă puțin pentru a permite utilizatorului să vadă mesajul
+                    await asyncio.sleep(1)
+                    
+                    await safe_edit_message(
+                        status_message,
+                        "📥 Descarc videoclipul optimizat pentru Telegram..."
+                    )
+                    
                     result = await loop.run_in_executor(executor, download_video, message_text)
                 
                 if result['success']:
-                    # Trimite videoclipul
+                    # Trimite videoclipul cu retry logic pentru caption-uri prea lungi
                     try:
-                        with open(result['file_path'], 'rb') as video_file:
-                            # Folosește funcția centrală pentru caption sigur
-                            caption = create_safe_caption(
-                                title=result.get('title', 'Video'),
-                                uploader=result.get('uploader'),
-                                description=result.get('description'),
-                                duration=result.get('duration'),
-                                file_size=result.get('file_size')
-                            )
-                            
-                            try:
-                                if hasattr(update.message, 'reply_video'):
-                                    await update.message.reply_video(
-                                        video=video_file,
-                                        caption=caption,
-                                        supports_streaming=True,
-                                        parse_mode='Markdown'
-                                    )
-                                else:
-                                    await update.effective_chat.send_video(
-                                        video=video_file,
-                                        caption=caption,
-                                        supports_streaming=True,
-                                        parse_mode='Markdown'
-                                    )
-                            except Exception as e:
-                                error_msg = str(e).lower()
-                                if 'chat not found' in error_msg or 'forbidden' in error_msg or 'blocked' in error_msg:
-                                    logger.warning(f"Nu se poate trimite videoclipul - chat inaccesibil pentru user {user_id}: {e}")
-                                    return
-                                else:
-                                    raise
+                        await send_video_with_retry(
+                            update, 
+                            result['file_path'],
+                            result.get('title', 'Video'),
+                            result.get('uploader'),
+                            result.get('description'),
+                            result.get('duration'),
+                            result.get('file_size')
+                        )
                     except Exception as e:
                         logger.error(f"Eroare la trimiterea videoclipului: {e}")
                         await safe_edit_message(
@@ -519,27 +959,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"❌ Eroare la trimiterea videoclipului:\n{str(e)}"
                         )
                     
-                    # Șterge fișierul temporar
-                    try:
-                        os.remove(result['file_path'])
-                    except:
-                        pass
-                        
+                    # Cleanup este făcut automat în send_video_with_retry()
                     await safe_delete_message(status_message)
                     
+                    # Cleanup suplimentar pentru siguranță
+                    cleanup_temp_files()
+                    
                 else:
-                    await safe_edit_message(
-                        status_message,
-                        f"❌ Eroare la descărcarea videoclipului:\n{result['error']}"
-                    )
+                    # Clasifică eroarea și oferă mesaj prietenos
+                    error_type = ErrorHandler.classify_error(result['error'], "download")
+                    user_message = ErrorHandler.get_user_message(error_type, "download", result['error'])
+                    ErrorHandler.log_error(error_type, "download", result['error'], user_id)
+                    
+                    await safe_edit_message(status_message, user_message)
                     
             except Exception as e:
-                logger.error(f"Eroare la procesarea videoclipului: {e}")
+                error_msg = str(e)
+                error_type = ErrorHandler.classify_error(error_msg, "processing")
+                user_message = ErrorHandler.get_user_message(error_type, "processing", error_msg)
+                ErrorHandler.log_error(error_type, "processing", error_msg, user_id)
+                
                 if status_message:
-                    await safe_edit_message(
-                        status_message,
-                        f"❌ Eroare neașteptată:\n{str(e)}"
-                    )
+                    await safe_edit_message(status_message, user_message)
         else:
             # Mesaj pentru URL-uri nesuportate
             await safe_send_message(
@@ -589,21 +1030,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if query.data == 'help':
             help_text = """
-🆘 **Cum să folosești botul:**
+🆘 <b>Cum să folosești botul:</b>
 
 1. Copiază link-ul videoclipului
 2. Trimite-l în acest chat
 3. Așteaptă să fie procesat
 4. Primești videoclipul descărcat
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 - YouTube (youtube.com, youtu.be)
 - TikTok (tiktok.com)
 - Instagram (instagram.com)
 - Facebook (facebook.com, fb.watch)
 - Twitter/X (twitter.com, x.com)
 
-⚠️ **Probleme frecvente:**
+⚠️ <b>Probleme frecvente:</b>
 - Videoclipul este privat → Nu poate fi descărcat
 - Videoclipul este prea lung → Max 15 minute
 - Link invalid → Verifică că link-ul este corect
@@ -612,60 +1053,60 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await safe_edit_callback_message(query, help_text, parse_mode='Markdown', reply_markup=reply_markup)
+            await safe_edit_callback_message(query, help_text, parse_mode='HTML', reply_markup=reply_markup)
             
         elif query.data == 'platforms':
             platforms_text = """
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 
-✅ **TikTok**
+✅ <b>TikTok</b>
 - tiktok.com
 - vm.tiktok.com
 
-✅ **Instagram**
+✅ <b>Instagram</b>
 - instagram.com
 - Reels, IGTV, Posts video
 
-✅ **Facebook**
+✅ <b>Facebook</b>
 - facebook.com
 - fb.watch
 - m.facebook.com
 
-✅ **Twitter/X**
+✅ <b>Twitter/X</b>
 - twitter.com
 - x.com
 - mobile.twitter.com
 
-⚠️ **Notă:** Doar videoclipurile publice pot fi descărcate.
+⚠️ <b>Notă:</b> Doar videoclipurile publice pot fi descărcate.
 
-❌ **YouTube nu este suportat momentan** din cauza complexității tehnice și a restricțiilor platformei.
+❌ <b>YouTube nu este suportat momentan</b> din cauza complexității tehnice și a restricțiilor platformei.
             """
             
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await safe_edit_callback_message(query, platforms_text, parse_mode='Markdown', reply_markup=reply_markup)
+            await safe_edit_callback_message(query, platforms_text, parse_mode='HTML', reply_markup=reply_markup)
             
         elif query.data == 'settings':
             settings_text = """
-⚙️ **Setări și limitări:**
+⚙️ <b>Setări și limitări:</b>
 
-📏 **Limitări de dimensiune:**
+📏 <b>Limitări de dimensiune:</b>
 - Durată maximă: 3 ore
 - Calitate maximă: 720p
 - Dimensiune maximă: 550MB
 
-🚫 **Restricții:**
+🚫 <b>Restricții:</b>
 - Doar videoclipuri publice
 - Nu se suportă livestream-uri
 - Nu se suportă playlist-uri
 
-⚡ **Performanță:**
+⚡ <b>Performanță:</b>
 - Timp mediu de procesare: 30-60 secunde
 - Depinde de dimensiunea videoclipului
 - Server gratuit cu limitări
 
-🔒 **Confidențialitate:**
+🔒 <b>Confidențialitate:</b>
 - Nu salvez videoclipurile
 - Nu salvez link-urile
 - Procesare temporară
@@ -674,35 +1115,35 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await safe_edit_callback_message(query, settings_text, parse_mode='Markdown', reply_markup=reply_markup)
+            await safe_edit_callback_message(query, settings_text, parse_mode='HTML', reply_markup=reply_markup)
             
         elif query.data == 'faq':
             faq_text = """
-❓ **Întrebări frecvente:**
+❓ <b>Întrebări frecvente:</b>
 
-**Q: De ce nu funcționează link-ul meu?**
+<b>Q: De ce nu funcționează link-ul meu?</b>
 A: Verifică că videoclipul este public și de pe o platformă suportată.
 
-**Q: Cât timp durează descărcarea?**
+<b>Q: Cât timp durează descărcarea?</b>
 A: De obicei 30-60 secunde, depinde de dimensiunea videoclipului.
 
-**Q: Pot descărca videoclipuri private?**
+<b>Q: Pot descărca videoclipuri private?</b>
 A: Nu, doar videoclipurile publice pot fi descărcate.
 
-**Q: Ce calitate au videoclipurile?**
+<b>Q: Ce calitate au videoclipurile?</b>
 A: Maxim 720p pentru a respecta limitările serverului.
 
-**Q: Botul nu răspunde?**
+<b>Q: Botul nu răspunde?</b>
 A: Serverul gratuit poate fi în hibernare. Încearcă din nou în câteva minute.
 
-**Q: Pot descărca playlist-uri?**
+<b>Q: Pot descărca playlist-uri?</b>
 A: Nu, doar videoclipuri individuale.
             """
             
             keyboard = [[InlineKeyboardButton("🏠 Meniu principal", callback_data='back_to_menu')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await safe_edit_callback_message(query, faq_text, parse_mode='Markdown', reply_markup=reply_markup)
+            await safe_edit_callback_message(query, faq_text, parse_mode='HTML', reply_markup=reply_markup)
             
         elif query.data == 'ping_again':
             start_time = time.time()
@@ -734,18 +1175,18 @@ A: Nu, doar videoclipuri individuale.
             
         elif query.data == 'back_to_menu':
             welcome_message = """
-🎬 **Bot Descărcare Video**
+🎬 <b>Bot Descărcare Video</b>
 
 Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platforme.
 
-🔗 **Platforme suportate:**
+🔗 <b>Platforme suportate:</b>
 • YouTube
 • TikTok  
 • Instagram
 • Facebook
 • Twitter/X
 
-⚠️ **Limitări:**
+⚠️ <b>Limitări:</b>
 - Videoclipuri max 15 minute
 - Calitate max 720p
 - Doar videoclipuri publice
@@ -760,7 +1201,7 @@ Bun venit! Sunt aici să te ajut să descarci videoclipuri de pe diverse platfor
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await safe_edit_callback_message(query, welcome_message, parse_mode='Markdown', reply_markup=reply_markup)
+            await safe_edit_callback_message(query, welcome_message, parse_mode='HTML', reply_markup=reply_markup)
             
     except Exception as e:
         logger.error(f"Eroare generală în button_callback: {e}")
@@ -792,19 +1233,44 @@ def index():
 # Configurații simplificate pentru webhook-uri
 # Thread pool eliminat pentru a evita problemele în producție
 
-# Set pentru a urmări mesajele procesate (previne duplicarea)
+# Rate limiting și deduplicare pentru Render free tier
 processed_messages = set()
+user_last_request = {}  # chat_id -> timestamp
+MAX_REQUESTS_PER_MINUTE = 3  # Limită agresivă pentru Render free tier
+
+def is_rate_limited(chat_id):
+    """Verifică dacă utilizatorul este rate limited"""
+    current_time = time.time()
+    
+    if chat_id in user_last_request:
+        time_diff = current_time - user_last_request[chat_id]
+        if time_diff < 60 / MAX_REQUESTS_PER_MINUTE:  # 20 secunde între cereri
+            metrics.record_rate_limit()
+            return True
+    
+    user_last_request[chat_id] = current_time
+    
+    # Cleanup periodic pentru a economisi memorie
+    if len(user_last_request) > 100:
+        # Păstrează doar ultimele 50 de utilizatori
+        sorted_users = sorted(user_last_request.items(), key=lambda x: x[1], reverse=True)
+        user_last_request.clear()
+        user_last_request.update(dict(sorted_users[:50]))
+    
+    return False
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Procesează webhook-urile de la Telegram"""
     try:
+        # Înregistrează cererea webhook pentru metrici
+        metrics.record_webhook_request()
+        
         # Obține datele JSON de la Telegram
         json_data = request.get_json()
         
         if not json_data:
-            logger.error("Nu s-au primit date JSON")
-            return jsonify({'status': 'error', 'message': 'No JSON data'}), 400
+            return jsonify({'status': 'ok'}), 200  # Returnează OK pentru a evita retry-urile
         
         logger.info(f"Webhook primit: {json_data}")
         
@@ -1248,6 +1714,61 @@ def ping_endpoint():
         'timestamp': time.time(),
         'status': 'alive'
     })
+
+@app.route('/metrics', methods=['GET'])
+def metrics_endpoint():
+    """Endpoint pentru metrici și monitoring"""
+    try:
+        stats = metrics.get_stats()
+        
+        # Adaugă informații despre sistem dacă psutil este disponibil
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            cpu_percent = process.cpu_percent()
+            
+            stats['system'] = {
+                'memory_mb': round(memory_mb, 1),
+                'cpu_percent': round(cpu_percent, 1),
+                'pid': process.pid
+            }
+        except ImportError:
+            stats['system'] = {'note': 'psutil not available'}
+        
+        # Loghează statisticile periodic
+        metrics.log_periodic_stats()
+        
+        return jsonify({
+            'status': 'ok',
+            'timestamp': time.time(),
+            'metrics': stats
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Eroare la obținerea metricilor: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/reset_metrics', methods=['POST'])
+def reset_metrics_endpoint():
+    """Endpoint pentru resetarea metricilor"""
+    try:
+        metrics.reset_metrics()
+        logger.info("📊 Metrici resetate")
+        return jsonify({
+            'status': 'ok',
+            'message': 'Metrics reset successfully'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Eroare la resetarea metricilor: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 # Funcție pentru inițializarea în contextul Flask
 def ensure_app_initialized():

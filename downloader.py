@@ -377,15 +377,15 @@ def try_facebook_fallback(url, output_path, title):
         logger.info(f"URL Facebook normalizat: {normalized_url}")
         url = normalized_url
     
-    # Configurații alternative pentru Facebook - optimizate pentru 2025 cu strategii diverse
+    # Configurații alternative pentru Facebook - optimizate pentru Render free tier 2025
     fallback_configs = [
-        # Configurația 1: Chrome desktop cu API v19.0 (cea mai recentă)
+        # Configurația 1: Chrome desktop cu API v20.0 (cea mai recentă pentru 2025)
         {
-            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
+            'format': 'best[filesize<50M][height<=480]/best[height<=480]/best[filesize<50M]/best',  # Limită agresivă pentru Render
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
@@ -396,153 +396,90 @@ def try_facebook_fallback(url, output_path, title):
                 'Sec-Fetch-User': '?1',
                 'Upgrade-Insecure-Requests': '1',
                 'Cache-Control': 'max-age=0',
+                'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
             },
-            'extractor_retries': 5,
-            'fragment_retries': 5,
-            'socket_timeout': 45,
-            'retries': 5,
+            'extractor_retries': 2,  # Redus pentru Render
+            'fragment_retries': 2,
+            'socket_timeout': 20,  # Redus pentru Render
+            'retries': 2,
             'ignoreerrors': True,
             'extract_flat': False,
             'no_warnings': True,
-            'sleep_interval': 2,
-            'max_sleep_interval': 5,
+            'sleep_interval': 1,
+            'max_sleep_interval': 3,
+            'cachedir': False,  # Economie spațiu
             'extractor_args': {
                 'facebook': {
                     'legacy_ssl': True,
-                    'api_version': 'v19.0',
-                    'tab': 'videos'
-                }
-            },
-        },
-        # Configurația 2: Firefox desktop cu strategii alternative
-        {
-            'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-            },
-            'extractor_retries': 4,
-            'fragment_retries': 4,
-            'socket_timeout': 40,
-            'retries': 4,
-            'ignoreerrors': True,
-            'sleep_interval': 3,
-            'max_sleep_interval': 7,
-            'extractor_args': {
-                'facebook': {
-                    'legacy_ssl': True,
-                    'api_version': 'v18.0',
+                    'api_version': 'v20.0',  # Actualizat pentru 2025
                     'tab': 'videos',
-                    'legacy_format': True
+                    'mobile_client': False
                 }
             },
         },
-        # Configurația 3: iPhone Safari mobile cu API v17.0
+        # Configurația 2: iPhone Safari mobile optimizat pentru Render
         {
-            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
+            'format': 'best[filesize<40M][height<=360]/best[height<=360]/best[filesize<40M]/best',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-            },
-            'extractor_retries': 3,
-            'fragment_retries': 3,
-            'socket_timeout': 35,
-            'retries': 3,
-            'ignoreerrors': True,
-            'sleep_interval': 4,
-            'max_sleep_interval': 8,
-            'extractor_args': {
-                'facebook': {
-                    'mobile_client': True,
-                    'legacy_ssl': True,
-                    'api_version': 'v17.0',
-                    'tab': 'videos'
-                }
-            },
-        },
-        # Configurația 4: Android Chrome mobile cu strategii agresive
-        {
-            'format': 'best[filesize<512M][height<=480]/best[height<=480]/best[filesize<512M]/best',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-            },
-            'extractor_retries': 3,
-            'fragment_retries': 3,
-            'socket_timeout': 30,
-            'retries': 3,
-            'ignoreerrors': True,
-            'sleep_interval': 5,
-            'max_sleep_interval': 10,
-            'extractor_args': {
-                'facebook': {
-                    'android_client': True,
-                    'legacy_ssl': True,
-                    'api_version': 'v18.0',
-                    'tab': 'videos'
-                }
-            },
-        },
-        # Configurația 5: Strategia de ultimă instanță - calitate scăzută, timeout mare
-        {
-            'format': 'worst[filesize<512M][height<=360]/worst[height<=360]/worst[filesize<512M]/worst',
-            'restrictfilenames': True,
-            'windowsfilenames': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:122.0) Gecko/122.0 Firefox/122.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
                 'Accept-Encoding': 'gzip, deflate',
                 'Connection': 'keep-alive',
             },
             'extractor_retries': 2,
             'fragment_retries': 2,
-            'socket_timeout': 60,
+            'socket_timeout': 15,
             'retries': 2,
             'ignoreerrors': True,
-            'sleep_interval': 8,
-            'max_sleep_interval': 15,
+            'sleep_interval': 1,
+            'max_sleep_interval': 3,
+            'cachedir': False,
+            'extractor_args': {
+                'facebook': {
+                    'mobile_client': True,
+                    'legacy_ssl': True,
+                    'api_version': 'v19.0',
+                    'tab': 'videos'
+                }
+            },
+        },
+        # Configurația 3: Android Chrome mobile optimizat pentru Render
+        {
+            'format': 'best[filesize<30M][height<=360]/best[height<=360]/best[filesize<30M]/best',
+            'restrictfilenames': True,
+            'windowsfilenames': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+            },
+            'extractor_retries': 2,
+            'fragment_retries': 2,
+            'socket_timeout': 15,
+            'retries': 2,
+            'ignoreerrors': True,
+            'sleep_interval': 1,
+            'max_sleep_interval': 3,
+            'cachedir': False,
             'extractor_args': {
                 'facebook': {
                     'android_client': True,
                     'legacy_ssl': True,
-                    'low_quality': True,
-                    'api_version': 'v16.0',
-                    'tab': 'videos',
-                    'legacy_format': True
+                    'api_version': 'v19.0',
+                    'tab': 'videos'
                 }
             },
         },
-        # Configurația 6: Fallback extrem - fără extractor_args
+        # Configurația 4: Fallback extrem pentru Render - calitate minimă
         {
-            'format': 'worst[filesize<256M]/worst',
+            'format': 'worst[filesize<20M]/worst',
             'restrictfilenames': True,
             'windowsfilenames': True,
             'http_headers': {
@@ -551,11 +488,13 @@ def try_facebook_fallback(url, output_path, title):
             },
             'extractor_retries': 1,
             'fragment_retries': 1,
-            'socket_timeout': 90,
+            'socket_timeout': 10,
             'retries': 1,
             'ignoreerrors': True,
-            'sleep_interval': 10,
-            'max_sleep_interval': 20,
+            'sleep_interval': 0,
+            'max_sleep_interval': 1,
+            'cachedir': False,
+            'no_warnings': True,
         }
     ]
     
@@ -767,40 +706,20 @@ def download_video(url, output_path=None):
                 'title': 'YouTube - Nu este suportat'
             }
         else:
+            # Determină platforma și obține configurația specifică
+            platform = get_platform_from_url(url)
+            logger.info(f"Platformă detectată: {platform}")
+            
             # Normalizează URL-urile Facebook înainte de descărcare
-            if 'facebook.com' in url.lower() or 'fb.watch' in url.lower():
+            if platform == 'facebook':
                 url = normalize_facebook_url(url)
                 logger.info(f"URL procesat pentru Facebook: {url}")
             
-            # Configurație pentru alte platforme
-            ydl_opts = {
-                'outtmpl': os.path.join(temp_dir, '%(title).100s.%(ext)s'),  # Limitează titlul la 100 caractere
-                'format': 'best[filesize<512M][height<=720]/best[height<=720]/best[filesize<512M]/best',
-                'quiet': True,
-                'noplaylist': True,
-                'extractaudio': False,
-                'audioformat': 'mp3',
-                'embed_subs': False,
-                'writesubtitles': False,
-                'writeautomaticsub': False,
-                'restrictfilenames': True,  # Restricționează caracterele în nume
-                'windowsfilenames': True,   # Compatibilitate Windows
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Connection': 'keep-alive',
-                },
-                'extractor_retries': 5,
-                'fragment_retries': 5,
-                'retry_sleep_functions': {'http': lambda n: min(4 ** n, 60)},
-                'ignoreerrors': False,
-                'extract_flat': False,
-                'skip_download': False,
-                'socket_timeout': 30,
-                'retries': 3,
-            }
+            # Obține configurația specifică platformei optimizată pentru Render
+            ydl_opts = get_platform_specific_config(platform)
+            ydl_opts['outtmpl'] = os.path.join(temp_dir, '%(title).50s.%(ext)s')
+            
+            logger.info(f"Configurație {platform} aplicată cu format: {ydl_opts.get('format', 'default')}")
     
         logger.info("=== DOWNLOAD_VIDEO Creating YoutubeDL instance ===")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -843,13 +762,23 @@ def download_video(url, output_path=None):
             if not title or title == 'video':
                 title = f"Video de pe {url.split('/')[2] if '/' in url else 'platformă necunoscută'}"
             
-            # Verifică dacă videoul nu este prea lung (max 3 ore pentru fișiere mai mari)
-            if duration and duration > 10800:  # 3 ore = 10800 secunde
+            # Verifică dacă videoul nu este prea lung (limită redusă pentru Render free tier)
+            max_duration = 1800  # 30 minute pentru Render free tier
+            if duration and duration > max_duration:
+                duration_minutes = int(duration // 60)
+                max_minutes = int(max_duration // 60)
                 return {
                     'success': False,
-                    'error': 'Videoul este prea lung (max 3 ore)',
+                    'error': f'❌ Videoul este prea lung ({duration_minutes} minute). Limita pentru Render free tier este {max_minutes} minute.\n\n💡 Încearcă un videoclip mai scurt.',
                     'title': title
                 }
+            
+            # Afișează informații despre video înainte de descărcare
+            if duration:
+                duration_str = f"{int(duration // 60)}:{int(duration % 60):02d}"
+                logger.info(f"Video info: {title[:50]}... | Durată: {duration_str} | Creator: {uploader or 'N/A'}")
+            else:
+                logger.info(f"Video info: {title[:50]}... | Creator: {uploader or 'N/A'}")
             
             # Descarcă videoul
             try:
@@ -905,18 +834,63 @@ def download_video(url, output_path=None):
             # Ia primul fișier găsit (ar trebui să fie singurul)
             downloaded_file = downloaded_files[0]
             
-            # Verifică dimensiunea fișierului
+            # Verifică dimensiunea fișierului cu redownload automat la calitate mai mică
             file_size = os.path.getsize(downloaded_file)
-            max_size = 512 * 1024 * 1024  # 512MB în bytes
-
+            max_size = 50 * 1024 * 1024  # 50MB pentru Telegram (limită agresivă pentru Render)
+            
             if file_size > max_size:
+                size_mb = file_size / (1024*1024)
+                logger.warning(f"Fișier prea mare: {size_mb:.1f}MB, încerc redownload cu calitate mai mică")
+                
+                # Șterge fișierul prea mare
                 os.remove(downloaded_file)
-                size_mb = file_size / (1024*1024) if isinstance(file_size, (int, float)) else 0
-                return {
-                    'success': False,
-                    'error': f'Fișierul este prea mare ({size_mb:.1f}MB). Limita este 512MB pentru a evita erorile Telegram.',
-                    'title': title
-                }
+                
+                # Încearcă redownload cu calități progresiv mai mici
+                quality_fallbacks = [
+                    'best[filesize<30M][height<=360]/best[height<=360]/best[filesize<30M]',
+                    'best[filesize<20M][height<=240]/best[height<=240]/best[filesize<20M]',
+                    'worst[filesize<15M]/worst'
+                ]
+                
+                for i, quality_format in enumerate(quality_fallbacks):
+                    try:
+                        logger.info(f"Redownload încercarea {i+1} cu format: {quality_format}")
+                        
+                        # Actualizează configurația cu calitatea mai mică
+                        retry_opts = ydl_opts.copy()
+                        retry_opts['format'] = quality_format
+                        
+                        with yt_dlp.YoutubeDL(retry_opts) as ydl_retry:
+                            ydl_retry.download([url])
+                        
+                        # Verifică din nou fișierele descărcate
+                        downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+                        downloaded_files = [f for f in downloaded_files if os.path.isfile(f) and not f.endswith('.part')]
+                        
+                        if downloaded_files:
+                            downloaded_file = max(downloaded_files, key=os.path.getsize)
+                            new_file_size = os.path.getsize(downloaded_file)
+                            
+                            if new_file_size <= max_size:
+                                logger.info(f"Redownload reușit: {new_file_size / (1024*1024):.1f}MB")
+                                file_size = new_file_size
+                                break
+                            else:
+                                # Încă prea mare, șterge și încearcă următoarea calitate
+                                os.remove(downloaded_file)
+                                continue
+                        
+                    except Exception as retry_error:
+                        logger.warning(f"Redownload încercarea {i+1} eșuată: {retry_error}")
+                        continue
+                
+                else:
+                    # Toate încercările au eșuat
+                    return {
+                        'success': False,
+                        'error': f'❌ Videoclipul este prea mare ({size_mb:.1f}MB) chiar și la calitate redusă. Limita pentru Telegram este 50MB.',
+                        'title': title
+                    }
             
             logger.info(f"=== DOWNLOAD_VIDEO SUCCESS === File: {downloaded_file}")
             return {
@@ -990,11 +964,138 @@ def download_video(url, output_path=None):
 
 def is_supported_url(url):
     """
-    Verifică dacă URL-ul este suportat
+    Verifică dacă URL-ul este suportat - îmbunătățit pentru 2025
     """
-    supported_domains = [
-        'tiktok.com', 'instagram.com', 
-        'facebook.com', 'fb.watch', 'twitter.com', 'x.com'
+    url_lower = url.lower()
+    
+    # Platforme suportate cu variante multiple de URL
+    supported_patterns = [
+        # TikTok
+        'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com', 'm.tiktok.com',
+        # Instagram  
+        'instagram.com', 'instagr.am', 'ig.me',
+        # Facebook
+        'facebook.com', 'fb.watch', 'm.facebook.com', 'fb.me',
+        # Twitter/X
+        'twitter.com', 'x.com', 't.co', 'mobile.twitter.com'
     ]
     
-    return any(domain in url.lower() for domain in supported_domains)
+    return any(pattern in url_lower for pattern in supported_patterns)
+
+def get_platform_from_url(url):
+    """
+    Determină platforma din URL pentru configurații specifice
+    """
+    url_lower = url.lower()
+    
+    if any(pattern in url_lower for pattern in ['tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com']):
+        return 'tiktok'
+    elif any(pattern in url_lower for pattern in ['instagram.com', 'instagr.am', 'ig.me']):
+        return 'instagram'
+    elif any(pattern in url_lower for pattern in ['facebook.com', 'fb.watch', 'm.facebook.com']):
+        return 'facebook'
+    elif any(pattern in url_lower for pattern in ['twitter.com', 'x.com', 't.co']):
+        return 'twitter'
+    else:
+        return 'unknown'
+
+def get_platform_specific_config(platform):
+    """
+    Returnează configurații specifice pentru fiecare platformă optimizate pentru Render
+    """
+    base_config = {
+        'restrictfilenames': True,
+        'windowsfilenames': True,
+        'quiet': True,
+        'noplaylist': True,
+        'extractaudio': False,
+        'embed_subs': False,
+        'writesubtitles': False,
+        'writeautomaticsub': False,
+        'writeinfojson': False,
+        'writethumbnail': False,
+        'cachedir': False,
+        'no_warnings': True,
+        'socket_timeout': 15,
+        'retries': 2,
+        'extractor_retries': 2,
+        'fragment_retries': 2,
+    }
+    
+    if platform == 'tiktok':
+        return {
+            **base_config,
+            'format': 'best[filesize<40M][height<=720]/best[height<=720]/best[filesize<40M]/best',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+            },
+            'extractor_args': {
+                'tiktok': {
+                    'api_hostname': 'api.tiktokv.com',
+                    'webpage_url_basename': 'video'
+                }
+            }
+        }
+    
+    elif platform == 'instagram':
+        return {
+            **base_config,
+            'format': 'best[filesize<45M][height<=720]/best[height<=720]/best[filesize<45M]/best',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            'extractor_args': {
+                'instagram': {
+                    'api_hostname': 'i.instagram.com',
+                    'comment_count': 0
+                }
+            }
+        }
+    
+    elif platform == 'twitter':
+        return {
+            **base_config,
+            'format': 'best[filesize<40M][height<=720]/best[height<=720]/best[filesize<40M]/best',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+            },
+            'extractor_args': {
+                'twitter': {
+                    'api_base': 'https://api.twitter.com/1.1',
+                    'legacy': True
+                }
+            }
+        }
+    
+    else:  # facebook sau unknown
+        return {
+            **base_config,
+            'format': 'best[filesize<50M][height<=480]/best[height<=480]/best[filesize<50M]/best',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+            }
+        }
