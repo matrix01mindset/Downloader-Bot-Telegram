@@ -245,7 +245,7 @@ def filter_supported_urls(urls):
         if is_supported_url(url):
             supported_urls.append(url)
     return supported_urls
-=======
+
 def is_caption_too_long_error(error_msg: str) -> bool:
     """
     Detectează dacă eroarea este cauzată de un caption prea lung.
